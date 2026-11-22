@@ -1,19 +1,19 @@
 {
-  "executed_utc": "2026-11-22T16:45:39.973422+00:00",
+  "executed_utc": "2026-11-22T17:56:00.785644+00:00",
   "command": [
     "python",
     "-B",
     "-X",
     "utf8",
-    "<skill_dir>/evals/test_workflow.py",
+    ".agents/skills/zm_neuron_network/evals/test_workflow.py",
     "--report",
-    "<local_path>/workflow_after.json"
+    "<local_path>/workflow-results.json"
   ],
   "status": "passed",
   "tests_run": 15,
   "failures": 0,
   "errors": 0,
-  "test_log": "test_actual_instance_values_are_compared (__main__.WorkflowChecks.test_actual_instance_values_are_compared) ... ok\ntest_changed_code_blocks_stale_result (__main__.WorkflowChecks.test_changed_code_blocks_stale_result) ... ok\ntest_changed_config_cannot_reuse_old_outputs (__main__.WorkflowChecks.test_changed_config_cannot_reuse_old_outputs) ... ok\ntest_changed_method_requires_plan_review (__main__.WorkflowChecks.test_changed_method_requires_plan_review) ... ok\ntest_cli_checks_from_another_working_directory (__main__.WorkflowChecks.test_cli_checks_from_another_working_directory) ... ok\ntest_complete_executed_workflow (__main__.WorkflowChecks.test_complete_executed_workflow) ... ok\ntest_derivation_is_recomputed (__main__.WorkflowChecks.test_derivation_is_recomputed) ... ok\ntest_failed_component_record_blocks_completion (__main__.WorkflowChecks.test_failed_component_record_blocks_completion) ... ok\ntest_model_update_executes_new_run (__main__.WorkflowChecks.test_model_update_executes_new_run) ... ok\ntest_module_outputs_must_match_step_outputs (__main__.WorkflowChecks.test_module_outputs_must_match_step_outputs) ... ok\ntest_plan_does_not_require_future_source_files (__main__.WorkflowChecks.test_plan_does_not_require_future_source_files) ... ok\ntest_reanalysis_preserves_simulation (__main__.WorkflowChecks.test_reanalysis_preserves_simulation) ... ok\ntest_required_result_cannot_be_downgraded (__main__.WorkflowChecks.test_required_result_cannot_be_downgraded) ... ok\ntest_runtime_export_must_be_in_recorded_check (__main__.WorkflowChecks.test_runtime_export_must_be_in_recorded_check) ... ok\ntest_task_required_feature_cannot_be_omitted (__main__.WorkflowChecks.test_task_required_feature_cannot_be_omitted) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 6.969s\n\nOK\n",
+  "test_log": "test_actual_instance_values_are_compared (__main__.WorkflowChecks.test_actual_instance_values_are_compared) ... ok\ntest_changed_code_blocks_stale_result (__main__.WorkflowChecks.test_changed_code_blocks_stale_result) ... ok\ntest_changed_config_cannot_reuse_old_outputs (__main__.WorkflowChecks.test_changed_config_cannot_reuse_old_outputs) ... ok\ntest_changed_method_requires_plan_review (__main__.WorkflowChecks.test_changed_method_requires_plan_review) ... ok\ntest_cli_checks_from_another_working_directory (__main__.WorkflowChecks.test_cli_checks_from_another_working_directory) ... ok\ntest_complete_executed_workflow (__main__.WorkflowChecks.test_complete_executed_workflow) ... ok\ntest_derivation_is_recomputed (__main__.WorkflowChecks.test_derivation_is_recomputed) ... ok\ntest_failed_component_record_blocks_completion (__main__.WorkflowChecks.test_failed_component_record_blocks_completion) ... ok\ntest_model_update_executes_new_run (__main__.WorkflowChecks.test_model_update_executes_new_run) ... ok\ntest_module_outputs_must_match_step_outputs (__main__.WorkflowChecks.test_module_outputs_must_match_step_outputs) ... ok\ntest_plan_does_not_require_future_source_files (__main__.WorkflowChecks.test_plan_does_not_require_future_source_files) ... ok\ntest_reanalysis_preserves_simulation (__main__.WorkflowChecks.test_reanalysis_preserves_simulation) ... ok\ntest_required_result_cannot_be_downgraded (__main__.WorkflowChecks.test_required_result_cannot_be_downgraded) ... ok\ntest_runtime_export_must_be_in_recorded_check (__main__.WorkflowChecks.test_runtime_export_must_be_in_recorded_check) ... ok\ntest_task_required_feature_cannot_be_omitted (__main__.WorkflowChecks.test_task_required_feature_cannot_be_omitted) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 7.264s\n\nOK\n",
   "retained_example": null,
   "files_sha256": {
     "scripts/check_elements.py": "8285d887699c458d4c476215fee59332c8df70e86eac6c5bce2a1fe382b75dd9",
@@ -21,6 +21,7 @@
     "scripts/check_outputs.py": "89fe91e734a420b2a0b8ae6218ad4118ca73d82740cd431cf533f3e4ee8fd445",
     "scripts/check_project.py": "ec774c1314b83445e9f2e22bb28e97c52cdcb3b34dc459d0e18d4ca45e29453d",
     "scripts/check_records.py": "ea84bedc47daf0be124b1d97154e813d2ac1b1597dc321d4da6628c1a567408a",
+    "scripts/check_skill_sources.py": "fb1cc190ddb72ca221b2a4a9eb383aaa18e771489d5b720fd8c1aee72b8098bb",
     "evals/test_workflow.py": "223198ecb5ac657326a1ff12833cc800383eead8d75279ae978fbb33c5e848a3",
     "evals/workflow_case.py": "6647367cf4f6a79a30a367f742970257e846136b49c6d5404bdebbb19383d689",
     "references/element-catalog.json": "fa54bb3cc89c91461c365ee32ad1eb964131048afcdfb74e061febb44c189c75"
