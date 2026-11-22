@@ -1,6 +1,8 @@
 # zm_neuron_network
 
-围绕科学问题开展神经元网络建模的 Codex Skill。从现象或粗略想法出发，结合文献与公开代码逐步明确问题，构建、运行、比较和优化模型，并保存方法、数据与结果图件。
+面向科学问题的神经元网络建模 Codex Skill。
+
+从现象或研究问题出发，边调研边分轮追问，选择神经网络构建方法及所需机制；落实完整要素和参数对应，实际运行、比较、优化，保存逐步结果与数据图件。默认构建有基础发放率的静息态网络，也支持指定工程的机制扩展、检查、修改与重分析。
 
 ## 能做什么
 
@@ -20,7 +22,7 @@
 git clone https://github.com/zmneuron/zm_neuron_network.git "$env:USERPROFILE\.agents\skills\zm_neuron_network"
 ```
 
-也可以下载仓库 ZIP，将其中整个技能目录放到 `~/.agents/skills/zm_neuron_network/`，或某个项目的 `.agents/skills/zm_neuron_network/`。该目录下应直接包含 `SKILL.md`，不要多套一层目录。技能未出现时重启 Codex。安装位置参照 [Codex 官方说明](https://learn.chatgpt.com/docs/build-skills)。私有仓库需要仓库访问权限。
+也可以下载仓库 ZIP，将其中整个技能目录放到 `~/.agents/skills/zm_neuron_network/`，或某个项目的 `.agents/skills/zm_neuron_network/`。该目录下应直接包含 `SKILL.md`，不要多套一层目录。技能未出现时重启 Codex。安装位置参照 [Codex 官方说明](https://learn.chatgpt.com/docs/build-skills)。本仓库公开可读，下载和获取更新无需协作者邀请。
 
 通过 Git 安装后，可获取更新：
 
@@ -61,3 +63,5 @@ python -B -X utf8 evals/test_workflow.py
 软件自检会在临时目录生成合成数据，不能代替真实科研模型的生物学验证。发布版省略依赖作者本地工程的少数评测案例，原编号保留，列表见 [publication.json](publication.json)。检查记录中的机器路径使用明确占位符；核心技能、模板与检查实现保留。
 
 更新由维护者的本地发布工具在文件稳定且检查通过后推送。其他使用者通过 Git 更新或重新下载即可取得新版本。
+
+仓库首段介绍和 About 简介随当前技能描述更新；[简介与标签配置](repository-about.json)随仓库版本保存。维护者在本地编辑说明后，发布工具会一并更新 README 和 GitHub About。
