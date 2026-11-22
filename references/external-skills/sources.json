@@ -1,0 +1,51 @@
+{
+  "scope": "Instruction texts only; no upstream plugins, hooks, executables or session trackers are bundled.",
+  "sources": [
+    {
+      "name": "anti-defensive-writing",
+      "repository": "https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill",
+      "commit": "e65bd9d8bf8ed8b9af809e5aff8237d76370876d",
+      "retrieved_on": "2026-11-23",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "anti-defensive-writing.md",
+          "upstream_path": "skills/anti-defensive-writing/SKILL.md",
+          "source_url": "https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill/blob/e65bd9d8bf8ed8b9af809e5aff8237d76370876d/skills/anti-defensive-writing/SKILL.md",
+          "sha256": "6f072e66f6adf813bc1b4291754f2bc07ed4e65a398359844e97bfa215a1c28e",
+          "modified": false
+        },
+        {
+          "file": "anti-defensive-writing.LICENSE",
+          "upstream_path": "LICENSE",
+          "source_url": "https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill/blob/e65bd9d8bf8ed8b9af809e5aff8237d76370876d/LICENSE",
+          "sha256": "fdf440e5214588d9edcdc1ec315cddbd8525fe509242c24989a8472d283325f4",
+          "modified": false
+        }
+      ]
+    },
+    {
+      "name": "ponytail",
+      "repository": "https://github.com/DietrichGebert/ponytail",
+      "commit": "ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10",
+      "retrieved_on": "2026-11-23",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "ponytail.md",
+          "upstream_path": "skills/ponytail/SKILL.md",
+          "source_url": "https://github.com/DietrichGebert/ponytail/blob/ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10/skills/ponytail/SKILL.md",
+          "sha256": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509",
+          "modified": false
+        },
+        {
+          "file": "ponytail.LICENSE",
+          "upstream_path": "LICENSE",
+          "source_url": "https://github.com/DietrichGebert/ponytail/blob/ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10/LICENSE",
+          "sha256": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
+          "modified": false
+        }
+      ]
+    }
+  ]
+}
