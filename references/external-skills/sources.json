@@ -1,5 +1,5 @@
 {
-  "scope": "Instruction texts only; no upstream plugins, hooks, executables or session trackers are bundled.",
+  "scope": "Pinned original instruction texts and a scoped ARS workflow adaptation; no upstream plugins, hooks, executables or session trackers are bundled.",
   "sources": [
     {
       "name": "anti-defensive-writing",
@@ -13,16 +13,19 @@
           "upstream_path": "skills/anti-defensive-writing/SKILL.md",
           "source_url": "https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill/blob/e65bd9d8bf8ed8b9af809e5aff8237d76370876d/skills/anti-defensive-writing/SKILL.md",
           "sha256": "6f072e66f6adf813bc1b4291754f2bc07ed4e65a398359844e97bfa215a1c28e",
-          "modified": false
+          "modified": false,
+          "upstream_blob_sha": "59879391d4e7eda0d0017cff89f1ecf0b2566b8c"
         },
         {
           "file": "anti-defensive-writing.LICENSE",
           "upstream_path": "LICENSE",
           "source_url": "https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill/blob/e65bd9d8bf8ed8b9af809e5aff8237d76370876d/LICENSE",
           "sha256": "fdf440e5214588d9edcdc1ec315cddbd8525fe509242c24989a8472d283325f4",
-          "modified": false
+          "modified": false,
+          "upstream_blob_sha": "f2fddc5f2ad65725f5f95a3ca48c90c6d146ecd5"
         }
-      ]
+      ],
+      "integration": "original_core_instructions"
     },
     {
       "name": "ponytail",
@@ -36,16 +39,66 @@
           "upstream_path": "skills/ponytail/SKILL.md",
           "source_url": "https://github.com/DietrichGebert/ponytail/blob/ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10/skills/ponytail/SKILL.md",
           "sha256": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509",
-          "modified": false
+          "modified": false,
+          "upstream_blob_sha": "d64edd32265ba21cbf5270158f04e97d96925f27"
         },
         {
           "file": "ponytail.LICENSE",
           "upstream_path": "LICENSE",
           "source_url": "https://github.com/DietrichGebert/ponytail/blob/ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10/LICENSE",
           "sha256": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
+          "modified": false,
+          "upstream_blob_sha": "715d483338cea4365f0d91a27799cf61226d6bcf"
+        }
+      ],
+      "integration": "original_core_instructions"
+    },
+    {
+      "name": "academic-research-skills",
+      "repository": "https://github.com/Imbad0202/academic-research-skills",
+      "commit": "ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec",
+      "retrieved_on": "2026-11-23",
+      "license": "CC-BY-NC-4.0",
+      "integration": "scoped_workflow_adaptation",
+      "files": [
+        {
+          "upstream_path": "deep-research/SKILL.md",
+          "upstream_blob_sha": "ad51b69a475a101eb734bceb0db236bd4b525deb",
+          "source_url": "https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/deep-research/SKILL.md"
+        },
+        {
+          "upstream_path": "academic-paper/SKILL.md",
+          "upstream_blob_sha": "ab9335e411eaf9e8d51cbd4eca0ab3810210cca9",
+          "source_url": "https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-paper/SKILL.md"
+        },
+        {
+          "upstream_path": "academic-paper-reviewer/SKILL.md",
+          "upstream_blob_sha": "e8d00409fe93303eeb5d402dbd8f8efe5ce11b64",
+          "source_url": "https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-paper-reviewer/SKILL.md"
+        },
+        {
+          "upstream_path": "academic-pipeline/SKILL.md",
+          "upstream_blob_sha": "9df9346cf2969c5e1b35c767009aa46d6453f55a",
+          "source_url": "https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-pipeline/SKILL.md"
+        },
+        {
+          "upstream_path": "LICENSE",
+          "upstream_blob_sha": "dedfb8b7880e51fe623fa5ea7e27c118eed4e2b9",
+          "source_url": "https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/LICENSE",
+          "file": "academic-research.LICENSE",
+          "sha256": "b3848009d12a173f549ef98d9ee486e64459e8eb5d9f895bff53782b4aa86d7c",
           "modified": false
+        }
+      ],
+      "adaptations": [
+        {
+          "file": "academic-research.md",
+          "sha256": "2779cff0bfc8bb854272cec950b19cd42af6480d88af1135a943ea9a13d2ed43",
+          "modified": true,
+          "description": "Attributed Chinese adaptation: model construction and computational experiments inside the research, writing, review and revision workflow."
         }
       ]
     }
-  ]
+  ],
+  "schema_version": 2
 }

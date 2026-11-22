@@ -1,13 +1,14 @@
-# 科研写作与模型代码的指定技能接入
+# 科研总流程与建模技能的分工
 
-按用户要求，科研文字使用 **anti-defensive-writing** 的表达与组织方法，模型代码实现可采用 **Ponytail** 的复用与简化方法。进入对应工作时先读本页，再读表中的技能文本；不是只把仓库网址列作参考。
+按用户要求，将 `zm_neuron_network` 作为 **Academic Research Skills（ARS）科研流程中的计算建模与实验环节**。ARS 的领域适配流程承接研究设计、写作、审阅与修改；本技能深入调研神经科学构建方法、持续追问科学取舍，并实际构建、运行和比较模型。科研文字采用 **anti-defensive-writing**，模型代码实现可采用 **Ponytail**。每次调用先完成[版本与冲突检查](skill-update-review.md)，再按任务读取下表文本。
 
 | 工作 | 读取的技能文本 | 本模型工作中如何使用 |
 |---|---|---|
+| 从研究问题到模型实验、论文表达和审阅反馈的衔接 | [ARS 科研流程适配](external-skills/academic-research.md) | 采用 deep-research、academic-paper、academic-paper-reviewer 和 academic-pipeline 的相关方法；在研究设计与写作之间接入实际建模，并将补充实验返回本技能。 |
 | 构建方法说明、结果解释、论文段落和科学结论的撰写或修改 | [anti-defensive-writing](external-skills/anti-defensive-writing.md) | 先明确实际成立的结论及依据，再组织问题、方法、结果与意义；减少流水账和无依据的自我削弱。 |
 | 模型构建代码、运行入口、分析代码的实现、修改或整理 | [Ponytail](external-skills/ponytail.md) | 先读现有调用关系和实际需要，优先复用适用实现与已有依赖，用容易理解的最小完整改动完成任务。 |
 
-两者均是给 AI 使用的技能指令。Ponytail 在这里负责软件实现取舍；神经元方程、网络结构、参数与仿真器选择仍依据科学问题、原始文献及适用性比较。
+这些材料是给 AI 使用的工作指令，不是仿真后端。ARS 不能替代领域构建研究，Ponytail 负责软件实现取舍；神经元方程、网络结构、参数与仿真器选择仍依据科学问题、原始文献及适用性比较。上游提出问题后，仍按[调研与追问](interview.md)详细比较方法，每轮围绕实质发现讨论 2–3 个相关问题。
 
 ## 科研文字怎样衔接
 
@@ -27,19 +28,20 @@
 
 ## 读取方式与作用范围
 
-- 本仓库随附这两个项目的技能文本。未单独安装它们的使用者，也可由 `zm_neuron_network` 在对应阶段读取并采用这些指令，不需要访问作者电脑上的路径。
-- 若环境已有同名技能，可读取已安装版本；与随附版本不同且会改变工作方式时核对差异。若只能读取随附文本，明确这是按需采用指令，不声称已安装上游插件或具备其全部命令。
+- 本仓库随附 anti-defensive-writing、Ponytail 的原版核心文本，以及 ARS 的明确署名适配文本。未单独安装它们的使用者，也可读取这些材料完成这里定义的流程，不需要作者电脑上的路径。
+- 默认采用随附、已核对版本。若任务明确采用环境中的其他版本，先核对来源、版本与差异；同名不代表同一项目，尤其不能把其他作者的 `deep-research` 当成 ARS。记录本次实际读取的路径与版本，不只记录仓库最新版本。
 - 原技能的用户意图、科学完整性和结果真实性要求持续适用。上游的全会话常驻、强力简化或论证重排等默认行为，只在当前任务授权范围内解释，不因此扩大范围或取消既定工作。
-- 本接入只携带技能文本与许可，不安装全局插件、会话钩子、用量统计或其他运行服务。首次使用时简短说明所采用的辅助技能；必要版本说明放在已有方法或维护记录中，不要求每轮新增文件。
-- 后续更新上游文本时，核对内容变化和本页适配，连同许可及来源版本一起更新；不在每次建模时自动下载未知新版本。
+- 本接入只携带原版或适配的流程文本与许可，不安装上游插件、会话钩子、外部模型服务或自动发布功能，不声称具备其全部命令。首次采用时简短说明本轮分工；版本与差异按[检查规则](skill-update-review.md)保存，每个阶段不重复创建记录。
+- 每次调用查询上游是否更新；检查相关变化和跨技能影响后再决定是否采用。运行中的同一项科学比较保持技能、模型与指标版本一致；技能更新本身不改变已确定的科学目标。
 
 ## 来源与随附许可
 
-本次于 **2026-11-23** 读取下列固定版本。技能文本按原样保存；本页是针对神经元网络科研任务补充的使用范围。
+本次于 **2026-11-23** 读取下列固定版本。前两项核心文本按原样保存，ARS 为另行标注修改的适配文本；本页定义各自在神经元网络研究中的作用范围。
 
 | 项目 | 核对的版本与原文 | 随附许可 |
 |---|---|---|
 | Adkid-Zephyr / anti-defensive-writing-Skill | [`e65bd9d8bf8e` 的中文 SKILL.md](https://github.com/Adkid-Zephyr/anti-defensive-writing-Skill/blob/e65bd9d8bf8ed8b9af809e5aff8237d76370876d/skills/anti-defensive-writing/SKILL.md) | [MIT，Copyright 2026 Adkid-Zephyr](external-skills/anti-defensive-writing.LICENSE) |
 | DietrichGebert / ponytail | [`ebd8654c2c62` 的 SKILL.md](https://github.com/DietrichGebert/ponytail/blob/ebd8654c2c627f721eb8f9c0d1bd4090a29f9e10/skills/ponytail/SKILL.md) | [MIT，Copyright 2026 DietrichGebert](external-skills/ponytail.LICENSE) |
+| Imbad0202 / academic-research-skills | [`ae243ac2ad6e` 的科研流程](https://github.com/Imbad0202/academic-research-skills/tree/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec)；采用范围见[适配说明](external-skills/academic-research.md) | [CC BY-NC 4.0，Copyright 2026 Cheng-I Wu](external-skills/academic-research.LICENSE)，包含署名及非商业使用条件；未改标为 MIT |
 
 精确来源、版本及文件一致性信息见 [sources.json](external-skills/sources.json)。这些文本的检查不代表已经验证某个生物学模型，也不保证所有宿主都提供上游插件的交互命令。
