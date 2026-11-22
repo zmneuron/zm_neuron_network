@@ -1,0 +1,675 @@
+{
+  "schema_version": 1,
+  "catalog_version": "2026-11-21.1",
+  "source_file": "construction-elements-checklist.md",
+  "source_sha256": "159aec868782cc697df93782e3013a8f206365ee942e74ba12ba3394acf916b2",
+  "id_policy": "IDs are permanent, independent of display order. Never renumber existing items after insertions.",
+  "items": [
+    {
+      "id": "01.01",
+      "category": "01",
+      "requirement": "定义研究问题及希望解释的现象，例如放电响应、网络振荡、空间编码或实验信号变化。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "01.02",
+      "category": "01",
+      "requirement": "确定模型的外部输入、最终输出和主要比较条件，使每项核心输出对应一个研究问题。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "01.03",
+      "category": "01",
+      "requirement": "列出实际参与计算的脑区、细胞群和生理过程；注明用外部输入或简化映射表示的环节。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "01.04",
+      "category": "01",
+      "requirement": "确定观察尺度和时间尺度，包括单细胞、局部回路、跨脑区网络，以及毫秒、秒或更长过程。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "01.05",
+      "category": "01",
+      "requirement": "为各环节选择必要的表达精度，例如点神经元、放电率单元、简化多区室或详细形态模型。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "01.06",
+      "category": "01",
+      "requirement": "明确未模拟的上游活动、区域外投射和外部环境如何作为边界条件进入模型。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.01",
+      "category": "02",
+      "requirement": "记录研究对象的物种、脑区、亚区或层次，以及相关年龄或发育阶段。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.02",
+      "category": "02",
+      "requirement": "明确所用数据对应在体、脑片、培养或其他实验环境，并记录清醒、麻醉、静息或任务状态。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.03",
+      "category": "02",
+      "requirement": "记录所选模型依赖的生理条件，例如温度、离子环境和实验液条件。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.04",
+      "category": "02",
+      "requirement": "定义基线状态及疾病、环境、药物或刺激条件分别代表什么。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.05",
+      "category": "02",
+      "requirement": "说明形态、连接和电生理数据来自哪些实验背景；跨来源复用时记录所作的映射或调整。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "02.06",
+      "category": "02",
+      "requirement": "确定比较对象是某个实验条件下的行为特征、参数范围，还是一组明确的实验记录。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "03.01",
+      "category": "03",
+      "requirement": "选择细胞分类层级，例如简化兴奋性与抑制性群体，或具体的细胞亚型。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "03.02",
+      "category": "03",
+      "requirement": "为各细胞群定义数量、比例或密度；采用密度时同时明确对应体积或面积。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "03.03",
+      "category": "03",
+      "requirement": "区分动态神经元、群体单元与外部事件源，分别说明它们的数量和作用。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "03.04",
+      "category": "03",
+      "requirement": "确定同类细胞是否共用参数，以及需要保留哪些细胞间差异。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "03.05",
+      "category": "03",
+      "requirement": "说明仿真规模与目标生物组织的关系，包括完整局部组织、缩小网络或代表性细胞集合。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "03.06",
+      "category": "03",
+      "requirement": "缩小网络时，明确保留密度、连接概率、入度、总输入或其他哪些特征；同步调整相关定义。",
+      "conditional": true,
+      "computational": false
+    },
+    {
+      "id": "04.01",
+      "category": "04",
+      "requirement": "明确网络空间是否参与计算；需要时定义脑区形状、尺寸、层次、坐标系和不同群体所在区域。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "04.02",
+      "category": "04",
+      "requirement": "选择细胞位置的生成规则，记录细胞方向、最小间距及其他空间约束。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "04.03",
+      "category": "04",
+      "requirement": "确定区域边界的处理方式，例如有限组织边界或抽象网络的周期关系。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "04.04",
+      "category": "04",
+      "requirement": "需要形态时，选择重建形态或简化形态，并记录胞体、轴突和树突的连接关系、长度和直径。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "04.05",
+      "category": "04",
+      "requirement": "需要多区室时，定义区室划分、膜面积、轴向电阻率，以及不同区室的电学属性。[2]",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "04.06",
+      "category": "04",
+      "requirement": "明确突触及外部作用的目标位置；需要观测场信号时保留必要的几何和方向信息。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "05.01",
+      "category": "05",
+      "requirement": "为每类计算单元指定具体动力学模型及实现来源，而不只记录模型家族名称。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "05.02",
+      "category": "05",
+      "requirement": "列出实际计算的状态变量，例如膜电位、适应变量、门控变量和离子浓度。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "05.03",
+      "category": "05",
+      "requirement": "明确各状态的变化方程，及突触输入、外部输入和区室间作用进入方程的位置。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "05.04",
+      "category": "05",
+      "requirement": "定义动作电位的产生或识别方式；采用阈值模型时明确重置与不应期。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "05.05",
+      "category": "05",
+      "requirement": "采用电导模型时，明确通道组成、门控动力学、反转电位和相关温度处理。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "05.06",
+      "category": "05",
+      "requirement": "采用多区室模型时，明确各区室的动力学与区室间耦合；采用群体模型时说明变量及输入输出函数的含义。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "06.01",
+      "category": "06",
+      "requirement": "记录参数名称、含义、数值、单位，以及适用的细胞群、区室或连接类别。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "06.02",
+      "category": "06",
+      "requirement": "明确总量与单位面积或体积量，例如总电流与电流密度、总电导与电导密度。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "06.03",
+      "category": "06",
+      "requirement": "说明参数采用统一值、实测分布还是其他分布，并记录范围、约束和需要保留的相关性。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "06.04",
+      "category": "06",
+      "requirement": "区分固定参数、条件变量、待估计参数和由其他量计算得到的参数。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "06.05",
+      "category": "06",
+      "requirement": "记录参数来源，包括原始模型、文献、数据估计或建模假设；标明单位换算和必要调整。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "06.06",
+      "category": "06",
+      "requirement": "复用已有参数集时引用其版本或文件，并列出本项目实际修改的参数。",
+      "conditional": true,
+      "computational": false
+    },
+    {
+      "id": "07.01",
+      "category": "07",
+      "requirement": "列出所有投射的突触前群体、突触后群体及方向。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "07.02",
+      "category": "07",
+      "requirement": "选择明确的连接生成规则，例如固定入度、固定出度、逐对连接概率或已知连接列表。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "07.03",
+      "category": "07",
+      "requirement": "需要空间约束时，说明连接与距离、方向、形态交叠或区域边界的关系。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "07.04",
+      "category": "07",
+      "requirement": "明确自身连接、同一对细胞重复连接、双向连接和特定回路结构的处理。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "07.05",
+      "category": "07",
+      "requirement": "分别定义不同来源细胞的数量、每对细胞的突触接触数量，以及软件中连接边的计数方式。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "07.06",
+      "category": "07",
+      "requirement": "说明拓扑在仿真中保持固定，还是存在结构性变化；缩放网络时同步明确连接规则的调整。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.01",
+      "category": "08",
+      "requirement": "确定化学突触、电突触或抽象耦合的形式，以及电流型或电导型表达。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.02",
+      "category": "08",
+      "requirement": "定义受体组成、反转电位或其他作用方向约定，并说明不同受体是否共享同一输入事件。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.03",
+      "category": "08",
+      "requirement": "明确突触响应的时间过程及参数，例如上升、衰减时间常数和响应归一化方式。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.04",
+      "category": "08",
+      "requirement": "说明权重的物理含义与单位，以及它对应单个接触还是聚合连接。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.05",
+      "category": "08",
+      "requirement": "定义传导延迟、作用区室，以及需要时的释放随机性。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "08.06",
+      "category": "08",
+      "requirement": "启用短时程或长时程可塑性时，明确状态变量、更新规则、参数、初值和权重边界。[5]",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "09.01",
+      "category": "09",
+      "requirement": "定义背景输入来源、均值或事件率、兴奋与抑制成分，以及时间统计特征。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "09.02",
+      "category": "09",
+      "requirement": "明确不同细胞接受独立输入还是共同输入；需要时定义时间和空间相关性。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "09.03",
+      "category": "09",
+      "requirement": "说明位置、速度、感觉线索或其他任务变量如何映射为网络输入。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "09.04",
+      "category": "09",
+      "requirement": "记录外部刺激的波形、幅值定义、频率或频带、起止时间、持续时间和重复方式。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "09.05",
+      "category": "09",
+      "requirement": "明确刺激作用于哪些群体、细胞或区室，以及进入哪项方程或变量。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "09.06",
+      "category": "09",
+      "requirement": "设备端刺激经其他生理或物理过程进入神经网络时，定义转换关系、空间分布、单位和随机波形生成方式。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "10.01",
+      "category": "10",
+      "requirement": "按研究问题选择附加机制，例如钙动力学、离子稳态、代谢、供氧、血流、神经调质、胶质过程或外部物理作用。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "10.02",
+      "category": "10",
+      "requirement": "为每个启用模块定义输入变量、单位、来源、内部状态、初值、方程和参数。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "10.03",
+      "category": "10",
+      "requirement": "写清输出作用于哪个对象，以及进入下游模块的哪项计算。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "10.04",
+      "category": "10",
+      "requirement": "明确单向驱动或反馈关系，并定义细胞级、脑区级和全局量之间的汇总与分配方式。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "10.05",
+      "category": "10",
+      "requirement": "采用不同时间尺度时，确定变量交换间隔、更新顺序和两次交换之间的保持或插值方式。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "10.06",
+      "category": "10",
+      "requirement": "为共同状态指定更新归属；同一物理作用通过约定的变量或方程项参与耦合。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "11.01",
+      "category": "11",
+      "requirement": "为所有动态状态定义初值，包括膜电位、门控、适应、突触状态及启用的生理状态。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "11.02",
+      "category": "11",
+      "requirement": "说明初值统一、随机、来自稳态求解，还是读取已有状态。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "11.03",
+      "category": "11",
+      "requirement": "明确是否需要预运行，以及预运行结束与正式记录开始的时间。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "11.04",
+      "category": "11",
+      "requirement": "定义基线、扰动、刺激、恢复等阶段的顺序和持续时间。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "11.05",
+      "category": "11",
+      "requirement": "确定条件之间分别初始化、从共同状态分支，还是在同一仿真中连续经历变化。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "11.06",
+      "category": "11",
+      "requirement": "需要表示天级或其他长期状态时，说明标签对应一套状态参数，还是由长期适应方程演化得到。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "12.01",
+      "category": "12",
+      "requirement": "确定仿真器、求解方法及依赖版本，记录自定义机制或代码的具体实现。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "12.02",
+      "category": "12",
+      "requirement": "设置固定步长或自适应误差容限；多区室模型同时定义空间离散。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "12.03",
+      "category": "12",
+      "requirement": "分别设置求解步长、模块交换间隔、记录间隔和总模拟时长。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "12.04",
+      "category": "12",
+      "requirement": "识别位置、连接、参数、输入和释放等随机过程，并明确各自的控制方式。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "12.05",
+      "category": "12",
+      "requirement": "确定条件间配对的随机设置，以及独立重复之间改变的随机实例；记录随机种子或等价的复现信息。[7]",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "12.06",
+      "category": "12",
+      "requirement": "根据模型规模确定进程、线程、内存和记录范围；保存必要的配置、实现版本与原始结果。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "12.07",
+      "category": "12",
+      "requirement": "需要中断后继续运行时，定义要保存的完整状态和恢复方式。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "13.01",
+      "category": "13",
+      "requirement": "确定需要保存的事件和内部变量，以及对应的细胞、区室、时间范围和采样间隔。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "13.02",
+      "category": "13",
+      "requirement": "明确从原始记录计算放电率、同步性、调谐或其他派生量的方法。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "13.03",
+      "category": "13",
+      "requirement": "目标为 LFP、EEG、MEG、钙信号等实验观测时，给出内部活动到观测信号的计算关系。",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "13.04",
+      "category": "13",
+      "requirement": "对电场信号，定义所用电流源或偶极、空间位置与方向、电极或传感器位置、介质模型和参考方式。[6]",
+      "conditional": true,
+      "computational": true
+    },
+    {
+      "id": "13.05",
+      "category": "13",
+      "requirement": "记录信号单位、尺度对应，以及滤波、重采样、参考变换和归一化步骤。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "13.06",
+      "category": "13",
+      "requirement": "确保最终指标能关联到具体原始记录及其生成条件。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "14.01",
+      "category": "14",
+      "requirement": "选择直接回答研究问题的核心指标，给出计算定义、时间窗和汇总方式。",
+      "conditional": false,
+      "computational": true
+    },
+    {
+      "id": "14.02",
+      "category": "14",
+      "requirement": "为每个比较条件列出改变的内容及共同设置。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "14.03",
+      "category": "14",
+      "requirement": "明确每个数据点和误差范围代表细胞、试次、网络实例、参数实例还是配对仿真组。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "14.04",
+      "category": "14",
+      "requirement": "记录参数设定或拟合数据与后续比较数据的用途；按实际数据来源描述比较依据。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "14.05",
+      "category": "14",
+      "requirement": "事先确定模型完成所需的核心行为、参考范围或误差要求，并说明采用这些要求的理由。",
+      "conditional": false,
+      "computational": false
+    },
+    {
+      "id": "14.06",
+      "category": "14",
+      "requirement": "需要调参时，限定可调整参数、搜索范围、累计计算预算和停止条件。",
+      "conditional": true,
+      "computational": false
+    },
+    {
+      "id": "14.07",
+      "category": "14",
+      "requirement": "结果偏离目标时，优先定位具体输入、方程、连接、参数或观测环节，再决定下一次修改。",
+      "conditional": false,
+      "computational": false
+    }
+  ],
+  "feature_requirements": {
+    "spatial": [
+      "04.01",
+      "04.02",
+      "04.03",
+      "07.03"
+    ],
+    "lfp": [
+      "04.06",
+      "13.03",
+      "13.04"
+    ],
+    "plasticity": [
+      "08.06"
+    ],
+    "resting_spiking": [
+      "03.02",
+      "05.04",
+      "09.01",
+      "11.03",
+      "13.01",
+      "13.02",
+      "14.01"
+    ],
+    "resting_rate": [
+      "03.02",
+      "05.06",
+      "09.01",
+      "11.03",
+      "13.01",
+      "13.02",
+      "14.01"
+    ]
+  },
+  "static_optional_items": [
+    "05.01",
+    "05.02",
+    "05.03",
+    "05.04",
+    "05.05",
+    "05.06",
+    "08.01",
+    "08.02",
+    "08.03",
+    "08.04",
+    "08.05",
+    "08.06",
+    "09.01",
+    "09.02",
+    "09.03",
+    "09.04",
+    "09.05",
+    "09.06",
+    "11.01",
+    "11.02",
+    "11.03",
+    "11.04",
+    "11.05",
+    "11.06",
+    "12.02",
+    "12.03",
+    "13.03",
+    "13.04"
+  ]
+}

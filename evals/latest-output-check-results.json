@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "tests_run": 43,
+  "failures": 0,
+  "errors": 0,
+  "time_utc": "2026-11-21T14:44:07.450265+00:00",
+  "command": [
+    "python",
+    ".agents/skills/zm_neuron_network/evals/test_check_outputs.py",
+    "--report",
+    "<local_path>/final-test_check_outputs.json"
+  ],
+  "python": "3.13.5",
+  "script_sha256": "89fe91e734a420b2a0b8ae6218ad4118ca73d82740cd431cf533f3e4ee8fd445",
+  "test_sha256": "a59124bac9153520b730a415518f4003ba0adfd76fa0e0bee81f9c904ca8b259",
+  "dependencies_sha256": {
+    "scripts/check_records.py": "ea84bedc47daf0be124b1d97154e813d2ac1b1597dc321d4da6628c1a567408a",
+    "evals/record_fixture.py": "89c4674de9c0886a977ba42ef1d1878aaa0f4bba33b1540c53ab3893db5fe8e1",
+    "assets/analysis_manifest.json": "f05061b032d12e476582d8f2bb15db7ad485d613978956ee345d51fc095a5747"
+  },
+  "scope": "Synthetic output coverage, external/model provenance, figure/design references, CSV values, construction steps and read-only behavior",
+  "not_run": [
+    "Independent skill behavior evaluation",
+    "Neural simulation",
+    "Biological validation",
+    "Figure rendering validation"
+  ],
+  "publication_note": "本机绝对路径已替换为通用占位符；原记录的时间、判定、日志和文件校验值保持不变。"
+}

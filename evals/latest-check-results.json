@@ -1,0 +1,125 @@
+{
+  "executed_utc": "2026-11-21T14:44:07.150362+00:00",
+  "command": [
+    "python",
+    "-B",
+    "-X",
+    "utf8",
+    ".agents/skills/zm_neuron_network/evals/test_check_model.py",
+    "--report",
+    "<local_path>/final-test_check_model.json"
+  ],
+  "working_directory": "<local_path>/Network_skill",
+  "python": "3.13.5",
+  "checker_sha256": "ae64ffd831003a5fbdb17b38ddc308f7e74a483a2da53eef471b5c1189d4b25e",
+  "test_runner_sha256": "3388d05efc58ab8256833636ea4fcf541792c092749ea1c125119384849a4cc7",
+  "parameter_template_sha256": "2f8ea8165cc8bde0c1e82d789c38c129c773463e320b290a8c63ee136602076d",
+  "dependencies_sha256": {
+    "scripts/check_records.py": "ea84bedc47daf0be124b1d97154e813d2ac1b1597dc321d4da6628c1a567408a"
+  },
+  "scope": "Synthetic checks of parameter mapping, exported network and CLI; not biological or independent agent evaluation",
+  "status": "passed",
+  "tests_run": 23,
+  "cases": [
+    {
+      "case": "test_actual_weight_and_negative_delay",
+      "status": "passed"
+    },
+    {
+      "case": "test_bounds_mode_compares_actual_contacts",
+      "status": "passed"
+    },
+    {
+      "case": "test_cli_read_only_and_nonzero_failure",
+      "status": "passed"
+    },
+    {
+      "case": "test_derived_parameter_remains_manual_review_and_is_not_executed",
+      "status": "passed"
+    },
+    {
+      "case": "test_direction_and_dangling_connection",
+      "status": "passed"
+    },
+    {
+      "case": "test_duplicate_parameter_identity_is_rejected",
+      "status": "passed"
+    },
+    {
+      "case": "test_empty_mapping_never_passes",
+      "status": "passed"
+    },
+    {
+      "case": "test_export_units_are_converted_using_parameter_units",
+      "status": "passed"
+    },
+    {
+      "case": "test_generated_25_cell_spatial_network",
+      "status": "passed"
+    },
+    {
+      "case": "test_invalid_network_structure_returns_failure",
+      "status": "passed"
+    },
+    {
+      "case": "test_matrix_shape_difference_is_detected",
+      "status": "passed"
+    },
+    {
+      "case": "test_missing_code_reference_is_rejected",
+      "status": "passed"
+    },
+    {
+      "case": "test_non_finite_config_is_rejected",
+      "status": "passed"
+    },
+    {
+      "case": "test_non_finite_or_negative_tolerance_is_rejected",
+      "status": "passed"
+    },
+    {
+      "case": "test_out_of_bounds_coordinates_and_missing_axis",
+      "status": "passed"
+    },
+    {
+      "case": "test_population_count_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
+      "case": "test_probability_range_is_checked_even_when_mapping_agrees",
+      "status": "passed"
+    },
+    {
+      "case": "test_psp_cannot_be_relabeled_as_conductance",
+      "status": "passed"
+    },
+    {
+      "case": "test_self_connections_and_contact_multiplicity",
+      "status": "passed"
+    },
+    {
+      "case": "test_self_consistent_wrong_time_conversion_is_rejected",
+      "status": "passed"
+    },
+    {
+      "case": "test_skipped_network_is_explicit",
+      "status": "passed"
+    },
+    {
+      "case": "test_unmapped_numeric_parameter_is_reported",
+      "status": "passed"
+    },
+    {
+      "case": "test_valid_parameter_and_exported_network",
+      "status": "passed"
+    }
+  ],
+  "failures": 0,
+  "errors": 0,
+  "not_executed": [
+    "literature research behavior",
+    "multiturn interview behavior",
+    "biological model validation"
+  ],
+  "publication_note": "本机绝对路径已替换为通用占位符；原记录的时间、判定、日志和文件校验值保持不变。"
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "plan_id": "",
+  "model_version": "",
+  "catalog_version": "2026-11-21.1",
+  "mode": "build",
+  "dynamics": "",
+  "state": "resting",
+  "state_reason": "",
+  "features": [],
+  "spec_ref": "docs/model_spec.md",
+  "spec_sha256": "",
+  "files": {
+    "coverage": "docs/element_coverage.csv",
+    "modules": "model/module_contracts.json",
+    "parameters": "docs/research/parameter_mapping.csv",
+    "config": "model/config/model.json",
+    "runtime": "",
+    "analysis": "analysis/output/analysis.json"
+  },
+  "runtime_parameter_ids": [],
+  "requirements": []
+}

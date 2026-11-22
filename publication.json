@@ -1,0 +1,10 @@
+{
+  "skill": "zm_neuron_network",
+  "export_version": 1,
+  "excluded_local_project_eval_ids": [
+    1,
+    2,
+    6
+  ],
+  "note": "仅省略需要作者本地模型/数据的评测案例；核心技能、方法规范、模板和检查脚本保留。"
+}
