@@ -1,15 +1,15 @@
 {
-  "executed_utc": "2026-11-23T10:17:22.929082+00:00",
+  "executed_utc": "2026-11-23T12:21:33.698840+00:00",
   "command": [
     "python",
     "-B",
     "-X",
     "utf8",
-    "evals/test_check_model.py",
+    "<local_path>/test_check_model.py",
     "--report",
-    "<local_path>/stage_test_check_model.json"
+    "<local_path>/test_check_model_final.json"
   ],
-  "working_directory": "<local_path>/skill",
+  "working_directory": "<local_path>/Network_skill",
   "python": "3.13.5",
   "checker_sha256": "ae64ffd831003a5fbdb17b38ddc308f7e74a483a2da53eef471b5c1189d4b25e",
   "test_runner_sha256": "3388d05efc58ab8256833636ea4fcf541792c092749ea1c125119384849a4cc7",

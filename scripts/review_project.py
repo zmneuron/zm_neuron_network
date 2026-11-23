@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 from check_reuse import check_reuse
+from check_regulation import check_regulation, regulation_scope
 import statistics
 import tempfile
 
@@ -91,6 +92,10 @@ def scope_state(plan):
     for item in questions.values():
         text(item.get("text"), "question.text")
         require(type(item.get("required")) is bool, "Declare question applicability")
+    regulation = regulation_scope(plan)
+    if (regulation or {}).get("mode") == "implementation":
+        question = questions.get(regulation.get("question_id"), {})
+        require(question.get("required") is True, "Full regulation implementation needs its required scientific question")
     axes = review.get("required_axes")
     require(isinstance(axes, list) and axes and "delivery" in axes
             and len(set(axes)) == len(axes) and set(axes) <= set(AXES), "Declare nonempty required axes including delivery")
@@ -106,6 +111,7 @@ def scope_state(plan):
         text(review.get("delivery_scope_reason"), "scoped delivery reason")
         text(review.get("delivery_scope_ref"), "scoped delivery source")
     return dict(objective=objective, requirements=requirement_scope, questions=questions,
+                regulation=regulation,
                 required_axes=axes, independent_evidence=review.get("independent_evidence", "biological"),
                 delivery_profile=profile, delivery_parts=parts,
                 delivery_scope_reason=review.get("delivery_scope_reason"), delivery_scope_ref=review.get("delivery_scope_ref"))
@@ -133,6 +139,8 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     require(plan.get("review_contract") == CONTRACT, "Declare the review contract before capture")
     reuse = check_reuse(root, plan)
     require(reuse["status"] != "failed", "Resolve current reuse records before capture: " + "; ".join(reuse["issues"]))
+    regulation = check_regulation(root, plan, checkpoint="start")
+    require(regulation["status"] != "failed", "Resolve regulation design errors before capture: " + "; ".join(regulation["issues"]))
     state = scope_state(plan)
     review = plan["review"]
     local(root, state["objective"]["source_ref"])
@@ -143,6 +151,8 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     skill_root = Path(skill).resolve() if skill else Path(__file__).resolve().parents[1]
     paths = review.get("skill_files")
     require(isinstance(paths, list) and paths and len(set(paths)) == len(paths), "Declare applicable skill files")
+    if (regulation_scope(plan) or {}).get("mode") == "implementation":
+        require("references/regulation-design.md" in paths, "Capture the applicable regulation rules for full implementation")
     skills = {p: fingerprint(local(skill_root, p)) for p in paths}
     criteria = {p: _target_content(root, p) for p in review.get("criteria_refs", [])}
     baseline = dict(review_contract=CONTRACT, captured_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -187,6 +197,9 @@ def _scope_changes(before, after):
                 changes.append(f"{field}:{identity}")
     for axis in set(before["required_axes"]) - set(after["required_axes"]):
         changes.append(f"required_axes:{axis}")
+    old_regulation = before.get("regulation") or {}
+    if old_regulation.get("mode") in {"implementation", "scoped"} and before.get("regulation") != after.get("regulation"):
+        changes.append("regulation")
     return changes
 
 
@@ -618,8 +631,14 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         require(fingerprint(capture) == plan["review"].get("baseline_sha256"), "Captured original requirements changed or are not bound to this plan")
         baseline = read(capture)
         _check_scope(root, plan, baseline, report, skill)
+        if (regulation_scope(plan) or {}).get("mode") == "implementation":
+            report["read_next"].append("references/regulation-design.md")
+        regulation = check_regulation(root, plan, checkpoint="start")
+        report["checks"]["regulation"] = regulation
+        require(regulation["status"] != "failed", "Regulation design failed: " + "; ".join(regulation["issues"]))
         if checkpoint == "start":
-            report.update(status="passed", consistent=True, read_next=sorted(set(report["read_next"])))
+            report.update(status="incomplete" if regulation["status"] == "incomplete" else "passed",
+                          consistent=True, read_next=sorted(set(report["read_next"])))
             return report
         analysis_ref = text(plan["files"].get("analysis"), "analysis path")
         analysis_path = (root / analysis_ref).resolve()
@@ -637,6 +656,10 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         axes = completion.get("axes")
         require(isinstance(axes, dict) and set(axes) == set(AXES), "Report all five completion axes separately")
         report["axes"] = {name: dict(value) for name, value in axes.items()}
+        regulation = check_regulation(root, plan, analysis, checkpoint=checkpoint)
+        report["checks"]["regulation"] = regulation
+        if regulation["status"] == "failed":
+            report["issues"].extend("regulation: " + issue for issue in regulation["issues"])
         datasets = _dataset_map(root, plan["review"], baseline)
         comparisons = {}
         for name, item in unique(completion.get("comparisons", []), "id", "comparisons").items():
@@ -664,6 +687,9 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             report["issues"].append(f"requirements: {error}")
             report["unmet_requirements"] = [x["id"] for x in plan["requirements"]]
         pending = pending + report["unmet_requirements"]
+        if (regulation_scope(plan) or {}).get("mode") == "implementation" and not regulation.get("complete"):
+            report["unmet_requirements"].append("regulation_minimum_study")
+            pending.append("regulation_minimum_study")
         try: _decision(root, completion, pending, datasets)
         except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"decision: {error}")
         report["goal_complete"] = not pending and not report["issues"]

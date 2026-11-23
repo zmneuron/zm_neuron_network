@@ -38,6 +38,9 @@
       "delivery"
     ],
     "independent_evidence": "biological",
+    "regulation": {
+      "mode": "not_requested"
+    },
     "delivery_profile": "full_model",
     "skill_files": [
       "SKILL.md",

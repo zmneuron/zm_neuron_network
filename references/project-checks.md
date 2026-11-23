@@ -68,7 +68,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 需要保存时加 `--output results/<run_id>/project_check.json`，只在已有目录中新建文件，不覆盖原记录。报告分开列出要素、参数/实例与输出检查，实测验证另行报告。计划阶段检查方法、要求和计划中的模块关系，不要求源码已存在；实施阶段读取实际记录、参数与输出。不因没有全文、原始数据或预算就将本轮必需要求改为可选。
 
-旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。
+旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py`、`check_reuse.py`、`check_regulation.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。
 
 ## 在阶段转换恢复和交付前执行复核
 
@@ -123,6 +123,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 复核结果分别给出 `consistent`（记录与数值一致）、`ready_to_deliver`（可交付如实报告）、`goal_complete`（所登记的必需目标均满足）；退出码 `0/2/1` 分别表示满足、尚未满足或旧格式未复核、记录不一致。初期读取建议 `read_next` 仅指导下一步，不能证明实际已读。使用可执行例子了解完整嵌套字段：`python <skill_dir>/evals/review_fixture.py --help`；软件失败用例见 [test_review_project.py](../evals/test_review_project.py)，已并入现有工作流测试。
 
 阶段性开源复用同时读取任务计划中的 `reuse`：当前阶段是否比较已有能力，实际采用版本/本次更新检查与交接是否明确，软件运行是否关联对应版本的真实记录。规则及最小结构见[阶段性接入](open-source-reuse.md#在现有记录中落实采用)。结构通过只表示记录对应，不证明来源可靠、已经阅读或科研方法有效；旧工程缺记录时明确未审查，不自动补写历史。
+
+完整调控实施还核对 `review.regulation` 与 `completion_review.regulation`。已登记的实施范围不得删除后规避多组合搜索和确认；初期设计未齐可登记 `pending`，但不能标为研究完成。检查器从保存配置与实际 CSV 重算 B/D0/候选/确认，检查搜索设计、固定模型、独立条件、分项约束、真实调用与预算及三类结果关联。阴性且比较充分可完成研究过程，缺搜索/确认则未完成；两者都不能自动变成“恢复”或生物学独立评价支持。记录方式和计算范围见[调控执行与复核](regulation-design.md#执行记录与完成复核)。程序之外仍须查看原委托、作用实现、完整文献协议、原始分布/轨迹和图件，判断可比性、搜索充分性与科学结论。
 
 ## 清单更新与固定编号
 

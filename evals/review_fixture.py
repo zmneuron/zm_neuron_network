@@ -86,7 +86,7 @@ def _target(identity, metric, bounds, role):
                 criterion=dict(kind="interval", bounds=bounds))
 
 
-def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False):
+def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None):
     """Execute once in a new directory; retain truthful negative comparison states."""
     root = Path(root).resolve()
     require_new = not root.exists() or not any(root.iterdir())
@@ -136,6 +136,10 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                             required_axes=["execution", "calibration", "scientific_answer", "delivery"] + (["independent_evaluation"] if evaluation else []),
                             independent_evidence="synthetic", skill_files=["SKILL.md", "references/calibration.md"],
                             criteria_refs=["data/targets.json"], datasets=datasets, scope_changes=[], skill_changes=[]))
+    if regulation is not None:
+        plan["review"]["regulation"] = regulation
+        if regulation.get("mode") == "implementation":
+            plan["review"]["skill_files"].append("references/regulation-design.md")
     if reuse:
         plan["reuse"] = dict(contract="zm-neuron-reuse/1", invocation_id="review-example", stages=[dict(
             stage="delivery", decision="existing_sufficient", reason="Existing consistency checks fit this software example",

@@ -27,7 +27,7 @@ class CompletionReviewChecks(unittest.TestCase):
         self.home = Path(self.temp.name)
         self.skill = self.home / "skill"
         (self.skill / "references").mkdir(parents=True)
-        for ref in ("SKILL.md", "references/calibration.md"):
+        for ref in ("SKILL.md", "references/calibration.md", "references/regulation-design.md"):
             shutil.copy2(SKILL / ref, self.skill / ref)
         self.root = self.home / "project"
         self.actual = fixture.create(self.root, skill=self.skill)
@@ -35,6 +35,53 @@ class CompletionReviewChecks(unittest.TestCase):
     def other(self, **kwargs):
         self.root = self.home / ("case_" + str(len(list(self.home.iterdir()))))
         self.actual = fixture.create(self.root, skill=self.skill, **kwargs)
+
+    def pending_regulation(self):
+        self.other(regulation=dict(mode="implementation", design_status="pending", question_id="Q1",
+                                   authorization_ref="docs/model_spec.md", method_ref="docs/model_spec.md"))
+
+    def test_regulation_pending_scope_can_be_captured_without_invented_design(self):
+        self.pending_regulation()
+        result = self.check("start")
+        self.assertEqual(result["status"], "incomplete", result)
+        self.assertIn("references/regulation-design.md", result["read_next"])
+        self.assertFalse(result["goal_complete"])
+
+    def test_regulation_minimum_cannot_be_replaced_by_five_positive_self_assessments(self):
+        self.pending_regulation()
+        result = self.check()
+        self.assertEqual(result["status"], "failed", result)
+        self.assertIn("regulation_minimum_study", result["unmet_requirements"])
+        self.assertFalse(result["goal_complete"])
+
+    def test_truthfully_pending_regulation_remains_incomplete(self):
+        self.pending_regulation()
+        self.analysis(lambda c: c["decision"].update(action="continue", next_action="Finish the authorized regulation design and actual study."))
+        result = self.check()
+        self.assertEqual(result["status"], "incomplete", result)
+        self.assertFalse(result["goal_complete"])
+
+    def test_regulation_implementation_cannot_be_deleted_after_capture(self):
+        self.pending_regulation()
+        self.change("docs/task_plan.json", lambda p: p["review"].pop("regulation"))
+        self.assertEqual(self.check()["status"], "failed")
+
+    def test_regulation_question_must_be_a_required_scientific_question(self):
+        self.pending_regulation()
+        self.change("docs/task_plan.json", lambda p: p["review"]["regulation"].update(question_id="UNREGISTERED"))
+        self.failed("required scientific question")
+
+    def test_regulation_implementation_cannot_be_downgraded_to_design_only(self):
+        self.pending_regulation()
+        self.change("docs/task_plan.json", lambda p: p["review"].update(regulation=dict(
+            mode="scoped", reason="Design only", source_ref="docs/model_spec.md")))
+        self.assertEqual(self.check()["status"], "failed")
+
+    def test_regulation_original_design_scope_does_not_require_simulation_search(self):
+        self.other(regulation=dict(mode="scoped", reason="Original test only covers design", source_ref="docs/model_spec.md"))
+        result = self.check()
+        self.assertEqual(result["status"], "passed", result)
+        self.assertEqual(result["checks"]["regulation"]["status"], "not_applicable")
 
     def change(self, ref, action):
         value = fixture.read(self.root, ref)
