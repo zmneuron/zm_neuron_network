@@ -22,6 +22,7 @@ import check_project
 import workflow_case as case
 from test_check_records import RunRecords
 from test_calibration import CalibrationChecks
+from test_review_project import CompletionReviewChecks
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -35,6 +36,15 @@ class WorkflowChecks(unittest.TestCase):
 
     def check(self):
         return check_project.check_project(self.root)
+
+    def test_legacy_software_success_does_not_become_final_delivery(self):
+        software = self.check()
+        self.assertEqual(software["status"], "passed")
+        self.assertFalse(software["goal_complete"])
+        self.assertEqual(software["checks"]["completion_review"]["status"], "legacy_not_reviewed")
+        delivery = check_project.check_project(self.root, phase="delivery")
+        self.assertEqual(delivery["status"], "failed")
+        self.assertFalse(delivery["ready_to_deliver"])
 
     def change_json(self, path, mutation):
         data = json.loads((self.root / path).read_text(encoding="utf-8"))
@@ -173,7 +183,7 @@ def main():
     args = parser.parse_args()
     log = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks))
+                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
     retained = None
     if args.workspace and result.wasSuccessful():
@@ -182,6 +192,7 @@ def main():
         retained = {"path": str(args.workspace.resolve()), "actual": actual, "check": check_project.check_project(args.workspace)["status"]}
     files = [*sorted((SKILL / "scripts").glob("*.py")), Path(__file__), Path(case.__file__),
              Path(__file__).with_name("test_check_records.py"), Path(__file__).with_name("test_calibration.py"),
+             Path(__file__).with_name("test_review_project.py"), Path(__file__).with_name("review_fixture.py"),
              SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,

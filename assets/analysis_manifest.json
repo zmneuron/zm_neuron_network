@@ -10,5 +10,59 @@
   "datasets": [],
   "figures": [],
   "construction_steps": [],
-  "results": []
+  "results": [],
+  "review_contract": "zm-neuron-review/1",
+  "completion_review": {
+    "axes": {
+      "execution": {
+        "status": "incomplete",
+        "assessor": "",
+        "reason": "",
+        "evidence_refs": []
+      },
+      "calibration": {
+        "status": "not_evaluated",
+        "assessor": "",
+        "reason": "",
+        "evidence_refs": []
+      },
+      "independent_evaluation": {
+        "status": "not_evaluated",
+        "assessor": "",
+        "reason": "",
+        "evidence_refs": []
+      },
+      "scientific_answer": {
+        "status": "not_answered",
+        "assessor": "",
+        "reason": "",
+        "evidence_refs": []
+      },
+      "delivery": {
+        "status": "incomplete",
+        "assessor": "",
+        "reason": "",
+        "evidence_refs": []
+      }
+    },
+    "requirements": [],
+    "comparisons": [],
+    "iterations": [],
+    "budget": {
+      "limit": 0,
+      "consumed": 0
+    },
+    "decision": {
+      "action": "continue",
+      "reason": "",
+      "next_action": "",
+      "stop_reason": ""
+    },
+    "delivery": {
+      "report_ref": "docs/results.md",
+      "response_text": "",
+      "parts": [],
+      "claims": []
+    }
+  }
 }

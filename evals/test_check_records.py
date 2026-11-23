@@ -61,6 +61,39 @@ class RunRecords(unittest.TestCase):
             self.start("experiment_a/session")
         self.assertEqual(fingerprint(self.root / first), saved)
 
+    def test_same_source_version_is_reused_without_losing_old_results(self):
+        first = self.start("results/initial")
+        self.complete(first)
+        saved = fingerprint(self.root / first)
+        second = self.start("results/candidate", config={"gain": .65})
+        self.complete(second)
+        original = read(self.root / first)
+        candidate = read(self.root / second)
+        self.assertEqual(original["source_archive"], candidate["source_archive"])
+        self.assertNotEqual(original["config_ref"], candidate["config_ref"])
+        self.assertEqual(fingerprint(self.root / first), saved)
+        (self.root / "model/run.py").write_text("# New implementation\n", encoding="utf-8")
+        third = self.start("results/new_code")
+        self.assertNotEqual(original["source_archive"], read(self.root / third)["source_archive"])
+        self.assertEqual(verify_run(self.root, first)["status"], "completed")
+
+    def test_changed_shared_archive_is_not_silently_repaired(self):
+        first = self.start("results/initial")
+        self.complete(first)
+        archived = self.root / read(self.root / first)["source_archive"]["model/run.py"]
+        archived.write_text("# Altered archive\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Stored source version was altered"):
+            self.start("results/candidate")
+        self.assertEqual(archived.read_text(encoding="utf-8"), "# Altered archive\n")
+
+    def test_explicit_self_contained_archive_remains_supported(self):
+        ref = begin_run(self.root, "results/portable", config=self.base, stage="synthetic",
+                        model_version="v1", code_refs=["model/run.py"], command=["python", "model/run.py"],
+                        environment={"python": sys.version}, source_store=None)
+        self.complete(ref)
+        self.assertTrue(read(self.root / ref)["source_archive"]["model/run.py"].startswith("results/portable/source/"))
+        self.assertEqual(verify_run(self.root, ref)["status"], "completed")
+
     def test_changed_resolved_configuration_blocks_downstream_stage(self):
         parent = self.start()
         raw = self.complete(parent)

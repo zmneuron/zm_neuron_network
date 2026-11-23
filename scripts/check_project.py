@@ -9,6 +9,7 @@ from pathlib import Path
 import check_elements
 import check_model
 import check_outputs
+import review_project
 from check_records import fingerprint, local, read, require, verify_check, verify_run, RUN_SCHEMA
 
 
@@ -27,7 +28,7 @@ def table(path, key):
     return result
 
 
-def check_project(project, plan_path="docs/task_plan.json", phase="implemented", checklist=None):
+def check_project(project, plan_path="docs/task_plan.json", phase="implemented", checklist=None, skill=None):
     root = Path(project).resolve()
     checklist = Path(checklist) if checklist else Path(__file__).resolve().parents[1] / "references/construction-elements-checklist.md"
     report = {"status": "failed", "phase": phase, "issues": [], "checks": {},
@@ -41,7 +42,8 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
             require(isinstance(plan.get(field), str) and plan[field].strip(), f"Missing {field}")
         mode = plan.get("mode")
         require(mode in {"research", "build", "modify", "reanalyze", "audit"}, "Invalid task mode")
-        require(phase == "plan" or mode != "research", "Research-only task has no implemented model completion")
+        require(phase in {"plan", "implemented", "delivery"}, "Unknown project check phase")
+        require(phase == "plan" or mode != "research", "Research-only task has no implemented model completion; use review_project for scoped delivery")
         policy = check_elements.read_policy(checklist)
         require(plan.get("catalog_version") == policy["catalog_version"], "Task plan uses another catalog version")
         require(fingerprint(local(root, plan.get("spec_ref"))) == plan.get("spec_sha256"),
@@ -95,7 +97,7 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
         for mid, module in modules.items():
             require(ids(module.get("parameter_ids"), f"{mid}.parameter_ids", True) <= set(parameters), f"Unknown module parameters: {mid}")
             ids(module.get("step_ids"), f"{mid}.step_ids")
-        if phase == "implemented":
+        if phase in {"implemented", "delivery"}:
             analysis = read(local(root, files["analysis"]))
             require(analysis.get("schema_version") == 2 and analysis.get("plan_id") == plan["plan_id"]
                     and analysis.get("model_version") == plan["model_version"], "Analysis belongs to another task/model version")
@@ -131,6 +133,16 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
                       requirement_count=len(seen), empirical_validation="separately_reported")
     except (OSError, ValueError, TypeError, KeyError) as error:
         report["issues"].append(str(error))
+    # Keep recorded scientific/communication decisions visible even when a
+    # software or file check failed. Neither status substitutes for the other.
+    checkpoint = "start" if phase == "plan" else "delivery" if phase == "delivery" else "transition"
+    completion = review_project.check_review(root, str(plan_path), checkpoint, skill)
+    report["checks"]["completion_review"] = completion
+    report["goal_complete"] = completion.get("goal_complete", False) and report["status"] == "passed"
+    report["ready_to_deliver"] = completion.get("ready_to_deliver", False) and report["status"] == "passed"
+    if completion.get("status") == "failed" or (phase == "delivery" and not report["ready_to_deliver"]):
+        report["status"] = "failed"
+        report["issues"].append("Research/delivery review is missing, inconsistent or incomplete; inspect its separate states")
     return report
 
 
@@ -138,11 +150,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--plan", default="docs/task_plan.json")
-    parser.add_argument("--phase", choices=("plan", "implemented"), default="implemented")
+    parser.add_argument("--phase", choices=("plan", "implemented", "delivery"), default="implemented")
     parser.add_argument("--checklist", type=Path)
+    parser.add_argument("--skill", type=Path, help="Adopted skill directory used for rule-version review")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
-    report = check_project(args.project, args.plan, args.phase, args.checklist)
+    report = check_project(args.project, args.plan, args.phase, args.checklist, args.skill)
     if args.output:
         path = (args.project / args.output).resolve()
         try:

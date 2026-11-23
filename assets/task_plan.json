@@ -20,5 +20,41 @@
     "analysis": "analysis/output/analysis.json"
   },
   "runtime_parameter_ids": [],
-  "requirements": []
+  "requirements": [],
+  "review_contract": "zm-neuron-review/1",
+  "review": {
+    "baseline_ref": "docs/research/requirements_start.json",
+    "objective": {
+      "text": "",
+      "source_kind": "user",
+      "source_ref": "docs/model_spec.md"
+    },
+    "questions": [],
+    "required_axes": [
+      "execution",
+      "calibration",
+      "independent_evaluation",
+      "scientific_answer",
+      "delivery"
+    ],
+    "independent_evidence": "biological",
+    "delivery_profile": "full_model",
+    "skill_files": [
+      "SKILL.md",
+      "references/interview.md",
+      "references/scientific-questions.md",
+      "references/scientific-constraints.md",
+      "references/construction-methods.md",
+      "references/workflow-checks.md",
+      "references/calibration.md",
+      "references/run-compare-optimize.md",
+      "references/result-delivery.md",
+      "references/project-checks.md",
+      "references/versioning.md"
+    ],
+    "criteria_refs": [],
+    "datasets": [],
+    "scope_changes": [],
+    "skill_changes": []
+  }
 }

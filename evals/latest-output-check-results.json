@@ -3,20 +3,20 @@
   "tests_run": 43,
   "failures": 0,
   "errors": 0,
-  "time_utc": "2026-11-23T07:16:41.982496+00:00",
+  "time_utc": "2026-11-23T10:17:23.466144+00:00",
   "command": [
     "python",
     "evals/test_check_outputs.py",
     "--report",
-    "<local_path>/final-test_check_outputs.json"
+    "<local_path>/stage_test_check_outputs.json"
   ],
   "python": "3.13.5",
   "script_sha256": "684aa0c65bb23c9b67e398903b379333d75fc082ae21d351bfeb7999a8d462dd",
   "test_sha256": "a59124bac9153520b730a415518f4003ba0adfd76fa0e0bee81f9c904ca8b259",
   "dependencies_sha256": {
-    "scripts/check_records.py": "c7da2406add0f1b75b51d5f86a5ef79220e44b178759f995e5b4a31e0623a34a",
+    "scripts/check_records.py": "fc73d5525926b98479e08e4af682c70bbb901fda9cdeaaeccb1027a0a7e42937",
     "evals/record_fixture.py": "89c4674de9c0886a977ba42ef1d1878aaa0f4bba33b1540c53ab3893db5fe8e1",
-    "assets/analysis_manifest.json": "f05061b032d12e476582d8f2bb15db7ad485d613978956ee345d51fc095a5747"
+    "assets/analysis_manifest.json": "cb67b0991e3a6c375709e4e786fddda1ec8cc87b09cbb42f13d1c5624f78db07"
   },
   "scope": "Synthetic output coverage, external/model provenance, figure/design references, CSV values, construction steps and read-only behavior",
   "not_run": [

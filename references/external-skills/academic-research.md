@@ -82,6 +82,8 @@
 
 补充完成后返回同一科研流程，复核原意见是否被数据解决。单纯润色不能关闭计算问题；达到预算或停止条件时明确未解决项，不自动增加无限实验。
 
+交接时复用本工程的任务计划和分析记录：分别传递运行、校准、独立评价、科学回答和交付状态，以及实际采用版本、数据用途、未解决项与下一动作。由 [交付复核](../project-checks.md#记录与运行约定) 核查实际产物，不将程序通过或写作完成转换成科学结论成立。需要多 agent 时按 [动态分工](../delegation.md) 安排，不默认启动上游的固定团队。
+
 ## 上游依据
 
 本页只适配以下模块的相关方法，精确版本和完整性记录见 [sources.json](sources.json)：[deep-research](https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/deep-research/SKILL.md)、[academic-paper](https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-paper/SKILL.md)、[academic-paper-reviewer](https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-paper-reviewer/SKILL.md)、[academic-pipeline](https://github.com/Imbad0202/academic-research-skills/blob/ae243ac2ad6ef2deeb46e35b636e6a2d137e50ec/academic-pipeline/SKILL.md)。上游完整系统的自动审阅、引用核查脚本、跨模型接口和系统综述筛选没有随本适配版安装。

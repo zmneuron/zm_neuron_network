@@ -1,5 +1,5 @@
 {
-  "executed_utc": "2026-11-23T07:16:41.706558+00:00",
+  "executed_utc": "2026-11-23T10:17:22.929082+00:00",
   "command": [
     "python",
     "-B",
@@ -7,7 +7,7 @@
     "utf8",
     "evals/test_check_model.py",
     "--report",
-    "<local_path>/final-test_check_model.json"
+    "<local_path>/stage_test_check_model.json"
   ],
   "working_directory": "<local_path>/skill",
   "python": "3.13.5",
@@ -15,7 +15,7 @@
   "test_runner_sha256": "3388d05efc58ab8256833636ea4fcf541792c092749ea1c125119384849a4cc7",
   "parameter_template_sha256": "2f8ea8165cc8bde0c1e82d789c38c129c773463e320b290a8c63ee136602076d",
   "dependencies_sha256": {
-    "scripts/check_records.py": "c7da2406add0f1b75b51d5f86a5ef79220e44b178759f995e5b4a31e0623a34a"
+    "scripts/check_records.py": "fc73d5525926b98479e08e4af682c70bbb901fda9cdeaaeccb1027a0a7e42937"
   },
   "scope": "Synthetic checks of parameter mapping, exported network and CLI; not biological or independent agent evaluation",
   "status": "passed",

@@ -107,13 +107,16 @@ def _atomic_json(path, value):
 
 
 def begin_run(root, output, *, config, stage, model_version, code_refs,
-              command, environment, input_refs=(), parents=(), working_directory=None):
+              command, environment, input_refs=(), parents=(), working_directory=None,
+              source_store="results/source_versions"):
     """Create a new directory and freeze the resolved configuration and source bytes.
 
     Read the returned record's config_ref to instantiate the model. Each backend
     must still ensure these are its actual inputs; this helper does not run it.
-    Completed stages are immutable. Use a new record for changed conditions or
-    reanalysis, even when a parent directory has the same name elsewhere.
+    Completed stages are immutable. Identical source sets share one project-local
+    version archive; pass source_store=None for a self-contained per-run copy.
+    Export shared archives with the runs that reference them. Use a new record for
+    changed conditions or reanalysis, even when a parent has the same name.
     """
     root = Path(root).resolve()
     destination = (root / output).resolve()
@@ -139,13 +142,28 @@ def begin_run(root, output, *, config, stage, model_version, code_refs,
     destination.mkdir(parents=True, exist_ok=False)
     config_path = destination / "resolved_config.json"
     _atomic_json(config_path, config)
-    archives, hashes = {}, {}
+    archives = {}
+    hashes = {reference: hashlib.sha256(payload).hexdigest() for reference, payload in sources.items()}
+    bundle_id = hashlib.sha256(json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    archive_base = destination / "source" if source_store is None else (root / source_store / bundle_id).resolve()
+    require(archive_base.is_relative_to(root) and archive_base != root, "Invalid source store")
     for reference, payload in sources.items():
-        archived = destination / "source" / reference
+        archived = (archive_base / reference).resolve()
+        require(archived.is_relative_to(archive_base) and archived.is_relative_to(root), "Source archive outside project")
         archived.parent.mkdir(parents=True, exist_ok=True)
-        archived.write_bytes(payload)
+        if archived.exists():
+            require(archived.is_file() and archived.read_bytes() == payload, "Stored source version was altered")
+        else:
+            # Equal bundles may be archived by separate workers. Publish whole
+            # files atomically so another run cannot read a half-written source.
+            with tempfile.NamedTemporaryFile(dir=archived.parent, prefix=".source-", suffix=".tmp", delete=False) as handle:
+                temporary = Path(handle.name)
+                handle.write(payload)
+            try:
+                os.replace(temporary, archived)
+            finally:
+                temporary.unlink(missing_ok=True)
         archives[reference] = _relative(root, archived)
-        hashes[reference] = hashlib.sha256(payload).hexdigest()
     record = dict(record_schema=RUN_SCHEMA, run_id=uuid.uuid4().hex, status="partial", stage=stage,
                   model_version=model_version, started_at_utc=datetime.now(timezone.utc).isoformat(),
                   command=command, working_directory=str(actual_cwd), environment=environment,

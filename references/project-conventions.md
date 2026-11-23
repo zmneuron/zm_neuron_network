@@ -17,6 +17,8 @@
 | 总体次序、任务范围、共同要求 | [技能入口](../SKILL.md) |
 | 科研总流程、计算建模、写作与代码技能如何衔接 | [指定技能接入](skill-integrations.md)、[ARS 流程适配](external-skills/academic-research.md) |
 | 每次调用的上游更新、采用版本与跨技能冲突 | [更新与冲突检查](skill-update-review.md) |
+| 原要求、版本与最终完成复核 | [project-checks.md](project-checks.md) |
+| 多 agent 动态分工与独立复核 | [delegation.md](delegation.md) |
 | 分轮调研、提问、回答后的动作及续接 | [interview.md](interview.md) |
 | 文献、代码、数据与参数适配 | [construction-methods.md](construction-methods.md) |
 | 原清单与模块内容、项目记录对应 | [element-coverage.md](element-coverage.md)、[project-checks.md](project-checks.md) |
