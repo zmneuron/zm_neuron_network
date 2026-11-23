@@ -17,6 +17,8 @@
 
 结果状态为 `complete/pending/failed/not_applicable`。必需项必须为 `complete`；不能把用户必需结果改成不适用绕过交付。完成项必须引用已有数据，有图则引用图标识。某项必须含图时设 `figure_required: true`。非必需的待实测评价可保持 `pending` 并写原因；工具通过只表示所声明的必需交付项齐备，不表示这项科学评价完成。计划来自当前构建方法，不能事后按现有输出缩减。
 
+完整生物建模任务将固定的真实数据验证交付登记为必需结果（例如 `id: biological_validation`、`required: true`、`figure_required: true`），引用实际实验数据、最终采用模型和比较表，以及相应对比图；有迭代时再引用初始模型。状态表示图文比较工作是否完成，是否达标及独立性须在正文和比较表另行说明。真实数据缺失保持 `pending` 并说明原因，不能把该项改成可选；用户原本明确限定的纯理论、软件测试等按原范围记录，不因本规则补造实验。复用现有字段与同一图件，不增加第二套输出格式。
+
 ## 构建步骤
 
 每一步含唯一 `id`、`title`、`method_ref`、布尔 `required`、`status`、`depends_on`、`input_refs`、`data_ids`、`figure_ids`、`check_refs`。`method_ref` 指向已有方法文件，可带 `#` 定位；`depends_on` 只能引用列表中已在前面定义的步骤，未依赖其他步骤时为空数组。
