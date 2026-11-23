@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 
-from check_records import verify_check
+from check_records import verify_check, verify_run
 
 
 def require(condition, message):
@@ -166,6 +166,10 @@ def check_project(project, analysis):
             record = read_json(local_path(root, item.get("record")))
             require(record.get("run_id") == identity, f"Run identifier mismatch: {identity}")
             require(record.get("status") in ("completed", "partial", "failed"), f"Invalid run status: {identity}")
+            if "record_schema" in record:
+                verify_run(root, item["record"], require_completed=False)
+            else:
+                report["manual_review"].append(f"Legacy run {identity}: resolved configuration and upstream provenance not verified")
             run_states[identity] = record["status"]
         datasets = entries(manifest.get("datasets"), "datasets")
         for identity, item in datasets.items():

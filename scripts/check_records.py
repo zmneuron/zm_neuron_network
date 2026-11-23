@@ -1,9 +1,14 @@
-"""Validate recorded checks and their current inputs; never execute model code."""
+"""Create isolated run records and verify provenance/checks; never execute model code."""
 from __future__ import annotations
 
 import hashlib
 import json
 import math
+import copy
+import os
+import tempfile
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -29,7 +34,11 @@ def read(path):
 
 
 def fingerprint(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def checked_files(root, values, label):
@@ -45,6 +54,179 @@ def checked_files(root, values, label):
 
 def finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+RUN_SCHEMA = "zm-neuron-run/1"
+
+
+def resolve_config(base, overrides):
+    """Merge explicit overrides without mutating base; reject misspelled/new keys.
+
+    Arrays are replaced as a whole. Add new model fields to the base configuration,
+    not to command-line overrides. Units and biological validity remain project checks.
+    """
+    require(isinstance(base, dict) and isinstance(overrides, dict), "Configurations must be objects")
+    result = copy.deepcopy(base)
+    for key, value in overrides.items():
+        require(key in base, f"Unknown override key: {key}")
+        if isinstance(value, dict):
+            require(isinstance(base[key], dict), f"Override structure mismatch: {key}")
+            result[key] = resolve_config(base[key], value)
+        else:
+            require(not isinstance(base[key], dict), f"Override structure mismatch: {key}")
+            result[key] = copy.deepcopy(value)
+    json.dumps(result, allow_nan=False)
+    return result
+
+
+def exact_steps(duration, dt):
+    """Convert a nonnegative duration to ticks, rejecting unsupported grids."""
+    require(finite(duration) and finite(dt) and duration >= 0 and dt > 0, "Invalid duration or time step")
+    ratio = duration / dt
+    require(math.isfinite(ratio), "Time grid exceeds numeric range")
+    count = round(ratio)
+    require(math.isclose(count * dt, duration, rel_tol=0, abs_tol=1e-9),
+            f"Duration {duration} is not representable on time step {dt}")
+    return count
+
+
+def _relative(root, path):
+    return path.resolve().relative_to(Path(root).resolve()).as_posix()
+
+
+def _atomic_json(path, value):
+    payload = json.dumps(value, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                     prefix=".record-", suffix=".tmp", delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(payload)
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def begin_run(root, output, *, config, stage, model_version, code_refs,
+              command, environment, input_refs=(), parents=(), working_directory=None):
+    """Create a new directory and freeze the resolved configuration and source bytes.
+
+    Read the returned record's config_ref to instantiate the model. Each backend
+    must still ensure these are its actual inputs; this helper does not run it.
+    Completed stages are immutable. Use a new record for changed conditions or
+    reanalysis, even when a parent directory has the same name elsewhere.
+    """
+    root = Path(root).resolve()
+    destination = (root / output).resolve()
+    require(root.is_dir() and destination != root and destination.is_relative_to(root), "Invalid output directory")
+    require(not destination.exists(), "Output already exists; choose a new run directory")
+    require(isinstance(config, dict), "Resolved configuration must be an object")
+    json.dumps(config, allow_nan=False)
+    require(all(isinstance(x, str) and x.strip() for x in (stage, model_version)), "Missing stage or model version")
+    require(isinstance(command, list) and command and all(isinstance(x, str) for x in command), "Command must be a nonempty argument list")
+    require(isinstance(environment, dict) and bool(environment), "Record actual runtime dependency versions")
+    json.dumps(environment, allow_nan=False)
+    actual_cwd = Path.cwd() if working_directory is None else Path(working_directory).resolve()
+    require(actual_cwd.is_dir(), "Actual working directory does not exist")
+    sources = {_relative(root, local(root, ref)): local(root, ref).read_bytes() for ref in code_refs}
+    require(bool(sources), "Record the actual source files, including local dependencies")
+    inputs = {_relative(root, local(root, ref)): fingerprint(local(root, ref)) for ref in input_refs}
+    parent_info = []
+    for reference in parents:
+        record = verify_run(root, reference)
+        parent_info.append(dict(record=_relative(root, local(root, reference)), run_id=record["run_id"],
+                                sha256=fingerprint(local(root, reference))))
+    require(len({p["run_id"] for p in parent_info}) == len(parent_info), "Duplicate parent run identity")
+    destination.mkdir(parents=True, exist_ok=False)
+    config_path = destination / "resolved_config.json"
+    _atomic_json(config_path, config)
+    archives, hashes = {}, {}
+    for reference, payload in sources.items():
+        archived = destination / "source" / reference
+        archived.parent.mkdir(parents=True, exist_ok=True)
+        archived.write_bytes(payload)
+        archives[reference] = _relative(root, archived)
+        hashes[reference] = hashlib.sha256(payload).hexdigest()
+    record = dict(record_schema=RUN_SCHEMA, run_id=uuid.uuid4().hex, status="partial", stage=stage,
+                  model_version=model_version, started_at_utc=datetime.now(timezone.utc).isoformat(),
+                  command=command, working_directory=str(actual_cwd), environment=environment,
+                  config_ref=_relative(root, config_path), config_sha256=fingerprint(config_path),
+                  code_sha256=hashes, source_archive=archives, input_sha256=inputs,
+                  parents=parent_info, output_sha256={})
+    path = destination / "run.json"
+    _atomic_json(path, record)
+    return _relative(root, path)
+
+
+def verify_run(root, reference, *, require_completed=True, check_current_code=False, _seen=None):
+    """Verify stored inputs, source copies, outputs and parent identities.
+
+    Historical results may use archived code after the working code changes.
+    At finalization check_current_code also detects edits during the computation.
+    This establishes file consistency, not scientific validity or execution truth.
+    """
+    path = local(root, reference)
+    seen = set() if _seen is None else set(_seen)
+    require(path not in seen, "Cyclic parent run records")
+    seen.add(path)
+    record = read(path)
+    require(record.get("record_schema") == RUN_SCHEMA, "Run lacks resolved provenance contract")
+    for field in ("run_id", "stage", "model_version", "started_at_utc", "working_directory"):
+        require(isinstance(record.get(field), str) and record[field].strip(), f"Missing run {field}")
+    require(record.get("status") in ("partial", "failed", "completed"), "Invalid run status")
+    if require_completed:
+        require(record["status"] == "completed", f"Unfinished parent/run: {reference}")
+    require(isinstance(record.get("command"), list) and bool(record["command"]), "Missing actual command")
+    require(isinstance(record.get("environment"), dict) and bool(record["environment"]), "Missing runtime environment")
+    config = local(root, record.get("config_ref"))
+    require(fingerprint(config) == record.get("config_sha256"), "Resolved configuration changed")
+    json.dumps(read(config), allow_nan=False)
+    codes, archives = record.get("code_sha256"), record.get("source_archive")
+    require(isinstance(codes, dict) and bool(codes) and isinstance(archives, dict)
+            and set(codes) == set(archives), "Missing recoverable source files")
+    for source, digest in codes.items():
+        require(fingerprint(local(root, archives[source])) == digest, f"Archived source changed: {source}")
+    if check_current_code:
+        checked_files(root, codes, "executed source files")
+    inputs = record.get("input_sha256")
+    require(isinstance(inputs, dict), "Missing input provenance")
+    if inputs:
+        checked_files(root, inputs, "run inputs")
+    parents = record.get("parents")
+    require(isinstance(parents, list), "Missing parent provenance")
+    parent_ids = set()
+    for parent in parents:
+        require(isinstance(parent, dict), "Invalid parent record")
+        parent_path = local(root, parent.get("record"))
+        require(fingerprint(parent_path) == parent.get("sha256"), "Parent record changed")
+        prior = verify_run(root, parent["record"], _seen=seen)
+        require(prior["run_id"] == parent.get("run_id") and prior["run_id"] not in parent_ids,
+                "Parent identity mismatch or duplicate")
+        parent_ids.add(prior["run_id"])
+    if record["status"] == "completed":
+        require(isinstance(record.get("completed_at_utc"), str), "Missing completion time")
+        checked_files(root, record.get("output_sha256"), "completed run outputs")
+    return record
+
+
+def finish_run(root, reference, output_refs):
+    """Finalize only after actual computation/checks succeed; never replace a completed run."""
+    path = local(root, reference)
+    record = read(path)
+    require(record.get("status") == "partial", "Run is not pending; preserve the completed/failed record")
+    verify_run(root, reference, require_completed=False, check_current_code=True)
+    outputs = {}
+    protected = {path, local(root, record["config_ref"])}
+    protected.update(local(root, ref) for ref in record["source_archive"].values())
+    for ref in output_refs:
+        output = local(root, ref)
+        require(output.is_relative_to(path.parent) and output not in protected,
+                "Result must be a new output inside this run, not configuration/source/record")
+        outputs[_relative(root, output)] = fingerprint(output)
+    require(bool(outputs), "Cannot complete a run without actual outputs")
+    record.update(status="completed", output_sha256=outputs,
+                  completed_at_utc=datetime.now(timezone.utc).isoformat())
+    _atomic_json(path, record)
+    return record
 
 
 def metric_passes(metric):
@@ -88,6 +270,8 @@ def verify_check(root, reference, *, module_id=None, step_id=None, model_version
     run = read(local(root, record.get("run_ref")))
     require(run.get("run_id") == record["run_id"], f"Check/run identifier mismatch: {reference}")
     require(run.get("status") == "completed", f"Check uses unfinished run: {reference}")
+    if "record_schema" in run:
+        verify_run(root, record["run_ref"])
     code = checked_files(root, record.get("code_sha256"), "check source files")
     data = checked_files(root, record.get("data_sha256"), "check result files")
     config = local(root, record.get("config_ref"))

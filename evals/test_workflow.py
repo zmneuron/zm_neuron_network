@@ -20,6 +20,7 @@ sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent))
 import check_project
 import workflow_case as case
+from test_check_records import RunRecords
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -56,6 +57,33 @@ class WorkflowChecks(unittest.TestCase):
         self.assertEqual(len(rates), len(rectangles))
         for row, bar in zip(rates, rectangles):
             self.assertAlmostEqual(float(bar.attrib["height"]), float(row["rate_hz"])*3)
+
+    def test_new_record_contract_does_not_accept_legacy_run(self):
+        self.change_json("docs/task_plan.json", lambda p: p.update(run_record_contract="zm-neuron-run/1"))
+        self.fail("Run lacks resolved provenance contract")
+
+    def test_resolved_records_cover_real_simulation_and_analysis(self):
+        root = self.root / "resolved_case"
+        case.create(root)
+        case.enable_run_records(root)
+        observed = case.execute(root, "run")
+        case.describe(root, "run")
+        result = check_project.check_project(root)
+        self.assertEqual(result["status"], "passed", result)
+        self.assertEqual(result["checks"]["run_records"]["status"], "passed")
+        self.assertGreater(observed["spikes"], 0)
+        simulation = json.loads((root / "results/run/run.json").read_text())
+        analysis = json.loads((root / "analysis/output/run.json").read_text())
+        self.assertNotEqual(simulation["run_id"], "run")
+        self.assertEqual(analysis["parents"][0]["run_id"], simulation["run_id"])
+        saved = json.loads((root / analysis["config_ref"]).read_text())
+        self.assertEqual(saved["window_start_ms"], 100)
+        config = root / simulation["config_ref"]
+        data = json.loads(config.read_text()); data["drive_mV"] = 22
+        config.write_text(json.dumps(data), encoding="utf-8")
+        result = check_project.check_project(root)
+        self.assertEqual(result["status"], "failed", result)
+        self.assertIn("Resolved configuration changed", json.dumps(result))
 
     def test_task_required_feature_cannot_be_omitted(self):
         self.change_json("docs/task_plan.json", lambda p: p["features"].append("lfp"))
@@ -143,13 +171,16 @@ def main():
     parser.add_argument("--workspace", type=Path, help="Optional new isolated directory retaining a passing example")
     args = parser.parse_args()
     log = io.StringIO()
-    result = unittest.TextTestRunner(stream=log, verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(WorkflowChecks))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
+                               for cls in (WorkflowChecks, RunRecords))
+    result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
     retained = None
     if args.workspace and result.wasSuccessful():
         args.workspace.mkdir(parents=True, exist_ok=False)
         case.create(args.workspace); actual = case.execute(args.workspace, "r1"); case.describe(args.workspace, "r1")
         retained = {"path": str(args.workspace.resolve()), "actual": actual, "check": check_project.check_project(args.workspace)["status"]}
-    files = [*sorted((SKILL / "scripts").glob("*.py")), Path(__file__), Path(case.__file__), SKILL / "references/element-catalog.json"]
+    files = [*sorted((SKILL / "scripts").glob("*.py")), Path(__file__), Path(case.__file__),
+             Path(__file__).with_name("test_check_records.py"), SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,
               "files_sha256": {p.relative_to(SKILL).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},

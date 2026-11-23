@@ -9,7 +9,7 @@ from pathlib import Path
 import check_elements
 import check_model
 import check_outputs
-from check_records import fingerprint, local, read, require, verify_check
+from check_records import fingerprint, local, read, require, verify_check, verify_run, RUN_SCHEMA
 
 
 def ids(value, label, empty=False):
@@ -35,6 +35,8 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
     try:
         plan = read(local(root, str(plan_path)))
         require(plan.get("schema_version") == 1, "Unsupported task plan schema")
+        record_contract = plan.get("run_record_contract")
+        require(record_contract in (None, RUN_SCHEMA), "Unsupported run record contract")
         for field in ("plan_id", "model_version"):
             require(isinstance(plan.get(field), str) and plan[field].strip(), f"Missing {field}")
         mode = plan.get("mode")
@@ -97,6 +99,14 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
             analysis = read(local(root, files["analysis"]))
             require(analysis.get("schema_version") == 2 and analysis.get("plan_id") == plan["plan_id"]
                     and analysis.get("model_version") == plan["model_version"], "Analysis belongs to another task/model version")
+            if record_contract == RUN_SCHEMA:
+                for item in analysis["runs"]:
+                    run = verify_run(root, item["record"], require_completed=False)
+                    require(run["run_id"] == item["run_id"], "Resolved run identity differs from analysis")
+                report["checks"]["run_records"] = {"status": "passed", "contract": RUN_SCHEMA}
+            else:
+                report["checks"]["run_records"] = {"status": "legacy_not_verified",
+                    "scope": "Resolved configuration and upstream provenance need separate review"}
             steps = {item["id"]: item for item in analysis["construction_steps"]}
             results = {item["id"]: item for item in analysis["results"]}
             require(required_steps <= set(steps) and required_results <= set(results), "Required steps/results are missing from analysis")

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "run_record_contract": "zm-neuron-run/1",
   "plan_id": "",
   "model_version": "",
   "catalog_version": "2026-11-21.1",

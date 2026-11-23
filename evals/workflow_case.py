@@ -148,6 +148,39 @@ def create(root):
     return config
 
 
+def enable_run_records(root):
+    """Opt the isolated synthetic numerical example into the current run contract.
+
+    These wrappers save configuration before executing the same model/analysis,
+    not after-the-fact provenance added to pre-existing outputs.
+    """
+    helper = "model/run_records.py"
+    (root / helper).write_bytes((SKILL / "scripts/check_records.py").read_bytes())
+    model = MODEL_FILES["model/run.py"].replace(
+        "from cells.dynamics import Cell", "from cells.dynamics import Cell\nfrom run_records import begin_run, finish_run, read")
+    model = model.replace("destination.mkdir(parents=True)", '''record = begin_run(root, destination, config=config, stage="simulation", model_version="m1",
+    code_refs=[p.relative_to(root).as_posix() for p in (root/"model").rglob("*.py") if p.stat().st_size],
+    command=[sys.executable, *sys.argv], environment={"python":sys.version})
+config = read(root/read(root/record)["config_ref"])''')
+    model = model.replace('(root/"model/config/model.json").read_bytes()', '(root/read(root/record)["config_ref"]).read_bytes()')
+    old = '(destination/"run.json").write_text(json.dumps({"run_id":sys.argv[1],"status":"completed","command":"python model/run.py "+sys.argv[1]}))'
+    model = model.replace(old, '''finish_run(root, record, [(destination/name).relative_to(root).as_posix()
+    for name in ("cells.csv","connections.csv","spikes.csv","voltage.csv","instances.json","config_used.json")])''')
+    (root / "model/run.py").write_text(model, encoding="utf-8")
+    analysis = MODEL_FILES["analysis/run.py"].replace(
+        'source=root/"results"/run_id;out=root/"analysis/output";out.mkdir(parents=True,exist_ok=True)', '''source=root/"results"/run_id;out=root/"analysis/output"
+sys.path.insert(0,str(root/"model"))
+from run_records import begin_run, finish_run, read
+record = begin_run(root, out, config={"window_start_ms":start}, stage="analysis", model_version="m1",
+    code_refs=["analysis/run.py","model/run_records.py"], command=[sys.executable,*sys.argv],
+    environment={"python":sys.version}, parents=[(source/"run.json").relative_to(root).as_posix()],
+    input_refs=[(source/name).relative_to(root).as_posix() for name in ("config_used.json","cells.csv","spikes.csv")])
+start=read(root/read(root/record)["config_ref"])["window_start_ms"]''')
+    old = '(out/"run.json").write_text(json.dumps({"run_id":analysis_id,"status":"completed","command":"python analysis/run.py "+run_id+" "+str(start)+" "+analysis_id}))'
+    analysis = analysis.replace(old, 'finish_run(root, record, ["analysis/output/rates.csv","analysis/output/rates.svg"])')
+    (root / "analysis/run.py").write_text(analysis, encoding="utf-8")
+
+
 def execute(root, run_id, start=100, simulate=True, analysis_id=None):
     observations = {}
     commands = [[sys.executable, "-B", "model/run.py", run_id]] if simulate else []
@@ -162,10 +195,14 @@ def describe(root, run_id, version="m1"):
     """Record checked actual outputs after execution; all fixtures explicitly synthetic."""
     config = json.loads((root / "model/config/model.json").read_text())
     source = f"results/{run_id}/"
+    simulation_run = json.loads((root / source / "run.json").read_text())
+    simulation_id = simulation_run["run_id"]
     observed = json.loads((root / source / "instances.json").read_text())
     analysis_run = json.loads((root / "analysis/output/run.json").read_text())
     analysis_id = analysis_run["run_id"]
     model_code = [name for name in MODEL_FILES if name.startswith("model/")]
+    if (root / "model/run_records.py").exists():
+        model_code.append("model/run_records.py")
     fields = next(csv.reader((SKILL / "assets/parameter_mapping.csv").read_text(encoding="utf-8").splitlines()))
     rows = []
     for key, value in config.items():
@@ -179,7 +216,7 @@ def describe(root, run_id, version="m1"):
     projections = {a+"_to_"+b: {"source": a, "target": b, "weight_path": "/weight_"+a, "delay_path": "/dt_ms"} for a in "EI" for b in "EI"}
     dump(root, "docs/network_checks.json", {"cells": {"path": source+"cells.csv", "populations": {"E": "/n_E", "I": "/n_I"}, "coordinate_unit": "um", "coordinate_bounds": {a: "/"+a for a in "xyz"}},
                                           "connections": {"path": source+"connections.csv", "weight_unit": "mV", "delay_unit": "ms", "allow_self": False, "allow_multiple": False, "projections": projections}})
-    runtime = {"schema_version": 1, "run_id": run_id, "config_sha256": sha(root, "model/config/model.json"),
+    runtime = {"schema_version": 1, "run_id": simulation_id, "config_sha256": sha(root, "model/config/model.json"),
                "code_sha256": {name: sha(root, name) for name in model_code}, "check_ref": source+"model_check.json", "parameters": [],
                "derivations": [{"parameter_id": "n", "operation": "product", "result_unit": "count",
                                 "operands": [{"value": 20, "unit": "count/volume_unit", "source_ref": "synthetic density"}, {"value": .5, "unit": "volume_unit", "source_ref": "synthetic volume"}]}]}
@@ -200,7 +237,7 @@ def describe(root, run_id, version="m1"):
                          "model_version": version, "run_id": identity, "run_ref": run_ref, "module_ids": mids, "step_ids": steps,
                          "config_ref": source+"config_used.json", "config_sha256": sha(root, source+"config_used.json"),
                          "code_sha256": {p: sha(root, p) for p in code}, "data_sha256": {p: sha(root, p) for p in data}, "metrics": metrics})
-    record(source+"model_check.json", model_code, raw, [m for m in module_files if m != "analysis"], ["build", "simulate"], source+"run.json", run_id, model_metrics)
+    record(source+"model_check.json", model_code, raw, [m for m in module_files if m != "analysis"], ["build", "simulate"], source+"run.json", simulation_id, model_metrics)
     with (root / "analysis/output/rates.csv").open() as handle: rates = list(csv.DictReader(handle))
     analysis_metrics = [{"name": "all_cells_analyzed", "actual": len(rates), "expected": config["n"], "unit": "count"},
                         {"name": "nonzero_spontaneous_activity", "actual": sum(float(r["rate_hz"]) for r in rates) > 0, "expected": True, "unit": "1"}]
@@ -236,16 +273,16 @@ def describe(root, run_id, version="m1"):
     def dataset(identity, path, fields, run, kind="raw"):
         return {"id": identity, "path": path, "kind": kind, "origin": "model", "run_ids": [run], "description": "Actual synthetic software-test output",
                 "fields": {name: {"type": typ, "unit": unit, "description": name} for name, typ, unit in fields}}
-    datasets = [dataset("spikes", source+"spikes.csv", [("cell_id", "text", "1"), ("time_ms", "number", "ms")], run_id),
-                dataset("cells", source+"cells.csv", [("cell_id", "text", "1"), ("population", "text", "1"), *[(a, "number", "um") for a in "xyz"]], run_id),
+    datasets = [dataset("spikes", source+"spikes.csv", [("cell_id", "text", "1"), ("time_ms", "number", "ms")], simulation_id),
+                dataset("cells", source+"cells.csv", [("cell_id", "text", "1"), ("population", "text", "1"), *[(a, "number", "um") for a in "xyz"]], simulation_id),
                 dataset("rates", "analysis/output/rates.csv", [("cell_id", "text", "1"), ("population", "text", "1"), ("rate_hz", "number", "Hz")], analysis_id, "table")]
     datasets[2].update(input_data_ids=["spikes", "cells"], key_columns=["cell_id"], expected_groups={"cell_id": observed["object_ids"]})
     steps = [{"id": s, "title": s, "method_ref": "docs/model_spec.md", "required": True, "status": "complete", "depends_on": [] if s == "build" else ["build"] if s == "simulate" else ["simulate"],
               "input_refs": [source+"config_used.json"], "data_ids": ["cells"] if s == "build" else ["spikes"] if s == "simulate" else ["rates"], "figure_ids": ["rates_figure"] if s == "analyze" else [],
               "check_refs": ["analysis/output/check.json" if s == "analyze" else source+"model_check.json"], "observation": "Actual generated data checked in this synthetic workflow"} for s in ("build", "simulate", "analyze")]
     manifest = {"schema_version": 2, "plan_id": "synthetic-plan", "model_version": version, "analysis_id": analysis_id, "report": "docs/results.md",
-                "command": analysis_run["command"], "statistical_unit": "one synthetic network; cells are not independent networks",
-                "runs": [{"run_id": run_id, "record": source+"run.json"}, {"run_id": analysis_id, "record": "analysis/output/run.json"}],
+                "command": analysis_run["command"] if isinstance(analysis_run["command"], str) else json.dumps(analysis_run["command"]), "statistical_unit": "one synthetic network; cells are not independent networks",
+                "runs": [{"run_id": simulation_id, "record": source+"run.json"}, {"run_id": analysis_id, "record": "analysis/output/run.json"}],
                 "datasets": datasets, "figures": [{"id": "rates_figure", "files": ["analysis/output/rates.svg"], "data_ids": ["rates"], "code": "analysis/run.py",
                                                    "design_ref": "docs/research/figure_plan.md", "command": "python analysis/run.py", "caption": "Synthetic test rates", "selection": "All ten cells"}],
                 "construction_steps": steps, "results": [{"id": "resting_activity", "question": "Did all requested software components generate the declared outputs?", "required": True,
@@ -257,5 +294,7 @@ def describe(root, run_id, version="m1"):
                       "runtime": source+"runtime.json", "network": "docs/network_checks.json", "analysis": "analysis/output/analysis.json"},
             "requirements": [{"id": "software_workflow", "description": "Build and simulate the synthetic spatial LIF network, then recompute rates.", "source_ref": "docs/model_spec.md",
                               "item_ids": sorted(required_items), "module_ids": list(module_files), "parameter_ids": list(config), "step_ids": ["build", "simulate", "analyze"], "result_ids": ["resting_activity"]}]}
+    if simulation_run.get("record_schema"):
+        plan["run_record_contract"] = simulation_run["record_schema"]
     dump(root, "docs/task_plan.json", plan)
     return plan

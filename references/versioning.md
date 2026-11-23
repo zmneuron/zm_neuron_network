@@ -21,6 +21,43 @@
 
 当前交付采用哪些运行及分析，由 `results/index.json` 明确列出，并能定位到正式数据表和图件的分析记录。源码或配置有改动但没有对应检查和结果时，不能把旧输出改标为新版本结果。仅补充已用参数的来源定位可更新说明；采用值、生成算法或构建解释改变时，应记录版本及要重新核对的内容。
 
+## 运行记录与阶段衔接
+
+新工程在 `task_plan.json` 声明 `run_record_contract: "zm-neuron-run/1"`，新仿真、离线下游动力学和重分析均执行以下约定。可以复用 [check_records.py](../scripts/check_records.py) 的工具函数，也可实现并检查相同格式；不用为每个项目再写一套易漏项的记录代码。工具不执行神经模型，也不能代替实际对象核对、生物学验证或长任务续接管理。
+
+1. **先解析再实例化。** 合并基础配置、条件、命令行和派生设置，保存最终实际生效配置；由这份配置构建对象。原始模板可以另外引用，不能原样复制后称 `config_used`。时间协议在实际时钟的整数刻度上生成；不能表示的时刻明确拒绝或实施有定义的采样转换，禁止强制整数截断。
+2. **身份与目录名分开。** 每个新计算生成唯一身份，保留阶段、来源身份、实际配置/输入和代码版本。输出目录须新建，不能以两个目录同名、状态为 completed 或文件存在来复用/覆盖。真正续跑沿用原身份并按执行管理记录尝试与状态，不把新条件当续跑。
+3. **保存实际源码和环境。** 函数会归档声明的源码字节；源码清单包含实际局部依赖，环境含求解和分析所用版本。项目已有不可变源码归档时可采用等效记录，避免重复复制。校验值用于发现变化，归档或版本控制用于恢复。后台任务使用冻结的代码/配置；不能在其运行位置改代码后指望旧标识仍有效。
+4. **阶段入口验证上游。** 核对真实读取的解析配置、输入文件、父运行身份及结果；缺失、未完成或内容改变时停止依赖步骤，保留既有结果并定位差异。仅复制父记录里的旧校验值不算核对。合法的新脑干/观测条件有自己的解析配置与计算身份，父仿真身份不改写。
+5. **成功后再完成与采用。** 实际计算及运行内的数值/输出检查成功、必要输出已保存后结束该记录；验证配置/代码/输入未在计算中改变，并记录输出。随后运行要求完成记录的汇总检查，避免先要求 `completed`、再据此决定能否完成的循环。失败保留未完成状态及原因。需要的图、数据说明和正文未完成时，只能说对应计算已完成；当前交付索引在整体核对后更新。
+
+最小接入示例，路径和代码清单需替换成真实项目；复制脚本到工程的 I/O 模块，工程运行不依赖作者本机的 Skill 路径：
+
+```python
+from pathlib import Path
+from model.io.run_records import resolve_config, begin_run, read, finish_run
+
+root = Path(project_dir).resolve()
+effective = resolve_config(base_config, explicit_overrides)  # 仅传用户实际覆盖的项
+record_ref = begin_run(
+    root, new_run_directory, config=effective, stage="simulation", model_version=model_version,
+    code_refs=actual_source_files, input_refs=actual_input_files, parents=parent_record_refs,
+    command=actual_command_arguments, environment=actual_dependency_versions,
+    working_directory=actual_working_directory,
+)
+record = read(root / record_ref)
+actual_config = read(root / record["config_ref"])
+# 用 actual_config 实例化、实际计算并检查数值和输出；出错不调用 finish_run。
+# 原始输出写入 new_run_directory；这里不生成示例神经数据。
+finish_run(root, record_ref, actual_output_files)
+```
+
+`resolve_config` 递归合并已存在字段，数组整体替换；新增模型字段先加入基础配置，拼错的覆盖字段会报错。`exact_steps(duration, dt)` 可用于时钟转换。`begin_run` 生成 `partial` 记录和源码副本，`finish_run` 完成记录前重新核对依赖；`verify_run(project, record_ref)` 用于下游入口。每个阶段只使用声明并检查的实际依赖；脚本无法发现调用者故意或意外漏报的源码、数据或覆盖参数，仍须从实际对象检查关键采用值。
+
+记录字段由工具生成：`record_schema, run_id, status, stage, model_version, started_at_utc, command, working_directory, environment, config_ref/config_sha256, code_sha256/source_archive, input_sha256, parents, output_sha256`，完成后增加 `completed_at_utc`。文件引用相对工程，`working_directory` 保存实际工作目录；`parents` 绑定上游记录路径、身份及文件内容。完成记录及绑定输出保持不变，追加的检查可放旁路文件引用它，不能回写父记录导致已有分析失配。
+
+重分析从已验证的原始数据开始，在新分析目录生成表、图及其说明，代码记录包括实际调用的辅助模块。同步更新输出清单与对应文字；只生成了表时不宣称旧图/旧正文已更新。分析阶段使用自己的配置和源码，不能重写原仿真产生条件。旧工程未使用此格式时保留并报告 `legacy_not_verified`；只能依据可恢复记录补核对，不能补造历史命令或检查，不能对已声明使用新约定的任务删掉约定来绕过失败。
+
 ## 修改后哪些结果仍可使用
 
 修改前先沿“参数/代码/输入 → 实际对象和动力学 → 原始记录 → 指标 → 图表和结论”判断影响，记录在当前方法或进度中即可。以下是处理起点，具体取决于真实依赖；有反馈耦合的模块要检查反馈返回路径，不能仅按文件所在目录划定影响。
