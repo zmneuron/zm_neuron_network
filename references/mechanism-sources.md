@@ -4,6 +4,8 @@
 
 它不是全部可用模型的列表，也不是一份已安装、已运行的模型库。缺少条目时按[现象与条件检索](interview.md#调研与追问交替推进)继续查原始研究、作者存档及相关实现；[ModelDB 官方帮助](https://modeldb.science/help)可用于发现完整模型及局部组件。采用前仍需固定实际版本、读取相关方程/代码并按[机制接入规则](mechanism-extension.md)核对适用性。
 
+需要发现不同数学表示或选择软件时，按[方法发现与软件选择](method-discovery.md)从必要过程和观测出发。也可由 [BioModels](https://www.ebi.ac.uk/training/online/courses/biomodels-quick-tour/what-is-biomodels/) 查找相关定量机制模型，由 [NeuroML 官方运行说明](https://docs.neuroml.org/Userdocs/SimulatingNeuroMLModels.html) 了解模型描述、转换和运行后端的区别；所列平台不构成安装清单。新增入口的定向核查范围与日期见方法发现页，原有条目的核查范围仍如下所述。
+
 ## 神经元、突触与局部机制
 
 | 研究需求 | 原始模型或实现入口 | 优先核对的最小内容与边界 |
