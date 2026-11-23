@@ -50,11 +50,18 @@
       "references/run-compare-optimize.md",
       "references/result-delivery.md",
       "references/project-checks.md",
-      "references/versioning.md"
+      "references/versioning.md",
+      "references/open-source-reuse.md"
     ],
     "criteria_refs": [],
     "datasets": [],
     "scope_changes": [],
     "skill_changes": []
+  },
+  "reuse": {
+    "contract": "zm-neuron-reuse/1",
+    "invocation_id": "",
+    "stages": [],
+    "adoptions": []
   }
 }

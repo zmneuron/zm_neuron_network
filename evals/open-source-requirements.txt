@@ -1,0 +1,6 @@
+# Optional numerical integration example only, not skill-wide dependencies.
+# Tested package versions; platform/Python compatibility must be checked locally.
+brian2==2.10.1
+optuna==5.1.0
+numpy==2.1.3
+matplotlib==3.8.4

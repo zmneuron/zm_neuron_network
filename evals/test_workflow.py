@@ -23,6 +23,7 @@ import workflow_case as case
 from test_check_records import RunRecords
 from test_calibration import CalibrationChecks
 from test_review_project import CompletionReviewChecks
+from test_reuse import ReuseChecks
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -183,7 +184,7 @@ def main():
     args = parser.parse_args()
     log = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks))
+                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks, ReuseChecks))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
     retained = None
     if args.workspace and result.wasSuccessful():
@@ -193,6 +194,7 @@ def main():
     files = [*sorted((SKILL / "scripts").glob("*.py")), Path(__file__), Path(case.__file__),
              Path(__file__).with_name("test_check_records.py"), Path(__file__).with_name("test_calibration.py"),
              Path(__file__).with_name("test_review_project.py"), Path(__file__).with_name("review_fixture.py"),
+             Path(__file__).with_name("test_reuse.py"),
              SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,

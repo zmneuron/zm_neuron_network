@@ -122,6 +122,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 
 复核结果分别给出 `consistent`（记录与数值一致）、`ready_to_deliver`（可交付如实报告）、`goal_complete`（所登记的必需目标均满足）；退出码 `0/2/1` 分别表示满足、尚未满足或旧格式未复核、记录不一致。初期读取建议 `read_next` 仅指导下一步，不能证明实际已读。使用可执行例子了解完整嵌套字段：`python <skill_dir>/evals/review_fixture.py --help`；软件失败用例见 [test_review_project.py](../evals/test_review_project.py)，已并入现有工作流测试。
 
+阶段性开源复用同时读取任务计划中的 `reuse`：当前阶段是否比较已有能力，实际采用版本/本次更新检查与交接是否明确，软件运行是否关联对应版本的真实记录。规则及最小结构见[阶段性接入](open-source-reuse.md#在现有记录中落实采用)。结构通过只表示记录对应，不证明来源可靠、已经阅读或科研方法有效；旧工程缺记录时明确未审查，不自动补写历史。
+
 ## 清单更新与固定编号
 
 `element-catalog.json` 保存事项的固定 ID、原文、类别和适用规则；`01.01` 等 ID 现在是永久标识，不由出现位置重新生成。新增事项使用未占用编号，已有事项移动位置不改 ID；拆分或废弃时保留明确迁移关系，不能把旧 ID 分配给不同含义。清单版本更新后同步副本、目录、模板及引用，人工核对事项变化和适用规则。

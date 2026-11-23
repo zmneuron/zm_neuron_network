@@ -13,6 +13,7 @@ import math
 import os
 from pathlib import Path
 import re
+from check_reuse import check_reuse
 import statistics
 import tempfile
 
@@ -130,6 +131,8 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     original_plan_digest = fingerprint(plan_file)
     plan = read(plan_file)
     require(plan.get("review_contract") == CONTRACT, "Declare the review contract before capture")
+    reuse = check_reuse(root, plan)
+    require(reuse["status"] != "failed", "Resolve current reuse records before capture: " + "; ".join(reuse["issues"]))
     state = scope_state(plan)
     review = plan["review"]
     local(root, state["objective"]["source_ref"])
@@ -146,6 +149,7 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
                     plan_id=plan["plan_id"], initial_model_version=plan["model_version"],
                     scope=state, criteria=criteria, skill_files=skills,
                     datasets=review.get("datasets", []))
+    baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
     baseline["dataset_files"] = {p.relative_to(root).as_posix(): fingerprint(p)
                                  for d in review.get("datasets", []) if d.get("available") is True
                                  for p in _reference_files(root, d)}
@@ -188,6 +192,9 @@ def _scope_changes(before, after):
 
 def _check_scope(root, plan, baseline, report, skill):
     require(baseline.get("review_contract") == CONTRACT and baseline.get("plan_id") == plan.get("plan_id"), "Capture belongs to another plan")
+    if baseline.get("reuse_contract"):
+        require(isinstance(plan.get("reuse"), dict) and plan["reuse"].get("contract") == baseline["reuse_contract"],
+                "Previously required reuse review cannot be removed as a legacy exemption")
     state = scope_state(plan)
     review = plan["review"]
     local(root, state["objective"]["source_ref"])
@@ -599,6 +606,14 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             report["warnings"].append("No review contract; do not reconstruct or claim a historical review automatically.")
             return report
         require(plan.get("review_contract") == CONTRACT, "Unsupported review contract")
+        reuse = check_reuse(root, plan)
+        report["checks"]["reuse"] = reuse
+        if plan.get("reuse") is not None:
+            report["read_next"].append("references/open-source-reuse.md")
+        if reuse["status"] == "failed":
+            raise ValueError("Reuse review failed: " + "; ".join(reuse["issues"]))
+        if reuse["status"] == "legacy_not_reviewed":
+            report["warnings"].append("Stage-specific open-source reuse has not been reviewed in this plan.")
         capture = local(root, plan["review"]["baseline_ref"])
         require(fingerprint(capture) == plan["review"].get("baseline_sha256"), "Captured original requirements changed or are not bound to this plan")
         baseline = read(capture)
