@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import check_project
 import workflow_case as case
 from test_check_records import RunRecords
+from test_calibration import CalibrationChecks
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -172,7 +173,7 @@ def main():
     args = parser.parse_args()
     log = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-                               for cls in (WorkflowChecks, RunRecords))
+                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
     retained = None
     if args.workspace and result.wasSuccessful():
@@ -180,7 +181,8 @@ def main():
         case.create(args.workspace); actual = case.execute(args.workspace, "r1"); case.describe(args.workspace, "r1")
         retained = {"path": str(args.workspace.resolve()), "actual": actual, "check": check_project.check_project(args.workspace)["status"]}
     files = [*sorted((SKILL / "scripts").glob("*.py")), Path(__file__), Path(case.__file__),
-             Path(__file__).with_name("test_check_records.py"), SKILL / "references/element-catalog.json"]
+             Path(__file__).with_name("test_check_records.py"), Path(__file__).with_name("test_calibration.py"),
+             SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,
               "files_sha256": {p.relative_to(SKILL).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},

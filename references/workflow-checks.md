@@ -114,6 +114,8 @@
 
 ## 检查技能本身是否有效
 
+实验约束与群体筛选维护时，`test_workflow.py` 同时执行 [test_calibration.py](../evals/test_calibration.py)：检查硬约束不被总分抵消、未知范围/无响应/运行失败的区别、冻结后标准及配置不被替换、累计预算和留出失败处理。需要实际两轮校准时运行 `python -B -X utf8 <skill_dir>/evals/calibration_case.py --workspace <新隔离目录>`；保留模型、逐次配置与原始输出、候选集合、逐项比较、冻结和采用决定。随后用 `python -B -X utf8 <skill_dir>/evals/calibration_figures.py --workspace <该目录>` 生成方法、校准和集合预测图（需 matplotlib、numpy）。该示例是 10 个 LIF 单元的合成参考验证，不代表真实实验校准、整脑区或独立智能体建模能力；失败记录不删除，重试用 `--prior-calls` 承接此前已计调用。
+
 维护时先运行可重复的本地工具测试；涉及工作流变化时，再选适用的代表性任务检查产物。现有 [evals.json](../evals/evals.json) 中可优先使用：参数换算任务、虚拟空间网络、仅调研方法任务、带实测记录的校准任务。仅测试其中部分时明确范围。
 
 数值工具测试用 [test_check_model.py](../evals/test_check_model.py)；清单与模块测试用 [test_check_elements.py](../evals/test_check_elements.py)，覆盖漏项、错标不适用、缺少模块定义或运行文件，以及方案/实施状态和只读行为。合成算例只检验软件，不证明生物学正确。多轮问答或自由调研的行为评测，需要实际完成对应任务并查看产物，不能根据提示词或字段齐全就宣布通过。没有独立评测条件时可做维护者执行的案例检查，并明确它与独立行为评测的区别。

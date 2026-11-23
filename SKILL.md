@@ -54,6 +54,7 @@ description: 从现象、现实需求、研究问题或指定模型出发，边�
 | 扰动后的调控、改善、补偿或恢复 | [方法选择与调控设计](references/regulation-design.md) | 衔接基础、扰动及作用接口；区分模型校准与调控选参，保存时间匹配比较、有效/无效窗口及完整协议先例，按结果收束。 |
 | 修改或检查指定工程 | 受影响规范、[版本规则](references/versioning.md) | 继承有效工作，只重查受影响部分；只读审查不自动修改、运行或迁移目录。 |
 | 数据辅助构建或参数估计 | [来源与参数对应](references/construction-methods.md)、[估计方法选择](references/run-compare-optimize.md#按数据和问题选择参数估计方法) | 数据在构建阶段参与定参；先判断能约束哪些量，再选择直接估计、搜索或按需的概率推断。 |
+| 实验约束校准、失配修正或模型群体筛选 | [校准与相容模型集合](references/calibration.md) | 在原运行与优化环节中明确约束来源、数据用途和累计预算；逐项检查，保留相容参数组合，冻结后评价再决定采用，不把最低误差或样本极值当成生物学真实性。 |
 | 正式批量计算、后台或中断续接 | [执行管理](references/execution-management.md)、[版本规则](references/versioning.md) | 先测全过程成本；核实已有任务，明确继续、重试与结束条件，不重复运行或跨版本误用保存状态。 |
 | 运行比较、优化或结果重分析 | [运行与优化](references/run-compare-optimize.md)、[结果交付](references/result-delivery.md)、[文献图](references/literature-figures.md)、[输出记录](references/output-manifest.md) | 分清重分析与新仿真；候选经实际运行评价，最终比较支持相应科学结论。 |
 
