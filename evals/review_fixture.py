@@ -86,7 +86,7 @@ def _target(identity, metric, bounds, role):
                 criterion=dict(kind="interval", bounds=bounds))
 
 
-def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None):
+def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None, display_progress=False):
     """Execute once in a new directory; retain truthful negative comparison states."""
     root = Path(root).resolve()
     require_new = not root.exists() or not any(root.iterdir())
@@ -140,6 +140,8 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
         plan["review"]["regulation"] = regulation
         if regulation.get("mode") == "implementation":
             plan["review"]["skill_files"].append("references/regulation-design.md")
+            plan["review"]["model_components"] = ["baseline", "adverse", "regulation"]
+    plan["review"]["display_progress"] = display_progress
     if reuse:
         plan["reuse"] = dict(contract="zm-neuron-reuse/1", invocation_id="review-example", stages=[dict(
             stage="delivery", decision="existing_sufficient", reason="Existing consistency checks fit this software example",
@@ -211,14 +213,17 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
     parts[4].update(claim_ids=["mean"], figure_ids=["comparison"])
     paragraphs, response_paragraphs = [], []
     for index, excerpt in enumerate(excerpts):
-        paragraphs.append(excerpt)
-        response_paragraphs.append(excerpt)
+        report_section, response_section = [excerpt], [excerpt]
         if index == 1:
-            paragraphs.append("![actual model](../analysis/output/methods.svg)")
-            response_paragraphs.append(f"![actual model](<{(root / 'analysis/output/methods.svg').as_posix()}>)")
+            report_section.append("![actual model](../analysis/output/methods.svg)")
+            response_section.append(f"![actual model](<{(root / 'analysis/output/methods.svg').as_posix()}>)")
         if index in {3, 4}:
-            paragraphs.append("![data comparison](../analysis/output/comparison.svg)")
-            response_paragraphs.append(f"![data comparison](<{(root / 'analysis/output/comparison.svg').as_posix()}>)")
+            report_section.append("![data comparison](../analysis/output/comparison.svg)")
+            response_section.append(f"![data comparison](<{(root / 'analysis/output/comparison.svg').as_posix()}>)")
+        parts[index]["report_excerpt"] = "\n\n".join(report_section)
+        parts[index]["response_excerpt"] = "\n\n".join(response_section)
+        paragraphs.append(parts[index]["report_excerpt"])
+        response_paragraphs.append(parts[index]["response_excerpt"])
     body = "\n\n".join(paragraphs) + "\n"
     (root / "docs/results.md").write_text(body, encoding="utf-8")
     axes = dict(
@@ -243,6 +248,29 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                     datasets=[dict(id="rates", path="results/run/rates.csv", kind="simulation")],
                     figures=[dict(id="method", files=["analysis/output/methods.svg"], depiction="actual_model", data_ids=["rates"]),
                              dict(id="comparison", files=["analysis/output/comparison.svg"], depiction="data_result", data_ids=["rates"])])
+    if display_progress:
+        record = read(root, "results/run/run.json")
+        shutil.copy2(Path(__file__), root / "analysis/fixture_authoring.py")
+        analysis.update(command="Executed the isolated LIF fixture", statistical_unit="one synthetic network",
+                        runs=[dict(run_id=record["run_id"], record="results/run/run.json")])
+        analysis["datasets"] = [dict(id="rates", path="results/run/rates.csv", kind="raw", origin="model",
+            run_ids=[record["run_id"]], description="Actual recorded per-cell rates", fields={
+                "cell":dict(type="text",unit="1",description="Actual cell identity"),
+                "rate_hz":dict(type="number",unit="Hz",description="Actual per-cell event rate")})]
+        for fig in analysis["figures"]:
+            fig.update(code="analysis/fixture_authoring.py",design_ref="docs/model_spec.md",
+                       command="Generate the isolated fixture figures",caption="Actual software-test outputs",selection="All recorded cells")
+        check=dict(schema_version=1,check_id="actual-build",status="passed",command="Read actual LIF outputs and compare cell coverage",
+                   model_version="m1",run_id=record["run_id"],run_ref="results/run/run.json",module_ids=["network"],step_ids=["buildrun"],
+                   config_ref=record["config_ref"],config_sha256=fingerprint(root/record["config_ref"]),
+                   code_sha256=record["code_sha256"],data_sha256={"results/run/rates.csv":fingerprint(root/"results/run/rates.csv")},
+                   metrics=[dict(name="recorded_cell_count",actual=len(rates),expected=read(root,"model/config.json")["n"],unit="count")])
+        dump(root,"analysis/output/build_check.json",check)
+        analysis["construction_steps"]=[dict(id="buildrun",title="构建并积分八细胞网络",component="baseline",status="complete",required=True,
+            method_ref="docs/methods.md",method_summary="采用八个LIF单元及实际环形连接，按保存步长积分并记录逐细胞发放率。",
+            depends_on=[],input_refs=[record["config_ref"]],data_ids=["rates"],figure_ids=[],check_refs=["analysis/output/build_check.json"],
+            observation="逐细胞输出数量与实际配置一致；生物学符合性另行评价。")]
+        analysis["results"]=[dict(id="activity",question="Actual software activity",required=True,status="complete",data_ids=["rates"],figure_ids=["comparison"],figure_required=True)]
     dump(root, "analysis/output/analysis.json", analysis)
     return {"actual": actual, "plan": plan, "analysis": analysis, "skill": str(skill)}
 

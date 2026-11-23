@@ -68,7 +68,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 需要保存时加 `--output results/<run_id>/project_check.json`，只在已有目录中新建文件，不覆盖原记录。报告分开列出要素、参数/实例与输出检查，实测验证另行报告。计划阶段检查方法、要求和计划中的模块关系，不要求源码已存在；实施阶段读取实际记录、参数与输出。不因没有全文、原始数据或预算就将本轮必需要求改为可选。
 
-旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py`、`check_reuse.py`、`check_regulation.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。
+旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py`、`check_reuse.py`、`check_regulation.py`、`show_progress.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。采用网页导出时另保留 `build_viewer.py` 及对应的 `assets/progress_viewer.html`，不将网页生成列为普通检查的前置依赖。
 
 ## 在阶段转换恢复和交付前执行复核
 
@@ -99,6 +99,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 ### 记录与运行约定
 
+本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
+
 复用 [task_plan.json](../assets/task_plan.json) 和 [analysis_manifest.json](../assets/analysis_manifest.json)，均声明 `review_contract: "zm-neuron-review/1"`。不要复制整套空模板后批量填写成功。
 
 - 每项 `requirements` 写明 `id,description,source_kind,source_ref`，继续使用原有模块、步骤、参数和结果关联。来源性质是 `user/document_suggestion/assistant_choice`；来源文件保存必要的目标与决定摘要，不要求复制私人聊天。构建过程中补充实现关联不算缩减范围。
@@ -108,7 +110,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 - `analysis.completion_review` 保存五项 `axes`、逐要求 `requirements`、实际 `comparisons`、`iterations`、累计 `budget`、继续/停止 `decision` 和 `delivery`。判断均写明 `assessor,reason,evidence_refs`；运行成功、校准满足、独立支持、科学问题已回答、交付完整分别为 `completed/satisfied/supported/answered/complete`，未做、不支持和不适用使用各自状态，不能自动转换。
 - 比较条目关联 `axis,data_role,dataset_ids,targets_ref,measurements_ref,score_ref,config_ref,run_ref,candidate_id`。观测值除单位、条件等原有字段外，`source` 指向实际输出 CSV 的 `csv_ref,column,operation,where`；工具从运行绑定的数据复算后再判定。历史比较显式标为 `historical:true`，不能用于宣称当前模型满足要求。
 - 迭代条目用 `initial/candidate/final` 角色关联实际运行、配置、比较及取舍理由。预算记录累计 `limit/consumed`；未达标时 `decision.action` 是 `continue` 或有依据的 `stop`，同时写剩余动作。有效阴性或无法区分机制，仍需在问题判断中说明实际比较、`comparison_complete` 和 `adequacy_reason`。
-- `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序关联正文摘录、已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
+- `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序保存完整分节正文（含本节图与公式）、关联已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
 
 ```text
 python <skill_dir>/scripts/review_project.py --project <project> --capture --skill <采用的skill目录>
@@ -121,6 +123,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 捕获只执行一次且不覆盖原记录；之后的检查只读。若使用的规则不在执行脚本同目录下，检查也传相同的 `--skill`。`scope_changes` 保存真实来源、原因、原范围标识及影响；`skill_changes` 保存变动文件的前后版本、复核人、依据和是否改变科学标准。原目标不变的下一轮继续引用原要求，并补充本轮目标，不重置历史规避原失配。
 
 复核结果分别给出 `consistent`（记录与数值一致）、`ready_to_deliver`（可交付如实报告）、`goal_complete`（所登记的必需目标均满足）；退出码 `0/2/1` 分别表示满足、尚未满足或旧格式未复核、记录不一致。初期读取建议 `read_next` 仅指导下一步，不能证明实际已读。使用可执行例子了解完整嵌套字段：`python <skill_dir>/evals/review_fixture.py --help`；软件失败用例见 [test_review_project.py](../evals/test_review_project.py)，已并入现有工作流测试。
+
+最终检查返回的 `progress.table_markdown` 须放入报告与答复第5项，再次核对并以 `--response-output <新文本路径>` 导出发送稿。中途问题不取消六项交付，追加答复只能在科研交付块之后；详见[完整正文组装](result-delivery.md#中途补充不取消完整交付)。首次检查未放表会明确报告缺项；用 `required_progress_table` 补稿后重新检查，`progress` 仍显示当前真实状态，不把补稿模板当作已完成；不能因缺表直接取消展示要求。
 
 阶段性开源复用同时读取任务计划中的 `reuse`：当前阶段是否比较已有能力，实际采用版本/本次更新检查与交接是否明确，软件运行是否关联对应版本的真实记录。规则及最小结构见[阶段性接入](open-source-reuse.md#在现有记录中落实采用)。结构通过只表示记录对应，不证明来源可靠、已经阅读或科研方法有效；旧工程缺记录时明确未审查，不自动补写历史。
 

@@ -62,7 +62,8 @@
       "report_ref": "docs/results.md",
       "response_text": "",
       "parts": [],
-      "claims": []
+      "claims": [],
+      "followup_answers": []
     }
   }
 }

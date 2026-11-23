@@ -118,6 +118,8 @@
 
 ## 检查技能本身是否有效
 
+交付顺序和阶段展示维护时，现有 `test_workflow.py` 一并执行 [test_review_project.py](../evals/test_review_project.py)、[test_progress.py](../evals/test_progress.py) 与 [test_viewer.py](../evals/test_viewer.py)。检查中途问题挤掉正文、问题答复插入六项之间、图或公式位于错误部分、缺实际构建、非法状态变成对钩、失败后仍显示旧成功标记，以及网页读入不完整记录的行为；实际打开查看页检查交互和图件。自动检查针对已准备的发送稿，不能拦截宿主最终消息，也不代替科学内容复核。具体发现与已验证范围见[交付与展示检查](../evals/delivery-progress-review.md)。
+
 调控维护同时执行 [test_regulation.py](../evals/test_regulation.py)，并入现有 `test_workflow.py`。用 [regulation_case.py](../evals/regulation_case.py) 在新隔离目录生成实际多组合运行、B/D0 对照、冻结与确认及图表，检查单一设置、病理偷改、代理预测替代、分项恶化、虚假恢复与范围降级。合成参考只检验运行和复核逻辑，不能证明调控机制、生物学效应或自由建模行为。复现命令与实际覆盖见[调控验证记录](../evals/regulation-review.md)。
 
 实验约束与群体筛选维护时，`test_workflow.py` 同时执行 [test_calibration.py](../evals/test_calibration.py)：检查硬约束不被总分抵消、未知范围/无响应/运行失败的区别、冻结后标准及配置不被替换、累计预算和留出失败处理。需要实际两轮校准时运行 `python -B -X utf8 <skill_dir>/evals/calibration_case.py --workspace <新隔离目录>`；保留模型、逐次配置与原始输出、候选集合、逐项比较、冻结和采用决定。随后用 `python -B -X utf8 <skill_dir>/evals/calibration_figures.py --workspace <该目录>` 生成方法、校准和集合预测图（需 matplotlib、numpy）。该示例是 10 个 LIF 单元的合成参考验证，不代表真实实验校准、整脑区或独立智能体建模能力；失败记录不删除，重试用 `--prior-calls` 承接此前已计调用。

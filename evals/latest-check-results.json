@@ -1,5 +1,5 @@
 {
-  "executed_utc": "2026-11-23T12:21:33.698840+00:00",
+  "executed_utc": "2026-11-23T13:08:27.303204+00:00",
   "command": [
     "python",
     "-B",
@@ -7,7 +7,7 @@
     "utf8",
     "<local_path>/test_check_model.py",
     "--report",
-    "<local_path>/test_check_model_final.json"
+    "<local_path>/model_final.json"
   ],
   "working_directory": "<local_path>/Network_skill",
   "python": "3.13.5",

@@ -243,7 +243,7 @@ def check_project(project, analysis):
             file_reference(root, item.get("method_ref"))
             require(type(item.get("required")) is bool, f"Explicit required boolean needed: {identity}")
             state = item.get("status")
-            require(state in ("complete", "pending", "failed", "not_applicable"), f"Invalid step status: {identity}")
+            require(state in ("complete", "pending", "running", "blocked", "failed", "not_applicable"), f"Invalid step status: {identity}")
             dependencies = references(item.get("depends_on"), seen_steps, f"{identity}.depends_on", True)
             data_ids = references(item.get("data_ids"), datasets, f"{identity}.data_ids", state != "complete")
             figure_ids = references(item.get("figure_ids"), figures, f"{identity}.figure_ids", True)

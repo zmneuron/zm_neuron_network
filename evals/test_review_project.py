@@ -376,7 +376,10 @@ class CompletionReviewChecks(unittest.TestCase):
 
     def test_final_response_needs_renderable_absolute_local_images(self):
         absolute = (self.root / "analysis/output/methods.svg").as_posix()
-        self.analysis(lambda c: c["delivery"].update(response_text=c["delivery"]["response_text"].replace(absolute, "analysis/output/methods.svg")))
+        def replace(c):
+            c["delivery"]["response_text"] = c["delivery"]["response_text"].replace(absolute, "analysis/output/methods.svg")
+            for p in c["delivery"]["parts"]: p["response_excerpt"] = p["response_excerpt"].replace(absolute, "analysis/output/methods.svg")
+        self.analysis(replace)
         self.failed("usable absolute response path")
 
     def test_next_candidate_config_does_not_destroy_archived_run(self):
@@ -405,12 +408,15 @@ class CompletionReviewChecks(unittest.TestCase):
         self.failed("disagrees with actual CSV")
 
     def test_final_response_cannot_replace_figures_with_attachment_links(self):
-        self.analysis(lambda c: c["delivery"].update(response_text=c["delivery"]["response_text"].replace("![", "[")))
+        def replace(c):
+            c["delivery"]["response_text"] = c["delivery"]["response_text"].replace("![", "[")
+            for p in c["delivery"]["parts"]: p["response_excerpt"] = p["response_excerpt"].replace("![", "[")
+        self.analysis(replace)
         self.failed("not embedded")
 
     def test_final_response_cannot_omit_core_numeric_explanation(self):
         self.analysis(lambda c: c["delivery"].update(response_text="See attached results.md and all figures."))
-        self.failed("missing or out of order")
+        self.failed("Final response text differs")
 
     def test_equation_mapping_must_use_actual_source_bytes(self):
         self.analysis(lambda c: c["delivery"]["parts"][2]["equations"][0].update(code_sha256="0"*64))
@@ -419,6 +425,106 @@ class CompletionReviewChecks(unittest.TestCase):
     def test_cross_version_review_is_rejected(self):
         self.change("analysis/output/analysis.json", lambda a: a.update(model_version="different-model"))
         self.failed("mixes task/model versions")
+
+    def rebuild_text(self, completion):
+        d = completion["delivery"]
+        d["response_text"] = review_project.compose_response(d, fixture.read(self.root, "docs/task_plan.json"))
+        (self.root / d["report_ref"]).write_text("\n\n".join(p["report_excerpt"].strip() for p in d["parts"]) + "\n", encoding="utf-8")
+
+    def test_mid_task_question_cannot_replace_scientific_response(self):
+        self.change("docs/task_plan.json", lambda p: p["review"].update(followup_questions=[dict(id="extra", text="How is the seed used?")]))
+        self.analysis(lambda c: c["delivery"].update(response_text="The seed fixes the numeric realization.", followup_answers=[dict(id="extra", text="The seed fixes the numeric realization.")]))
+        self.failed("Final response text differs")
+
+    def test_extra_answer_before_abstract_is_rejected(self):
+        self.analysis(lambda c: c["delivery"].update(response_text="Answer to your other question.\n\n" + c["delivery"]["response_text"]))
+        self.failed("Final response text differs")
+
+    def test_extra_answer_between_scientific_sections_is_rejected(self):
+        def inject(c):
+            d = c["delivery"]; original = d["parts"][1]["response_excerpt"]
+            d["response_text"] = d["response_text"].replace(original, original + "\n\nAnswer to an unrelated question.")
+        self.analysis(inject); self.failed("Final response text differs")
+
+    def test_extra_answer_after_six_sections_is_allowed(self):
+        self.change("docs/task_plan.json", lambda p: p["review"].update(followup_questions=[dict(id="extra", text="How is the seed used?")]))
+        def answer(c):
+            c["delivery"]["followup_answers"] = [dict(id="extra", text="It fixes one numerical realization, not a biological sample.")]
+            self.rebuild_text(c)
+        self.analysis(answer)
+        result = self.check()
+        self.assertEqual(result["status"], "passed", result)
+        self.assertEqual(result["checks"]["delivery"]["followup_answers"], 1)
+
+    def test_deferred_question_cannot_disappear_at_delivery(self):
+        self.change("docs/task_plan.json", lambda p: p["review"].update(followup_questions=[dict(id="extra", text="Explain the comparison.")]))
+        self.failed("Deferred questions are missing")
+
+    def test_method_figure_in_question_section_does_not_complete_methods(self):
+        def move(c):
+            d = c["delivery"]
+            for key in ("report_excerpt", "response_excerpt"):
+                parts = d["parts"][1][key].split("\n\n")
+                d["parts"][1][key] = parts[0]
+                d["parts"][3][key] += "\n\n" + "\n\n".join(parts[1:])
+            self.rebuild_text(c)
+        self.analysis(move); self.failed("not embedded")
+
+    def test_main_formula_elsewhere_does_not_complete_equations(self):
+        def move(c):
+            d=c["delivery"]; formula=d["parts"][2]["equations"][0]["formula"]
+            for key in ("report_excerpt", "response_excerpt"):
+                d["parts"][2][key]=d["parts"][2][key].replace(formula,"See the question section.")
+                d["parts"][3][key]+="\n\n"+formula
+            self.rebuild_text(c)
+        self.analysis(move); self.failed("absent from its formula section")
+
+    def test_required_progress_table_must_reach_both_outputs(self):
+        self.other(display_progress=True)
+        first = self.check()
+        self.assertEqual(first["status"], "failed")
+        delivery_row=next(r for r in first["progress"]["rows"] if r["id"] == "delivery" and r["kind"] == "axis")
+        self.assertFalse(delivery_row["checked"])
+        table=first["required_progress_table"]
+        def insert(c):
+            for key in ("report_excerpt", "response_excerpt"): c["delivery"]["parts"][4][key]+="\n\n"+table
+            self.rebuild_text(c)
+        self.analysis(insert)
+        result=self.check();self.assertEqual(result["status"], "passed",result)
+
+    def test_extra_answer_cannot_be_hidden_before_the_abstract(self):
+        def prefix(c):
+            for key in ("report_excerpt", "response_excerpt"):
+                c["delivery"]["parts"][0][key]="First, an answer to a separate question.\n\n"+c["delivery"]["parts"][0][key]
+            self.rebuild_text(c)
+        self.analysis(prefix);self.failed("one opening paragraph")
+
+    def test_table_does_not_replace_actual_build_records(self):
+        self.other(display_progress=True)
+        self.change("analysis/output/analysis.json", lambda a:a.pop("construction_steps"))
+        first=self.check();table=first["required_progress_table"]
+        def insert(c):
+            for key in ("report_excerpt", "response_excerpt"):c["delivery"]["parts"][4][key]+="\n\n"+table
+            self.rebuild_text(c)
+        self.analysis(insert);self.failed("lacks actual construction steps")
+
+    def test_completed_build_requires_actual_method_explanation(self):
+        self.other(display_progress=True)
+        self.change("analysis/output/analysis.json", lambda a:a["construction_steps"][0].pop("method_summary"))
+        self.failed("completed step method explanation")
+
+    def test_progress_requirement_cannot_be_removed_after_capture(self):
+        self.other(display_progress=True)
+        self.change("docs/task_plan.json", lambda p:p["review"].update(display_progress=False))
+        self.assertEqual(self.check()["status"], "failed")
+
+    def test_checked_response_exports_without_rewriting(self):
+        import subprocess
+        dest=self.root/"docs/final_answer.md"
+        result=subprocess.run([sys.executable,"-B",str(SKILL/"scripts/review_project.py"),"--project",str(self.root),"--skill",str(self.skill),"--response-output","docs/final_answer.md"],capture_output=True,text=True,encoding="utf-8")
+        self.assertEqual(result.returncode,0,(result.stdout or "")+(result.stderr or ""))
+        expected=fixture.read(self.root,"analysis/output/analysis.json")["completion_review"]["delivery"]["response_text"]
+        self.assertEqual(dest.read_text().strip(),expected.strip())
 
     def test_current_source_change_invalidates_old_execution(self):
         code = self.root / "model/cells.py"

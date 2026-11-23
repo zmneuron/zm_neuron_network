@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>模型研究记录</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f6f8;--panel:#fff;--ink:#202532;--muted:#5a6473;--line:#dce1e8;--accent:#2459a6;--good:#17684e;--bad:#a53b37;--wait:#8a570b;--selected:#e9f0fa;--radius:18px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.55}button,select,input{font:inherit}button,a,summary,select{touch-action:manipulation}button,select,input{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:9px 13px}button{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}button:hover{border-color:var(--accent)}a{color:var(--accent)}h1,h2,h3,p{margin:0}h1{font-size:clamp(24px,3vw,34px);line-height:1.3;font-weight:670;max-width:900px}h2{font-size:20px;font-weight:650}h3{font-size:16px;font-weight:650}.muted{color:var(--muted)}.small{font-size:13px}.shell{max-width:1260px;margin:auto;padding:28px 28px 48px}.topline{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:18px}.brand{font-weight:700;letter-spacing:.04em}.pill{display:inline-flex;align-items:center;gap:7px;color:var(--accent);font-size:13px}.dot{width:7px;height:7px;border-radius:50%;background:currentColor}.metadata{display:flex;gap:8px 24px;flex-wrap:wrap;margin:14px 0 10px;font-size:13px;color:var(--muted)}.notice{font-size:13px;color:var(--muted);max-width:1000px}.components{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:25px 0}.component{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:17px 18px}.component .status{display:block;margin:7px 0}.component p{font-size:13px;color:var(--muted)}.status{font-size:13px;font-weight:600;color:var(--muted)}.status.verified{color:var(--good)}.status.failed,.status.not_supported,.status.not_satisfied{color:var(--bad)}.status.running,.status.blocked{color:var(--wait)}.tabs{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:20px 0}.tabs button{border:0;background:transparent;border-bottom:3px solid transparent;border-radius:0;padding:12px 18px}.tabs button[aria-selected="true"]{border-color:var(--accent);color:var(--accent);font-weight:650}.toolbar{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;align-items:center;margin:22px 0 16px}.filters{display:flex;gap:10px;flex-wrap:wrap}.filters input{max-width:240px}.step-list{display:flex;flex-direction:column;gap:12px}.step{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);padding:17px 20px}.step summary{cursor:pointer;display:flex;gap:15px;align-items:start;list-style:none}.step summary::-webkit-details-marker{display:none}.step summary:after{content:"＋";margin-left:auto;color:var(--muted)}.step[open] summary:after{content:"−"}.step-number{font-size:13px;color:var(--muted);padding-top:3px;flex:0 0 25px}.step-heading{flex:1;min-width:0}.step-body{padding:18px 0 2px 40px;display:grid;grid-template-columns:1fr 1fr;gap:20px}.detail-label{font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:650;letter-spacing:.03em}.body-text{white-space:pre-wrap;overflow-wrap:anywhere}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.empty{padding:22px 0;color:var(--muted)}.verification{border-top:1px solid var(--line)}.check{display:grid;grid-template-columns:minmax(150px,1fr) minmax(160px,1fr) 3fr;gap:20px;padding:19px 0;border-bottom:1px solid var(--line);align-items:start}.check p{font-size:14px;overflow-wrap:anywhere}.legend{margin-top:20px;font-size:13px;color:var(--muted)}.figures{display:grid;grid-template-columns:1fr;gap:22px}.figure{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}.figure-head{display:flex;gap:12px;justify-content:space-between;align-items:start;margin-bottom:14px}.figure-meta{display:flex;gap:7px 16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:6px 0}.figure img{display:block;max-width:100%;height:auto;margin:10px auto;background:#fff}.figure p{margin:10px 0;font-size:14px;overflow-wrap:anywhere}.report-section{padding:22px 0;border-bottom:1px solid var(--line)}.report-section h3{margin-bottom:12px;color:var(--accent)}.report-section .body-text{line-height:1.8}.formula{overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;background:var(--panel);padding:14px;border-radius:10px;margin-top:12px}.audit{margin-top:26px;border-top:1px solid var(--line);padding-top:17px}.audit summary{cursor:pointer;color:var(--muted)}.audit ul{padding-left:21px}.audit li{margin:7px 0;overflow-wrap:anywhere}.source{padding:10px 0;border-bottom:1px solid var(--line)}.source code{font-size:11px;overflow-wrap:anywhere}.footer{margin-top:28px;color:var(--muted);font-size:12px}button.secondary{font-size:13px;padding:6px 10px}.download{display:inline-block;border:1px solid var(--line);padding:8px 12px;border-radius:10px;text-decoration:none;background:var(--panel)}
+@media(prefers-color-scheme:dark){:root{--bg:#161a22;--panel:#202630;--ink:#edf0f5;--muted:#aeb8c7;--line:#394453;--accent:#9bbfff;--good:#8ad6b6;--bad:#ffb1ab;--wait:#edc082;--selected:#293b55}}
+@media(max-width:700px){.shell{padding:20px 16px 34px}.topline{align-items:start}.components{grid-template-columns:1fr;gap:9px}.component{padding:13px 16px}.tabs button{padding:12px 11px}.step-body{grid-template-columns:1fr;padding-left:0;gap:15px}.step{padding:15px}.check{grid-template-columns:1fr;gap:5px}.toolbar{align-items:start}.filters{width:100%}.filters input{width:100%;max-width:none}.figure{padding:14px}.metadata{gap:5px 15px}}
+@media print{body{background:#fff;color:#000}.tabs,.filters,.actions,.download{display:none}.shell{max-width:none}section[hidden]{display:block!important}.component,.figure,.step{break-inside:avoid}.step-body{display:block!important}.footer{margin-top:15px}}
+</style>
+</head>
+<body>
+<main class="shell">
+<div class="topline"><div class="brand">ZM · 神经模型研究</div><div class="pill"><span class="dot" aria-hidden="true"></span>只读 · 已保存记录</div></div>
+<h1 id="model-title"></h1>
+<div class="metadata" id="metadata"></div>
+<p class="notice" id="scope"></p>
+<div class="components" id="components" aria-label="本轮模型部分"></div>
+<nav class="tabs" role="tablist" aria-label="查看内容">
+<button type="button" role="tab" id="tab-flow" aria-controls="panel-flow" aria-selected="true" data-tab="flow">流程与构建</button>
+<button type="button" role="tab" id="tab-checks" aria-controls="panel-checks" aria-selected="false" data-tab="checks">验证步骤</button>
+<button type="button" role="tab" id="tab-figures" aria-controls="panel-figures" aria-selected="false" data-tab="figures">图件与结果</button>
+<button type="button" role="tab" id="tab-delivery" aria-controls="panel-delivery" aria-selected="false" data-tab="delivery">六项交付</button>
+</nav>
+<section id="panel-flow" role="tabpanel" aria-labelledby="tab-flow">
+<div class="toolbar"><div><h2>实际构建与运行步骤</h2><p class="small muted" id="step-count"></p></div><div class="filters"><label><span class="small">状态 </span><select id="state-filter"><option value="all">全部步骤</option><option value="unfinished">未完成 / 未核验</option><option value="verified">已核验步骤</option></select></label><label><span class="small">查找 </span><input id="step-query" type="search" placeholder="步骤或方法关键词"></label></div></div>
+<div class="step-list" id="steps" aria-live="polite"></div>
+<p class="legend">✅ 仅表示本行完成了相应核对。进行中、等待条件、失败及未纳入本轮均不打钩。</p>
+</section>
+<section id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" hidden>
+<div class="toolbar"><div><h2>分别判断完成情况</h2><p class="small muted">构建、运行、校准、独立评价与科学结论不能互相替代。</p></div></div>
+<div class="verification" id="checks"></div>
+<p class="legend">这些判断来自当前读取的记录与检查；它们不是对生物学真实性的自动证明。</p>
+</section>
+<section id="panel-figures" role="tabpanel" aria-labelledby="tab-figures" hidden>
+<div class="toolbar"><div><h2>已有图件</h2><p class="small muted">读取保存的原图；不补造坐标、轨迹、变量或未记录时段。</p></div></div>
+<div class="figures" id="figures"></div>
+</section>
+<section id="panel-delivery" role="tabpanel" aria-labelledby="tab-delivery" hidden>
+<div class="toolbar"><div><h2>按顺序查看科研交付</h2><p class="small muted">此页辅助查看，最终对话仍须完整呈现六项内容。</p></div><a id="download-report" class="download" download="results.md" hidden>下载已保存报告</a></div>
+<div id="delivery"></div>
+</section>
+<details class="audit" id="gaps"><summary id="gap-title">待核对内容</summary><ul id="gap-list"></ul></details>
+<details class="audit"><summary>记录来源与采用版本</summary><div id="sources"></div></details>
+<p class="footer">执行状态、查看模式与图表类型分别显示。本页不会持续读取后台，也不提供求解器启动、暂停或调参操作；重新生成查看页不会重新运行模型。</p>
+</main>
+<script id="viewer-data" type="application/json">@@VIEWER_DATA@@</script>
+<script>
+"use strict";
+(function(){
+const data=JSON.parse(document.getElementById("viewer-data").textContent);
+const byId=function(id){return document.getElementById(id);};
+const make=function(tag,text,cls){const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=String(text);if(cls)e.className=cls;return e;};
+const states=new Set(["verified","pending","unverified","running","blocked","failed","not_applicable","not_satisfied","not_supported","not_evaluated","not_answered","partially_answered"]);
+function status(row){const state=states.has(row.state)?row.state:"unverified";return make("span",row.status_label||"□ 尚未核验","status "+state);}
+function textBlock(text){return make("div",text||"尚未保存对应内容。","body-text");}
+function selectTab(name){document.querySelectorAll("[data-tab]").forEach(function(b){const active=b.dataset.tab===name;b.setAttribute("aria-selected",String(active));byId("panel-"+b.dataset.tab).hidden=!active;});}
+document.querySelectorAll("[data-tab]").forEach(function(b){b.addEventListener("click",function(){selectTab(b.dataset.tab);});});
+function figureButton(id){const b=make("button","查看图 "+id,"secondary");b.type="button";b.addEventListener("click",function(){selectTab("figures");const target=document.querySelector('[data-figure-id="'+CSS.escape(id)+'"]');if(target)target.scrollIntoView({block:"start",behavior:"smooth"});});return b;}
+byId("model-title").textContent=data.title;
+byId("scope").textContent=data.scope;
+[["模型版本",data.model_version],["计划",data.plan_id],["分析",data.analysis_id],["页面生成",data.generated_utc]].forEach(function(pair){byId("metadata").appendChild(make("span",pair[0]+"："+pair[1]));});
+data.rows.filter(function(r){return r.kind==="component";}).forEach(function(r){const card=make("div",null,"component");card.appendChild(make("h3",r.title));card.appendChild(status(r));card.appendChild(make("p",r.result));byId("components").appendChild(card);});
+const steps=data.rows.filter(function(r){return r.kind==="step";});
+byId("step-count").textContent=steps.length?"已记录 "+steps.length+" 步，已逐项核验 "+steps.filter(function(s){return s.checked;}).length+" 步":"尚无逐步构建记录";
+function renderSteps(){
+ const host=byId("steps");host.replaceChildren();
+ const filter=byId("state-filter").value,query=byId("step-query").value.trim().toLowerCase();
+ const shown=steps.filter(function(s){return (filter==="all"||(filter==="verified"?s.checked:!s.checked))&&(!query||[s.title,s.method,s.result,s.id].join(" ").toLowerCase().includes(query));});
+ if(!shown.length){host.appendChild(make("p",steps.length?"当前筛选没有对应步骤。":"尚未记录实际步骤；不能据模型文件存在显示完成。","empty"));return;}
+ shown.forEach(function(s,index){const card=make("details",null,"step");card.open=index===0;const head=make("summary");head.appendChild(make("span",String(steps.indexOf(s)+1).padStart(2,"0"),"step-number"));const title=make("div",null,"step-heading");title.appendChild(make("h3",s.title));title.appendChild(status(s));head.appendChild(title);card.appendChild(head);const body=make("div",null,"step-body");const method=make("div");method.appendChild(make("div","怎样构建 / 采用方法","detail-label"));method.appendChild(textBlock(s.method));body.appendChild(method);const result=make("div");result.appendChild(make("div","实际结果 / 当前原因","detail-label"));result.appendChild(textBlock(s.result));if(s.figure_ids&&s.figure_ids.length){const actions=make("div",null,"actions");s.figure_ids.forEach(function(id){actions.appendChild(figureButton(id));});result.appendChild(actions);}body.appendChild(result);card.appendChild(body);host.appendChild(card);});
+}
+byId("state-filter").addEventListener("change",renderSteps);byId("step-query").addEventListener("input",renderSteps);renderSteps();
+data.rows.filter(function(r){return r.kind==="axis"||r.kind==="check";}).forEach(function(r){const row=make("div",null,"check");row.appendChild(make("h3",r.title));row.appendChild(status(r));row.appendChild(make("p",r.result));byId("checks").appendChild(row);});
+const depictions={schematic:"方法示意",actual_model:"实际构建对象",data_result:"实际数据结果",unspecified:"图件性质尚未说明"};
+data.figures.forEach(function(f){const card=make("article",null,"figure");card.dataset.figureId=f.id;const head=make("div",null,"figure-head");const caption=make("div");caption.appendChild(make("h3","图 "+f.id));const meta=make("div",null,"figure-meta");meta.appendChild(make("span",depictions[f.depiction]||"图件性质尚未说明"));meta.appendChild(make("span",f.checked_step?"关联步骤已核验；科学解释需另审":"原图可查看；不据文件存在声称验证通过"));caption.appendChild(meta);head.appendChild(caption);card.appendChild(head);if(f.caption)card.appendChild(make("p",f.caption));f.images.forEach(function(image){const img=make("img");img.src=image.uri;img.alt=f.caption||("已保存图 "+f.id);img.loading="lazy";card.appendChild(img);card.appendChild(make("div",image.source,"small muted"));});f.unavailable.forEach(function(reason){card.appendChild(make("p","未嵌入该图："+reason,"muted"));});if(!f.images.length&&!f.unavailable.length)card.appendChild(make("p","本条记录尚无可读取图件。","muted"));byId("figures").appendChild(card);});
+if(!data.figures.length)byId("figures").appendChild(make("p","当前清单没有图件，不生成替代性示意结果。","empty"));
+data.sections.forEach(function(s,index){const section=make("article",null,"report-section");section.appendChild(make("h3",String(index+1).padStart(2,"0")+" · "+s.title));section.appendChild(textBlock(s.text||"尚未保存这一部分；不能据此宣称完整交付。"));if(s.equations&&s.equations.length)s.equations.forEach(function(q){section.appendChild(make("div",q.formula,"formula"));section.appendChild(make("p",q.symbols_units,"small muted"));});if(s.figure_ids&&s.figure_ids.length){const links=make("div",null,"actions");s.figure_ids.forEach(function(id){links.appendChild(figureButton(id));});section.appendChild(links);}byId("delivery").appendChild(section);});
+if(data.followup_answers&&data.followup_answers.length){const area=make("article",null,"report-section");area.appendChild(make("h3","六项之后：补充问题答复"));data.followup_answers.forEach(function(a){area.appendChild(textBlock(a.text));});byId("delivery").appendChild(area);}
+if(data.report_uri){byId("download-report").href=data.report_uri;byId("download-report").hidden=false;}
+byId("gap-title").textContent=data.warnings.length?"待核对内容（"+data.warnings.length+"）":"未发现额外展示缺项";
+data.warnings.forEach(function(w){byId("gap-list").appendChild(make("li",w));});
+Object.entries(data.sources).forEach(function(entry){const el=make("div",null,"source");el.appendChild(make("div",entry[0],"small"));el.appendChild(make("code","SHA256 "+entry[1].sha256));if(entry[1].modified_utc)el.appendChild(make("div","文件修改时间："+entry[1].modified_utc,"small muted"));byId("sources").appendChild(el);});
+})();
+</script>
+</body>
+</html>

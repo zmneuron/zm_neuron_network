@@ -15,8 +15,10 @@ from pathlib import Path
 import re
 from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
+from show_progress import render_progress
 import statistics
 import tempfile
+import sys
 
 import calibration
 from check_records import fingerprint, local, read, require, verify_run
@@ -93,9 +95,14 @@ def scope_state(plan):
         text(item.get("text"), "question.text")
         require(type(item.get("required")) is bool, "Declare question applicability")
     regulation = regulation_scope(plan)
+    require(type(review.get("display_progress", False)) is bool, "Progress presentation applicability must be boolean")
+    components = review.get("model_components", ["baseline"])
+    require(isinstance(components, list) and len(components) == len(set(components))
+            and set(components) <= {"baseline", "adverse", "regulation"}, "Invalid applicable model components")
     if (regulation or {}).get("mode") == "implementation":
         question = questions.get(regulation.get("question_id"), {})
         require(question.get("required") is True, "Full regulation implementation needs its required scientific question")
+        require(set(components) == {"baseline", "adverse", "regulation"}, "Full regulation requires baseline/adverse/regulation components")
     axes = review.get("required_axes")
     require(isinstance(axes, list) and axes and "delivery" in axes
             and len(set(axes)) == len(axes) and set(axes) <= set(AXES), "Declare nonempty required axes including delivery")
@@ -111,7 +118,7 @@ def scope_state(plan):
         text(review.get("delivery_scope_reason"), "scoped delivery reason")
         text(review.get("delivery_scope_ref"), "scoped delivery source")
     return dict(objective=objective, requirements=requirement_scope, questions=questions,
-                regulation=regulation,
+                regulation=regulation, model_components=components, display_progress=review.get("display_progress", False),
                 required_axes=axes, independent_evidence=review.get("independent_evidence", "biological"),
                 delivery_profile=profile, delivery_parts=parts,
                 delivery_scope_reason=review.get("delivery_scope_reason"), delivery_scope_ref=review.get("delivery_scope_ref"))
@@ -200,6 +207,10 @@ def _scope_changes(before, after):
     old_regulation = before.get("regulation") or {}
     if old_regulation.get("mode") in {"implementation", "scoped"} and before.get("regulation") != after.get("regulation"):
         changes.append("regulation")
+    if set(before.get("model_components", ["baseline"])) - set(after.get("model_components", ["baseline"])):
+        changes.append("model_components")
+    if before.get("display_progress") and not after.get("display_progress"):
+        changes.append("display_progress")
     return changes
 
 
@@ -444,6 +455,20 @@ def _claim(root, claim, allowed=None):
     return rendered
 
 
+def compose_response(delivery, plan):
+    """One scientific block, then the explicitly deferred question answers."""
+    body = "\n\n".join(text(p.get("response_excerpt"), "complete response section").strip()
+                         for p in delivery.get("parts", []))
+    questions = unique(plan["review"].get("followup_questions", []), "id", "deferred questions")
+    answers = unique(delivery.get("followup_answers", []), "id", "deferred answers")
+    require(set(questions) == set(answers), "Deferred questions are missing answers or unregistered answers were added")
+    extra = []
+    for identity, question in questions.items():
+        extra.append("**" + text(question.get("text"), "deferred question") + "**\n\n" +
+                     text(answers[identity].get("text"), "deferred answer").strip())
+    return body + ("\n\n## 补充问题答复\n\n" + "\n\n".join(extra) if extra else "")
+
+
 def _delivery(root, delivery, plan, analysis, axes):
     require(isinstance(delivery, dict), "Missing delivery content")
     report_path = local(root, delivery.get("report_ref"))
@@ -455,6 +480,26 @@ def _delivery(root, delivery, plan, analysis, axes):
     applicable = plan["review"].get("delivery_parts", list(PARTS))
     full = plan["review"].get("delivery_profile", "full_model") == "full_model"
     require([p.get("kind") for p in parts] == applicable, "Applicable delivery parts are missing or out of order")
+    # The persisted excerpts are complete sections, including inline figures.
+    # Extra answers are composed only after the scientific limitation.
+    expected_response = compose_response(delivery, plan)
+    scientific_response = "\n\n".join(p["response_excerpt"].strip() for p in parts)
+    require(response.strip() == expected_response,
+            "Final response text differs from the ordered scientific sections and deferred answers")
+    if full:
+        require(not parts[0]["response_excerpt"].lstrip().startswith(("#", "|", "✅", "![")),
+                "The first response paragraph must be the scientific abstract")
+        require(not re.search(r"\n\s*\n", parts[0]["response_excerpt"].strip())
+                and not re.search(r"\n\s*\n", parts[0]["report_excerpt"].strip()),
+                "The abstract must be one opening paragraph, not a prefixed extra answer")
+    if plan["review"].get("display_progress"):
+        for step in analysis.get("construction_steps", []):
+            if step.get("status") == "complete":
+                text(step.get("method_summary"), "completed step method explanation")
+    response = scientific_response
+    report_core = re.sub(r"\A\s*# [^\n]+\n\s*", "", report_text).strip()
+    require(report_core == "\n\n".join(p["report_excerpt"].strip() for p in parts),
+            "Report text differs from the ordered scientific sections")
     claims = unique(delivery.get("claims", []), "id", "quantitative claims")
     require(not full or claims, "No quantitative content linked to actual data")
     completion = analysis["completion_review"]
@@ -501,7 +546,7 @@ def _delivery(root, delivery, plan, analysis, axes):
             require(isinstance(files, list) and files, "Figure lacks existing manifest files")
             paths = {local(root, reference) for reference in files}
             require(figure.get("depiction") in {"schematic", "actual_model", "data_result"}, "Missing or unknown schematic/actual figure classification")
-            for content, base, final_response in ((report_text, report_path.parent, False), (response, root, True)):
+            for content, base, final_response in ((part["report_excerpt"], report_path.parent, False), (part["response_excerpt"], root, True)):
                 images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
                 require(any((not final_response or Path(x.strip("<>")).is_absolute()) and
                             (base / x.strip("<>")).resolve() in paths for x in images),
@@ -512,7 +557,7 @@ def _delivery(root, delivery, plan, analysis, axes):
             require(isinstance(equations, list) and equations, "No actual equation and code mapping")
             for equation in equations:
                 formula = text(equation.get("formula"), "equation")
-                require(formula in report_text and formula in response, "Main formula absent from report/final response")
+                require(formula in part["report_excerpt"] and formula in part["response_excerpt"], "Main formula absent from its formula section")
                 if full:
                     methods = local(root, equation.get("methods_ref"))
                     require(methods != report_path and formula in methods.read_text(encoding="utf-8"),
@@ -536,6 +581,7 @@ def _delivery(root, delivery, plan, analysis, axes):
                     and response.rstrip().endswith(part["response_excerpt"].rstrip()), "Main limitation is not the final statement")
     require(not full and "questions" not in applicable or questions <= linked_questions, "Not every required question has a result group")
     return {"claims_recomputed": list(claims), "embedded_figures": sorted(set(all_required_images)),
+            "ordered_response_verified": True, "followup_answers": len(delivery.get("followup_answers", [])),
             "scope": "Text/artifact relationships checked; assessors remain responsible for scientific substance and the actual sent response."}
 
 
@@ -696,6 +742,28 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         report["ready_to_deliver"] = axes["delivery"].get("status") == "complete" and not report["issues"]
         report["consistent"] = not report["issues"]
         report["status"] = "failed" if report["issues"] else "incomplete" if pending else "passed"
+        report["progress"] = render_progress(root, plan, analysis, report)
+        if plan["review"].get("display_progress") and checkpoint == "delivery" and axes["delivery"].get("status") == "complete":
+            part = next((p for p in completion.get("delivery", {}).get("parts", []) if p.get("kind") == "biological_comparison"), None)
+            # Scoped tasks may put the same table in their last applicable non-limitation section.
+            if part is None and plan["review"].get("delivery_profile") == "scoped":
+                part = next((p for p in reversed(completion.get("delivery", {}).get("parts", [])) if p.get("kind") != "limitation"), None)
+            table = report["progress"]["table_markdown"]
+            report["required_progress_table"] = table
+            if plan["review"].get("delivery_profile", "full_model") == "full_model":
+                steps = analysis.get("construction_steps", [])
+                if not steps:
+                    report["issues"].append("delivery: Full model display lacks actual construction steps and methods")
+                components = plan["review"].get("model_components", ["baseline"])
+                for component in components:
+                    applicable_rows = [r for r in report["progress"]["rows"] if r.get("kind") == "component" and r.get("id") == component]
+                    if not applicable_rows or not all(r.get("checked") for r in applicable_rows):
+                        report["issues"].append("delivery: Applicable model component is not verified: " + component)
+            if not part or table not in part.get("report_excerpt", "") or table not in part.get("response_excerpt", ""):
+                report["issues"].append("delivery: Current step and verification table is missing from report/final response")
+            if report["issues"]:
+                report.update(status="failed", consistent=False, goal_complete=False, ready_to_deliver=False)
+                report["progress"] = render_progress(root, plan, analysis, report)
     except (OSError, ValueError, TypeError, KeyError) as error:
         report["issues"].append(str(error))
     report["read_next"] = sorted(set(report["read_next"]))
@@ -703,6 +771,8 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"): stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True, type=Path)
     parser.add_argument("--plan", default="docs/task_plan.json")
@@ -710,9 +780,19 @@ def main(argv=None):
     parser.add_argument("--skill", type=Path)
     parser.add_argument("--capture", action="store_true")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--response-output", type=Path, help="Write the checked final response to a new project-local file")
     args = parser.parse_args(argv)
     try:
         result = capture_review(args.project, args.plan, args.skill) if args.capture else check_review(args.project, args.plan, args.checkpoint, args.skill)
+        if args.response_output:
+            require(not args.capture and args.checkpoint == "delivery" and result.get("ready_to_deliver"),
+                    "Cannot export a final response before delivery review passes")
+            plan = json_value(args.project, args.plan)
+            analysis = json_value(args.project, plan["files"]["analysis"])
+            path = (args.project / args.response_output).resolve()
+            require(path.is_relative_to(args.project.resolve()), "Response output outside project")
+            with path.open("x", encoding="utf-8") as handle:
+                handle.write(analysis["completion_review"]["delivery"]["response_text"].strip() + "\n")
         if args.output:
             path = (args.project / args.output).resolve()
             require(path.is_relative_to(args.project.resolve()), "Output outside project")
