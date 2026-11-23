@@ -43,6 +43,7 @@
     },
     "delivery_profile": "full_model",
     "display_progress": true,
+    "viewer": {"auto_open": true},
     "model_components": ["baseline"],
     "followup_questions": [],
     "skill_files": [
@@ -56,6 +57,7 @@
       "references/run-compare-optimize.md",
       "references/result-delivery.md",
       "references/project-checks.md",
+      "references/execution-management.md",
       "references/versioning.md",
       "references/open-source-reuse.md"
     ],

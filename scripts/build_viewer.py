@@ -118,7 +118,7 @@ def safe_json(value):
         "\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
-def build_viewer(root, output, plan_ref="docs/task_plan.json"):
+def build_viewer(root, output, plan_ref="docs/task_plan.json", checkpoint="delivery"):
     """Write one NEW offline HTML, returning identity/counts without model data."""
     root, output = Path(root).resolve(), Path(output).resolve()
     if output.suffix.lower() != ".html":
@@ -140,7 +140,7 @@ def build_viewer(root, output, plan_ref="docs/task_plan.json"):
     # Delayed imports keep the reusable renderer free of circular imports.
     import review_project
     from show_progress import render_progress, LABELS
-    review = review_project.check_review(root, plan_path=plan_ref)
+    review = review_project.check_review(root, plan_path=plan_ref, checkpoint=checkpoint)
     progress = render_progress(root, plan, analysis, review)
     rows = []
     for row in progress["rows"]:
@@ -202,6 +202,7 @@ def build_viewer(root, output, plan_ref="docs/task_plan.json"):
             warnings.append("已保存报告不可导出：" + str(error))
 
     model = dict(
+        project_name=root.name,
         title=plan.get("review", {}).get("objective", {}).get("text") or "神经网络模型研究记录",
         plan_id=plan.get("plan_id") or "未记录", model_version=plan.get("model_version") or "未记录",
         analysis_id=analysis.get("analysis_id") or "未记录",
@@ -240,9 +241,10 @@ def main(argv=None):
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--plan", default="docs/task_plan.json")
+    parser.add_argument("--checkpoint", choices=("start", "transition", "resume", "delivery"), default="delivery")
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(build_viewer(args.project, args.output, args.plan), ensure_ascii=False, indent=2))
+        print(json.dumps(build_viewer(args.project, args.output, args.plan, args.checkpoint), ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as error:
         print(json.dumps(dict(status="failed", reason=str(error)), ensure_ascii=False))

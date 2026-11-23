@@ -15,7 +15,7 @@
 </head>
 <body>
 <main>
-<header><h1>模型进度</h1><span class="muted">已保存记录 · 非实时</span></header>
+<header><h1 id="project-title">模型进度</h1><span class="muted">已保存记录 · 非实时</span></header>
 <div id="components" class="components" aria-label="模型部分"></div>
 <div id="checks" class="checks" aria-label="验证状态"></div>
 <details id="warnings" class="warnings" hidden><summary id="warning-title">待处理</summary><ul id="warning-list"></ul></details>
@@ -30,6 +30,7 @@
 (function(){
 const data=JSON.parse(document.getElementById("viewer-data").textContent);
 const byId=id=>document.getElementById(id);
+if(data.project_name){byId("project-title").textContent=data.project_name;document.title=data.project_name+" · 模型进度";}
 function make(tag,text,cls){const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=String(text);if(cls)e.className=cls;return e;}
 const labels={pending:"□ 未完成",unverified:"□ 待核验",running:"⏳ 进行中",blocked:"⏸ 受阻",failed:"✗ 未通过",not_applicable:"— 未纳入",not_satisfied:"✗ 未满足",not_supported:"✗ 未获支持",not_evaluated:"□ 待评价",not_answered:"□ 未回答",partially_answered:"□ 部分回答"};
 const passed={execution:"已运行",calibration:"已满足",independent_evaluation:"已支持",scientific_answer:"已回答",delivery:"已齐全"};

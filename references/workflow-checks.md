@@ -118,6 +118,8 @@
 
 ## 检查技能本身是否有效
 
+自动打开与本机页面维护时，工作流测试同时执行 [test_preview.py](../evals/test_preview.py)：使用仅有计划的隔离目录，实际启动 HTTP 服务、更新同一地址、分离两个工程并验证关闭重开，确认不暴露其他工程文件。宿主当前对话打开动作另实际观察页面工程名；脚本测试通过不能代替这一观察。
+
 交付顺序和阶段展示维护时，现有 `test_workflow.py` 一并执行 [test_review_project.py](../evals/test_review_project.py)、[test_progress.py](../evals/test_progress.py) 与 [test_viewer.py](../evals/test_viewer.py)。检查中途问题挤掉正文、问题答复插入六项之间、图或公式位于错误部分、缺实际构建、非法状态变成对钩、失败后仍显示旧成功标记，以及网页读入不完整记录的行为；实际打开查看页检查交互和图件。自动检查针对已准备的发送稿，不能拦截宿主最终消息，也不代替科学内容复核。具体发现与已验证范围见[交付与展示检查](../evals/delivery-progress-review.md)。
 
 调控维护同时执行 [test_regulation.py](../evals/test_regulation.py)，并入现有 `test_workflow.py`。用 [regulation_case.py](../evals/regulation_case.py) 在新隔离目录生成实际多组合运行、B/D0 对照、冻结与确认及图表，检查单一设置、病理偷改、代理预测替代、分项恶化、虚假恢复与范围降级。合成参考只检验运行和复核逻辑，不能证明调控机制、生物学效应或自由建模行为。复现命令与实际覆盖见[调控验证记录](../evals/regulation-review.md)。

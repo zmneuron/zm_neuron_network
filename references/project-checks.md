@@ -68,7 +68,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 需要保存时加 `--output results/<run_id>/project_check.json`，只在已有目录中新建文件，不覆盖原记录。报告分开列出要素、参数/实例与输出检查，实测验证另行报告。计划阶段检查方法、要求和计划中的模块关系，不要求源码已存在；实施阶段读取实际记录、参数与输出。不因没有全文、原始数据或预算就将本轮必需要求改为可选。
 
-旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py`、`check_reuse.py`、`check_regulation.py`、`show_progress.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。采用网页导出时另保留 `build_viewer.py` 及对应的 `assets/progress_viewer.html`，不将网页生成列为普通检查的前置依赖。
+旧工程缺少新格式时从实际记录补充可恢复内容。无法恢复的运行或检查明确未完成，不能为通过新工具补写从未发生的检查。独立交付时复制实际使用的检查脚本及其导入依赖；联合检查需包含 `check_model.py`、`check_elements.py`、`check_outputs.py`、`check_records.py`、`review_project.py`、`check_reuse.py`、`check_regulation.py`、`show_progress.py` 和 `calibration.py`，清单检查还需同时保存原文副本与 `element-catalog.json`；以 `--checklist` 指向随工程保存的清单。采用网页导出时另保留 `build_viewer.py` 及对应的 `assets/progress_viewer.html`；自动打开还保留 `preview_viewer.py`。网页服务不作为科学检查通过的前置条件。
 
 ## 在阶段转换恢复和交付前执行复核
 
@@ -99,7 +99,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 ### 记录与运行约定
 
-本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
+本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。`review.viewer.auto_open` 默认 `true`，工程与计划建立后立即按[当前对话打开](execution-management.md#在-codex-内查看)执行；阶段转换、恢复和交付时同时更新相应页面，查看器可访问不能替代浏览器已打开或科研完成判断。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
 
 复用 [task_plan.json](../assets/task_plan.json) 和 [analysis_manifest.json](../assets/analysis_manifest.json)，均声明 `review_contract: "zm-neuron-review/1"`。不要复制整套空模板后批量填写成功。
 
