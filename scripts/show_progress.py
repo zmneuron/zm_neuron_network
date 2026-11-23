@@ -33,7 +33,7 @@ AXIS_STATES = {
     "delivery": {"complete", "incomplete", "not_applicable"},
 }
 LABELS = {
-    "verified": "✅ 已完成并核验", "pending": "□ 未完成", "unverified": "□ 尚未核验",
+    "verified": "✅ 已完成并检查", "pending": "□ 未完成", "unverified": "□ 尚未确认",
     "running": "⏳ 进行中（最近核实的记录）", "blocked": "⏸ 等待条件", "failed": "✗ 未通过 / 失败",
     "not_applicable": "— 未纳入本轮", "not_satisfied": "✗ 尚未满足", "not_supported": "✗ 未获支持",
     "not_evaluated": "□ 尚未评价", "not_answered": "□ 尚未回答", "partially_answered": "□ 部分回答",
@@ -139,7 +139,7 @@ def render_progress(root, plan, analysis, review=None):
         if current and analysis.get("construction_steps"):
             output_check = check_outputs.check_project(root, Path(reference))
         elif not current:
-            gaps.append("展示对象尚未保存、已改变或不属于当前模型版本，构建步骤不能标为已核验。")
+            gaps.append("展示对象尚未保存、已改变或不属于当前模型版本，构建步骤不能标为已完成并检查。")
     except (OSError, ValueError, TypeError, KeyError) as error:
         gaps.append("无法读取当前构建记录：" + str(error))
 
@@ -174,7 +174,7 @@ def render_progress(root, plan, analysis, review=None):
         # "verified" belongs only to the computed display, never to input data.
         state = "verified" if checked else "unverified" if not valid_state or declared == "complete" else declared
         if not valid_state:
-            gaps.append(f"步骤 {identity} 的原始状态无效，不能借用展示用的已核验标记。")
+            gaps.append(f"步骤 {identity} 的原始状态无效，不能显示为已完成并检查。")
         checked_at = _checked_time(step.get("last_checked_at"))
         if state == "running" and checked_at is None:
             state = "unverified"
@@ -226,7 +226,7 @@ def render_progress(root, plan, analysis, review=None):
         if identity not in components:
             state, detail = "not_applicable", "按本轮已登记范围不开展，不能当作通过。"
         elif applicable and all(r["checked"] for r in applicable):
-            state, detail = "verified", "所列适用构建步骤均已逐项核验；科学接受条件另列于下表。"
+            state, detail = "verified", "所列构建步骤已逐项检查；是否符合科学要求见下表。"
         elif any(r["state"] == "failed" for r in members):
             state, detail = "failed", "仍有失败步骤，保留具体原因和结果。"
         elif any(r["state"] == "running" for r in members):
@@ -234,7 +234,7 @@ def render_progress(root, plan, analysis, review=None):
         elif any(r["state"] == "blocked" for r in members):
             state, detail = "blocked", "有步骤等待资料、资源或必要决定。"
         else:
-            state, detail = "pending", "尚缺适用步骤或逐项完成核验，不能仅凭模型文件存在宣布完成。"
+            state, detail = "pending", "尚缺必要步骤或逐项检查，不能仅凭模型文件存在宣布完成。"
         component_rows.append(dict(id=identity, kind="component", title=title, state=state,
                                    checked=state == "verified", method="由当前构建步骤汇总",
                                    result=detail, figure_ids=[]))
@@ -270,7 +270,7 @@ def render_progress(root, plan, analysis, review=None):
         state = "verified" if checked else "failed" if check.get("status") == "failed" else "pending"
         outcome = check.get("outcome", "尚未完成多组合搜索及确认")
         axis_rows.append(dict(id="regulation_minimum", kind="check", title="调控必需搜索与确认",
-                              state=state, checked=checked, method="固定 B/D0、实算组合、冻结后独立确认",
+                              state=state, checked=checked, method="固定基础模型与未调控的负面影响模型，运行多组参数，确定候选后独立检验",
                               result=f"{outcome}；这里核对研究步骤，阴性不等于改善，也不等于生物学验证。", figure_ids=[]))
 
     all_rows = component_rows + step_rows + axis_rows
@@ -293,7 +293,7 @@ def render_progress(root, plan, analysis, review=None):
     if gaps:
         details.append("仍需处理：\n\n" + "\n".join("- " + str(g) for g in gaps))
     if images:
-        details.append("已核验步骤的关联图：\n\n" + "\n\n".join(images))
+        details.append("已检查步骤的相关图：\n\n" + "\n\n".join(images))
     return dict(table_markdown=table, markdown=table + ("\n\n" + "\n\n".join(details) if details else ""),
                 rows=all_rows, gaps=gaps, checks=dict(outputs=output_check, current_inputs=current),
                 scope="当前记录的展示；不是后台监控、生物学判定或科研全文审阅。")

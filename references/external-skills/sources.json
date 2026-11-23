@@ -1,5 +1,5 @@
 {
-  "scope": "Pinned original instruction texts and a scoped ARS workflow adaptation; no upstream plugins, hooks, executables or session trackers are bundled.",
+  "scope": "Pinned original instruction texts and attributed scoped research and writing adaptations; no upstream plugins, hooks, executables or session trackers are bundled.",
   "sources": [
     {
       "name": "anti-defensive-writing",
@@ -96,6 +96,99 @@
           "sha256": "248d84e382fda3bdeba0943a028642b22cdb360af29505195f78d311e240e7ca",
           "modified": true,
           "description": "Attributed Chinese adaptation: computational modeling in the research workflow; additional scientific discussion and new optimization rounds follow the local interview rules."
+        }
+      ]
+    },
+    {
+      "name": "plain-language-zh",
+      "repository": "https://github.com/ARA-Labs/plain-language-skill",
+      "commit": "3aee79ef3f39ce47b37b09f966bd01edf92e10f7",
+      "retrieved_on": "2026-11-23",
+      "license": "CC-BY-4.0",
+      "integration": "shared_scoped_writing_adaptation",
+      "files": [
+        {
+          "upstream_path": "skills/plain-language-zh/SKILL.md",
+          "upstream_blob_sha": "eeacdf14339c68ad958db5dedcedb5de892b28ec",
+          "source_url": "https://github.com/ARA-Labs/plain-language-skill/blob/3aee79ef3f39ce47b37b09f966bd01edf92e10f7/skills/plain-language-zh/SKILL.md"
+        },
+        {
+          "upstream_path": "LICENSE",
+          "upstream_blob_sha": "5856029b96d9f56d689491736569cca2d31b1011",
+          "source_url": "https://github.com/ARA-Labs/plain-language-skill/blob/3aee79ef3f39ce47b37b09f966bd01edf92e10f7/LICENSE",
+          "file": "plain-language-zh.LICENSE",
+          "sha256": "b54de02dee427798230b444eb4ffe06e4a4e6d64bf8e8f4cd0ecac86ae930d71",
+          "modified": false
+        }
+      ],
+      "adaptations": [
+        {
+          "file": "clear-writing.md",
+          "sha256": "88dc44266e924b03f0046dcdc4c9b75088a2a76f67eeaa5e8b253aeb66951c7c",
+          "modified": true,
+          "description": "Shared attributed adaptation for readable scientific prose, tables, figure labels and UI, with scientific fidelity and anti-defensive-writing boundaries."
+        }
+      ]
+    },
+    {
+      "name": "shuo-ren-hua",
+      "repository": "https://github.com/AmsonntagChow/shuo-ren-hua",
+      "commit": "94a6f012b9669d901e81ee414dfbded24c5d032e",
+      "retrieved_on": "2026-11-23",
+      "license": "MIT",
+      "integration": "shared_scoped_writing_adaptation",
+      "files": [
+        {
+          "upstream_path": "SKILL.md",
+          "upstream_blob_sha": "4dda9657dc3cefc71a15e204cd17bedcbc0cc358",
+          "source_url": "https://github.com/AmsonntagChow/shuo-ren-hua/blob/94a6f012b9669d901e81ee414dfbded24c5d032e/SKILL.md"
+        },
+        {
+          "upstream_path": "LICENSE",
+          "upstream_blob_sha": "d10b6c09eda06a0dbcea0456cb9e797271414f87",
+          "source_url": "https://github.com/AmsonntagChow/shuo-ren-hua/blob/94a6f012b9669d901e81ee414dfbded24c5d032e/LICENSE",
+          "file": "shuo-ren-hua.LICENSE",
+          "sha256": "0d7797fbb65501d9744df88cba8085b1510303ec43f66a9dc91445f08a29b7bd",
+          "modified": false
+        }
+      ],
+      "adaptations": [
+        {
+          "file": "clear-writing.md",
+          "sha256": "88dc44266e924b03f0046dcdc4c9b75088a2a76f67eeaa5e8b253aeb66951c7c",
+          "modified": true,
+          "description": "Shared attributed adaptation for readable scientific prose, tables, figure labels and UI, with scientific fidelity and anti-defensive-writing boundaries."
+        }
+      ]
+    },
+    {
+      "name": "humanizer-zh",
+      "repository": "https://github.com/op7418/Humanizer-zh",
+      "commit": "f4518a8eab97b8bfebc66a89d34320a89bef6930",
+      "retrieved_on": "2026-11-23",
+      "license": "MIT",
+      "integration": "shared_scoped_writing_adaptation",
+      "files": [
+        {
+          "upstream_path": "SKILL.md",
+          "upstream_blob_sha": "ef07b54da21a41d4a7e4fe0b0afb928f597eb684",
+          "source_url": "https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md"
+        },
+        {
+          "upstream_path": "LICENSE",
+          "upstream_blob_sha": "e43848adc64286ff652e9be646e18ae0606162c7",
+          "source_url": "https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/LICENSE",
+          "file": "humanizer-zh.LICENSE",
+          "sha256": "aa00e74769e1b9d8e7fa7094dbfcca9b129a0ded6dce1cf4da050b99146d2fa7",
+          "modified": false
+        }
+      ],
+      "adaptations": [
+        {
+          "file": "clear-writing.md",
+          "sha256": "88dc44266e924b03f0046dcdc4c9b75088a2a76f67eeaa5e8b253aeb66951c7c",
+          "modified": true,
+          "description": "Shared attributed adaptation for readable scientific prose, tables, figure labels and UI, with scientific fidelity and anti-defensive-writing boundaries."
         }
       ]
     }

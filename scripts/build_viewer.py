@@ -148,7 +148,7 @@ def build_viewer(root, output, plan_ref="docs/task_plan.json", checkpoint="deliv
             "id", "kind", "title", "state", "method", "result", "figure_ids", "component", "required")}
         clean["checked"] = row.get("checked") is True and row.get("state") == "verified"
         clean["state"] = "verified" if clean["checked"] else "unverified" if row.get("state") == "verified" else row.get("state")
-        clean["status_label"] = LABELS.get(clean["state"], "□ 尚未核验")
+        clean["status_label"] = LABELS.get(clean["state"], "□ 尚未确认")
         clean["method"] = display_text(clean["method"])
         clean["result"] = display_text(clean["result"])
         rows.append(clean)
