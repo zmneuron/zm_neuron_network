@@ -130,3 +130,7 @@
 - [Daunizeau 等，2011](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002280)：读取摘要和模型判别导向设计方法；其 DCM 应用不代表本技能中的脉冲网络已经验证，不强制采用其概率方法。
 
 另核对 [Anthropic 问题选择原文](https://github.com/anthropics/knowledge-work-plugins/blob/0e0fcacddcc892eb92a1b7873ff9d68159c47571/bio-research/skills/scientific-problem-selection/SKILL.md) 与 [K-Dense 假说生成原文](https://github.com/K-Dense-AI/scientific-agent-skills/blob/ec59a29a03d5c40f73ab40878df04860bc00e876/skills/hypothesis-generation/SKILL.md)的相关段落，作为研究方法设计参考；不随附其整套文本、工具或工作流。未照搬固定时程、整套问卷、治理模板或统一评分，仓库关注度不作为科研质量依据。前者对 Fischbach 论文的作者归属与原始索引不一致，本页按论文信息引用；技能仍只使用[既有分工](skill-integrations.md)维护一个当前流程。
+
+2026-11-24 审阅《计算神经科学建模研究指南：从科学问题到可检验的预测》。已有的研究用途、竞争解释、参数/模型恢复、确认预算和数据分工继续沿用；增量并入[匹配比较](scientific-constraints.md#先看哪些结果已由设定决定)、[主要效应与阴性判断](run-compare-optimize.md#主要效应的数值检查与阴性判断)、原方法模板及交付复核。指南的一页设计不另立文档；私人案例的数值/路径、期刊目标及未核实的工具能力不转为通用要求。
+
+本次定向读取 [Wilson 与 Collins 原文](https://pmc.ncbi.nlm.nih.gov/articles/PMC6879303/)参数恢复与模型比较部分，保留已知生成条件下检查分析能力的边界；恢复成功不等于真实机制已确定。核对 [MIASE 原文](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1001122)中模型、模拟步骤与输出处理的记录要求，沿用现有版本/运行记录，不新增记录体系。指南中的研究 Skill、敏感性及模型检验软件按[现有开源评估](open-source-reuse.md)选择，本轮没有因此安装或验证新软件；预测文本不同不能证明实验可区分。
