@@ -1,0 +1,41 @@
+---
+config:
+  look: handDrawn
+  handDrawnSeed: 23
+  htmlLabels: false
+  theme: base
+  fontFamily: 'Microsoft YaHei, Noto Sans CJK SC, sans-serif'
+  themeVariables:
+    fontSize: '20px'
+    primaryTextColor: '#233f48'
+    lineColor: '#607c7a'
+    edgeLabelBackground: '#fffdf7'
+  flowchart:
+    htmlLabels: false
+    curve: basis
+    nodeSpacing: 32
+    rankSpacing: 52
+    padding: 22
+    wrappingWidth: 420
+---
+flowchart TB
+    A["1 · 研究定位<br/>现实需求 / 基础未知 / 现象<br/>对象 · 状态 · 本轮范围<br/>无指定状态：静息态 + 基础发放"]
+    B["2 · 定向调研与讨论<br/>多篇文献 + 开源代码 + 数据<br/>科学问题 → 竞争解释 → 判别预测<br/>待定取舍：每轮 2–3 问并给建议<br/>设置确定后告知，继续实施"]
+    C["3 · 形成可执行方法<br/>必要机制 → 方程 → 来源参数<br/>数量 · 空间 · 连接 · 突触 · 输入 · 观测"]
+    D["4 · 分步构建与检查<br/>细胞 → 突触 → 小网络<br/>实际作用 · 局部响应 · 计算成本"]
+    E["5 · 正式运行、比较与优化<br/>文献 / 实测 · 对照 · 适用独立评价<br/>有限优化 · 不确定性 · 预测边界<br/>分清构建、校准和评价数据"]
+    F["6 · 逐题解释与交付<br/>摘要 + 模型方法图与公式<br/>每题一组结果图与解释 + 一句主要局限<br/>保留原始数据 · 分析代码 · 可恢复版本"]
+
+    A --> B --> C --> D --> E --> F
+    P["逐神经元网络的选型<br/>优先：适用的点模型<br/>离子主张：相应状态与动力学<br/>形态作用必需：必要细胞多区室"]
+    P -.-> C
+    E -. "新发现：返回受影响的调研、方法或实现" .-> B
+
+    classDef question fill:#e8f3ee,stroke:#4e7a6b,stroke-width:2px,color:#233f48;
+    classDef method fill:#eaf0fa,stroke:#637aa2,stroke-width:2px,color:#233f48;
+    classDef results fill:#fcf0d8,stroke:#a67c42,stroke-width:2px,color:#233f48;
+    classDef note fill:#faf5e9,stroke:#a79c82,stroke-width:1.5px,color:#374a4c;
+    class A,B question;
+    class C,D method;
+    class E,F results;
+    class P note;
