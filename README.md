@@ -6,7 +6,7 @@
 
 ## 当前思考逻辑
 
-![从研究定位、调研讨论、构建方法、分步检查，到正式运行比较和逐题交付；点模型优先，形态作用必需时采用多区室，新发现返回受影响环节。](assets/workflow/overview.png)
+![明确问题 → 调研讨论 → 确定方案 → 构建检查 → 运行比较 → 解释交付；根据结果按需调整。Excalidraw 手绘风格流程图。](assets/workflow/overview.png)
 
 研究深度由**科学问题、实际机制、数据约束和判别能力**决定。点模型可以承担正式研究；三维网络坐标不等于细胞形态。先明确必须实现和检验什么，再在满足要求的方案中优化计算成本。
 
@@ -14,7 +14,7 @@
 
 一份当前方法串起来源、公式、参数、代码和实际输出。早期试运行、正式计算完成、实测支持及科学问题回答分别说明；最终按“摘要 → 模型与方法图 → 每题的结果图组和解释 → 一句话主要局限”交付。图为现行工作方式的概括，不代表已有科研结果。
 
-[查看高清 SVG](assets/workflow/overview.svg) · [图的可编辑源码与重绘说明](assets/workflow/README.md) · [模型选型细则](references/method-discovery.md#点模型优先与形态需求)
+[查看高清 SVG](assets/workflow/overview.svg) · [Excalidraw 可编辑文件](assets/workflow/overview.excalidraw) · [编辑说明](assets/workflow/README.md) · [模型选型细则](references/method-discovery.md#点模型优先与形态需求)
 
 ## 能做什么
 

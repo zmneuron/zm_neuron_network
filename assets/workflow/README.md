@@ -1,15 +1,15 @@
-# 仓库首页的思考逻辑图
+# 仓库首页的 Excalidraw 流程图
 
-本图概括 [技能入口](../../SKILL.md) 的六步主线，不是某个神经网络的结构图，也不代替具体项目的方法图。默认有基础发放的静息态、分轮追问与结束提示、来源到参数的对应、逐题交付和按缺口返回均沿用现行规范。
+六个框各保留一个简短阶段：**明确问题 → 调研讨论 → 确定方案 → 构建检查 → 运行比较 → 解释交付**。虚线回路表示按结果调整；具体返回哪个环节由实际问题决定。
 
-点模型优先针对未指定表示的新建逐神经元网络；复现、解析、群体/场模型等已有范围继续有效。图中局部响应检查按实际主张启用，独立评价按实际取得的数据报告；图示不表示所有步骤在某个项目中已经完成。方法依据见[表示选择](../../references/method-discovery.md#点模型优先与形态需求)与[关键过程和观测](../../references/construction-methods.md#关键过程与观测约定)。
+本图是 [技能主流程](../../SKILL.md) 的概括，详细建模要求仍以技能正文为准，不表示某个模型已经完成。
 
-修改 [Mermaid 源码](overview.mmd) 后重新生成 [SVG](overview.svg) 和 [PNG](overview.png)，再更新首页。绘图采用 Mermaid 11.17.2 的 `handDrawn` 风格及固定绘图种子；这是手绘风格的程序图，不是人工手绘。文字保留为 SVG 文本，PNG 用于跨设备稳定展示中文。
+## 图件与编辑
 
-生成脚本需要 Python、Playwright 及 Chromium 浏览器。将 [Mermaid 11.17.2 官方包](https://www.npmjs.com/package/mermaid/v/11.17.2) 中的 `dist/mermaid.min.js` 保存至本地后，从本目录运行：
+- [Excalidraw 原始文件](overview.excalidraw)：包含可编辑的框、文字和绑定箭头。
+- [SVG](overview.svg)：矢量图，嵌入所需字体与场景信息。
+- [PNG](overview.png)：用于 GitHub 首页展示。
 
-```text
-python -B render.py --mermaid-js <本地mermaid.min.js路径>
-```
+用 [Excalidraw](https://excalidraw.com) 打开或拖入 `overview.excalidraw`，即可修改文字、颜色和位置。修改后保存原始文件，并重新导出 SVG 和 PNG，更新同名文件。
 
-已有 Chromium 浏览器可用 `--browser <浏览器可执行文件路径>` 指定。脚本不下载或安装依赖；本仓库不附带浏览器和 Mermaid 运行库。字体按 `Microsoft YaHei`、`Noto Sans CJK SC`、系统无衬线依次选择，重绘机器需要可显示中文的字体。
+本版通过 [Excalidraw 官方项目](https://github.com/excalidraw/excalidraw) 的 `@excalidraw/excalidraw` 0.18.0 创建与导出，采用手绘线条和自带中文手写字体。已检查原始场景重新载入、文字和箭头绑定，以及实际导出的图像；旧 Mermaid 源码与渲染脚本由 Git 历史保留，当前目录只维护这一版。
