@@ -15,6 +15,9 @@ from pathlib import Path
 import re
 from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
+from current_project import resolve_current_plan, check_current_artifacts
+from delivery_response import check_presentation, verify_response_file, _visible as visible_text
+from scientific_review import check_scientific_review
 from show_progress import render_progress
 import statistics
 import tempfile
@@ -23,11 +26,13 @@ import sys
 import calibration
 from check_records import fingerprint, local, read, require, verify_run
 
-CONTRACT = "zm-neuron-review/1"
+CONTRACT = "zm-neuron-review/2"
+LEGACY_CONTRACT = "zm-neuron-review/1"
+SUPPORTED_CONTRACTS = {LEGACY_CONTRACT, CONTRACT}
 AXES = {
     "execution": ("completed", {"completed", "incomplete", "failed", "not_applicable"}),
     "calibration": ("satisfied", {"satisfied", "not_satisfied", "not_evaluated", "not_applicable"}),
-    "independent_evaluation": ("supported", {"supported", "not_supported", "not_evaluated", "not_applicable"}),
+    "independent_evaluation": ("supported", {"supported", "not_supported", "inconclusive", "not_evaluated", "not_applicable"}),
     "scientific_answer": ("answered", {"answered", "partially_answered", "not_answered", "not_applicable"}),
     "delivery": ("complete", {"complete", "incomplete", "not_applicable"}),
 }
@@ -118,6 +123,8 @@ def scope_state(plan):
         text(review.get("delivery_scope_reason"), "scoped delivery reason")
         text(review.get("delivery_scope_ref"), "scoped delivery source")
     return dict(objective=objective, requirements=requirement_scope, questions=questions,
+                scientific_checks=unique(review.get("scientific_checks", []), "id", "scientific checks"),
+                previous_analysis_ref=review.get("previous_analysis_ref"),
                 regulation=regulation, model_components=components, display_progress=review.get("display_progress", False),
                 required_axes=axes, independent_evidence=review.get("independent_evidence", "biological"),
                 delivery_profile=profile, delivery_parts=parts,
@@ -140,10 +147,10 @@ def _reference_files(root, item):
 def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     """Capture once and bind its digest in plan.review; never overwrite history."""
     root = Path(project).resolve()
-    plan_file = local(root, plan_path)
+    plan_file = resolve_current_plan(root, plan_path)
     original_plan_digest = fingerprint(plan_file)
     plan = read(plan_file)
-    require(plan.get("review_contract") == CONTRACT, "Declare the review contract before capture")
+    require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Declare the review contract before capture")
     reuse = check_reuse(root, plan)
     require(reuse["status"] != "failed", "Resolve current reuse records before capture: " + "; ".join(reuse["issues"]))
     regulation = check_regulation(root, plan, checkpoint="start")
@@ -162,11 +169,19 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
         require("references/regulation-design.md" in paths, "Capture the applicable regulation rules for full implementation")
     skills = {p: fingerprint(local(skill_root, p)) for p in paths}
     criteria = {p: _target_content(root, p) for p in review.get("criteria_refs", [])}
-    baseline = dict(review_contract=CONTRACT, captured_at_utc=datetime.now(timezone.utc).isoformat(),
+    baseline = dict(review_contract=plan["review_contract"], captured_at_utc=datetime.now(timezone.utc).isoformat(),
                     plan_id=plan["plan_id"], initial_model_version=plan["model_version"],
                     scope=state, criteria=criteria, skill_files=skills,
                     datasets=review.get("datasets", []))
     baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
+    if review.get("previous_analysis_ref"):
+        previous = local(root, review["previous_analysis_ref"])
+        previous_analysis = read(previous)
+        previous_budget = previous_analysis.get("completion_review", {}).get("budget", {})
+        require(type(previous_budget.get("consumed")) is int and previous_budget["consumed"] >= 0,
+                "Previous review must identify its recorded cost; do not reset missing historical work to zero")
+        baseline["previous_analysis"] = dict(ref=review["previous_analysis_ref"], sha256=fingerprint(previous),
+                                             consumed=previous_budget["consumed"], unit=previous_budget.get("unit"))
     baseline["dataset_files"] = {p.relative_to(root).as_posix(): fingerprint(p)
                                  for d in review.get("datasets", []) if d.get("available") is True
                                  for p in _reference_files(root, d)}
@@ -195,13 +210,16 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
 
 def _scope_changes(before, after):
     changes = []
-    for field in ("objective", "independent_evidence", "delivery_profile", "delivery_parts", "delivery_scope_reason", "delivery_scope_ref"):
+    for field in ("objective", "independent_evidence", "delivery_profile", "delivery_parts", "delivery_scope_reason", "delivery_scope_ref", "previous_analysis_ref"):
         if before.get(field) != after.get(field):
             changes.append(field)
     for field in ("requirements", "questions"):
         for identity, value in before[field].items():
             if after[field].get(identity) != value:
                 changes.append(f"{field}:{identity}")
+    for identity, value in before.get("scientific_checks", {}).items():
+        if after.get("scientific_checks", {}).get(identity) != value:
+            changes.append("scientific_checks:" + identity)
     for axis in set(before["required_axes"]) - set(after["required_axes"]):
         changes.append(f"required_axes:{axis}")
     old_regulation = before.get("regulation") or {}
@@ -215,12 +233,16 @@ def _scope_changes(before, after):
 
 
 def _check_scope(root, plan, baseline, report, skill):
-    require(baseline.get("review_contract") == CONTRACT and baseline.get("plan_id") == plan.get("plan_id"), "Capture belongs to another plan")
+    require(baseline.get("review_contract") == plan.get("review_contract") and baseline.get("plan_id") == plan.get("plan_id"), "Capture belongs to another plan")
     if baseline.get("reuse_contract"):
         require(isinstance(plan.get("reuse"), dict) and plan["reuse"].get("contract") == baseline["reuse_contract"],
                 "Previously required reuse review cannot be removed as a legacy exemption")
     state = scope_state(plan)
     review = plan["review"]
+    previous = baseline.get("previous_analysis")
+    if previous:
+        require(fingerprint(local(root, previous["ref"])) == previous["sha256"],
+                "Previous review/cost record changed; preserve history before continuing")
     local(root, state["objective"]["source_ref"])
     for item in state["requirements"].values():
         local(root, item["source_ref"])
@@ -380,6 +402,28 @@ def _axis(root, axis, value, comparisons, plan, analysis):
         for ref in refs:
             run = verify_run(root, ref, require_completed=success, check_current_code=success)
             require(run["model_version"] == plan["model_version"], "Execution axis refers to another model version")
+            if success and plan.get("review_contract") == CONTRACT:
+                context = run.get("review_context", {})
+                current_preparation = (context.get("plan_id") == plan.get("plan_id") and
+                                       context.get("requirements_sha256") == plan["review"].get("baseline_sha256"))
+                if current_preparation:
+                    recorded_checks = {x["id"]: x for x in context.get("scientific_checks", [])}
+                    current_checks = {x["id"]: x for x in plan["review"].get("scientific_checks", [])}
+                    require(all(current_checks.get(key) == value for key, value in recorded_checks.items()),
+                            "Scientific comparison definitions changed after this run; retain original definitions and label new analyses separately")
+                    require(all(current_checks[key].get("timing") == "exploratory_after_run" for key in current_checks.keys() - recorded_checks.keys()),
+                            "A comparison added after simulation must be identified as exploratory_after_run")
+                if not current_preparation:
+                    adopted = [x for x in plan["review"].get("reused_runs", []) if x.get("run_ref") == ref]
+                    require(len(adopted) == 1, "Current run lacks requirements recorded before execution; document a retrospective reuse review instead of inventing a prior check")
+                    adoption = adopted[0]
+                    assessment(root, adoption, "historical run reuse")
+                    require(adoption.get("preparation_status") == "retrospective_review" and
+                            adoption.get("run_sha256") == fingerprint(local(root, ref)),
+                            "Historical reuse must preserve the exact run and disclose retrospective review")
+                    capture = read(local(root, plan["review"]["baseline_ref"]))
+                    require(datetime.fromisoformat(run["started_at_utc"]) < datetime.fromisoformat(capture["captured_at_utc"]),
+                            "A newly started run cannot bypass preparation using historical reuse")
     if axis in {"calibration", "independent_evaluation"}:
         linked = value.get("comparison_ids", [])
         require(all(i in comparisons for i in linked), f"Unknown comparison in {axis}")
@@ -398,6 +442,21 @@ def _axis(root, axis, value, comparisons, plan, analysis):
             require(any(x["status"] in {"infeasible", "invalid_run"} for x in chosen), "Calibration failure lacks a failed comparison")
         if axis == "independent_evaluation" and value["status"] == "not_supported":
             require(any(x["status"] in {"infeasible", "invalid_run"} for x in chosen), "Independent non-support lacks a failed comparison")
+        if axis == "independent_evaluation" and value["status"] == "inconclusive":
+            require(value.get("evaluation_completed") is True, "Inconclusive evaluation must identify an actually completed comparison")
+            require(any(d.get("role") == "evaluation" and d.get("available") and not d.get("used_for_selection")
+                        for d in plan["review"].get("datasets", [])),
+                    "Inconclusive independent evaluation still needs available independent evaluation data")
+            results = unique(analysis.get("results", []), "id", "evaluation results")
+            identities = value.get("result_ids", [])
+            require(chosen or identities, "Inconclusive evaluation lacks actual comparison/results")
+            data = unique(analysis.get("datasets", []), "id", "evaluation datasets")
+            for identity in identities:
+                result = results.get(identity, {})
+                require(result.get("status") == "complete" and result.get("data_ids"), "Inconclusive evaluation uses an unfinished result")
+                for did in result["data_ids"]:
+                    require(did in data, "Inconclusive evaluation uses unknown data")
+                    local(root, data[did].get("path"))
     if axis == "scientific_answer":
         answers = unique(value.get("questions", []), "id", "scientific answers")
         required = {q["id"] for q in plan["review"]["questions"] if q["required"]}
@@ -469,8 +528,30 @@ def compose_response(delivery, plan):
     return body + ("\n\n## 补充问题答复\n\n" + "\n\n".join(extra) if extra else "")
 
 
+def _scientific_review(root, plan, analysis, checkpoint):
+    result = check_scientific_review(root, plan, analysis, checkpoint=checkpoint)
+    if analysis is None or not result.get("data_refs"):
+        return result
+    completion = analysis.get("completion_review", {})
+    refs = {ref for value in completion.get("axes", {}).values() for ref in value.get("run_refs", [])}
+    refs.update(x["run_ref"] for x in completion.get("comparisons", []))
+    refs.update(x["analysis_run_ref"] for x in completion.get("comparisons", []) if x.get("analysis_run_ref"))
+    refs.update(x["run_ref"] for x in completion.get("iterations", []))
+    refs.update(x["record"] for x in analysis.get("runs", []))
+    allowed = {path for item in plan["review"].get("datasets", []) if item.get("available")
+               for path in _reference_files(root, item)}
+    for ref in refs:
+        record = verify_run(root, ref, require_completed=False)
+        if record["status"] == "completed":
+            allowed.update(local(root, p) for p in record.get("output_sha256", {}))
+    require(all(local(root, ref) in allowed for ref in result["data_refs"]),
+            "Scientific comparison uses data outside recorded runs or declared references")
+    return result
+
+
 def _delivery(root, delivery, plan, analysis, axes):
     require(isinstance(delivery, dict), "Missing delivery content")
+    presentation = check_presentation(delivery, plan, analysis)
     report_path = local(root, delivery.get("report_ref"))
     report_text = report_path.read_text(encoding="utf-8")
     require(delivery["report_ref"] == analysis.get("report"), "Delivery uses another report")
@@ -483,6 +564,11 @@ def _delivery(root, delivery, plan, analysis, axes):
     # The persisted excerpts are complete sections, including inline figures.
     # Extra answers are composed only after the scientific limitation.
     expected_response = compose_response(delivery, plan)
+    science = _scientific_review(root, plan, analysis, "delivery")
+    require(science["status"] != "failed", "Scientific interpretation failed: " + "; ".join(science.get("issues", [])))
+    for explanation in science.get("explanation_excerpts", []):
+        require(explanation["text"] in visible_text(report_text) and explanation["text"] in visible_text(expected_response),
+                "Scientific discrepancy/assumption explanation missing from report/final response: " + explanation["id"])
     scientific_response = "\n\n".join(p["response_excerpt"].strip() for p in parts)
     require(response.strip() == expected_response,
             "Final response text differs from the ordered scientific sections and deferred answers")
@@ -545,7 +631,7 @@ def _delivery(root, delivery, plan, analysis, axes):
             files = figure.get("files")
             require(isinstance(files, list) and files, "Figure lacks existing manifest files")
             paths = {local(root, reference) for reference in files}
-            require(figure.get("depiction") in {"schematic", "actual_model", "data_result"}, "Missing or unknown schematic/actual figure classification")
+            require(figure.get("depiction") in {"schematic", "actual_model", "data_result", "mixed"}, "Missing or unknown schematic/actual figure classification")
             for content, base, final_response in ((part["report_excerpt"], report_path.parent, False), (part["response_excerpt"], root, True)):
                 images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
                 require(any((not final_response or Path(x.strip("<>")).is_absolute()) and
@@ -581,7 +667,7 @@ def _delivery(root, delivery, plan, analysis, axes):
                     and response.rstrip().endswith(part["response_excerpt"].rstrip()), "Main limitation is not the final statement")
     require(not full and "questions" not in applicable or questions <= linked_questions, "Not every required question has a result group")
     return {"claims_recomputed": list(claims), "embedded_figures": sorted(set(all_required_images)),
-            "ordered_response_verified": True, "followup_answers": len(delivery.get("followup_answers", [])),
+            "ordered_response_verified": True, "presentation": presentation, "followup_answers": len(delivery.get("followup_answers", [])),
             "scope": "Text/artifact relationships checked; assessors remain responsible for scientific substance and the actual sent response."}
 
 
@@ -605,10 +691,22 @@ def _iterations(root, completion, comparisons, plan):
         require(any(r.get("role") == "final" for r in rows), "Optimization lacks final keep/adopt decision")
 
 
-def _decision(root, completion, required_pending, datasets):
+def _decision(root, completion, required_pending, datasets, plan=None, baseline=None):
     budget = completion.get("budget")
     require(isinstance(budget, dict), "Missing cumulative budget")
     calibration.SimulationBudget(budget.get("limit"), budget.get("consumed"))
+    if plan and plan.get("review_contract") == CONTRACT and plan["review"].get("delivery_profile", "full_model") == "full_model":
+        for key in ("previous_consumed", "round_consumed"):
+            require(type(budget.get(key)) is int and budget[key] >= 0, "Record previous and current-round costs separately")
+        require(budget["consumed"] == budget["previous_consumed"] + budget["round_consumed"],
+                "Cumulative cost was reset or does not equal previous plus current-round work")
+        text(budget.get("unit"), "budget unit")
+        previous = (baseline or {}).get("previous_analysis")
+        if previous:
+            require(budget["previous_consumed"] == previous["consumed"], "Continuation omits the prior recorded cost")
+            require(not previous.get("unit") or budget["unit"] == previous["unit"], "Cost units changed across rounds without a comparable total")
+        if budget.get("history_incomplete"):
+            text(budget.get("history_reason"), "unknown historical cost explanation")
     run_refs = {r for axis in completion["axes"].values() for r in axis.get("run_refs", [])}
     run_refs.update(c["run_ref"] for c in completion.get("comparisons", []))
     run_refs.update(r["run_ref"] for r in completion.get("iterations", []))
@@ -652,19 +750,27 @@ def _requirements(root, plan, analysis, completion):
     return unmet
 
 
-def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None):
+def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
+                 historical=False, response_file=None, sent_response_file=None):
     root = Path(project).resolve()
     report = dict(status="failed", checkpoint=checkpoint, issues=[], warnings=[], axes={}, consistent=False,
-                  goal_complete=False, ready_to_deliver=False, checks={}, read_next=list(READING.get(checkpoint, [])),
+                  goal_complete=False, ready_to_deliver=False, ready_to_send=False, checks={}, read_next=list(READING.get(checkpoint, [])),
                   scope_note="Declared coverage and artifact/numeric consistency; not biological proof, authorization proof, or proof that an agent read a rule.")
     try:
         require(checkpoint in READING, "Unknown review checkpoint")
-        plan = read(local(root, plan_path))
+        require(not historical or not (response_file or sent_response_file), "Historical review cannot prepare or certify the current response")
+        plan = read(resolve_current_plan(root, plan_path, historical=historical))
+        report["historical"] = historical
         if plan.get("review_contract") is None:
             report.update(status="legacy_not_reviewed")
             report["warnings"].append("No review contract; do not reconstruct or claim a historical review automatically.")
             return report
-        require(plan.get("review_contract") == CONTRACT, "Unsupported review contract")
+        require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Unsupported review contract")
+        if plan["review_contract"] == LEGACY_CONTRACT:
+            report["warnings"].append("Historical /1 review: current methods, per-question scientific dispositions and the sendable response file have not received /2 checks. Do not claim the new safeguards were applied.")
+        current = check_current_artifacts(root, plan, checkpoint="start")
+        report["checks"]["current_model"] = current
+        require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current.get("issues", [])))
         reuse = check_reuse(root, plan)
         report["checks"]["reuse"] = reuse
         if plan.get("reuse") is not None:
@@ -673,6 +779,9 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             raise ValueError("Reuse review failed: " + "; ".join(reuse["issues"]))
         if reuse["status"] == "legacy_not_reviewed":
             report["warnings"].append("Stage-specific open-source reuse has not been reviewed in this plan.")
+            planning = checkpoint in {"start", "resume"} and not (root / plan.get("files", {}).get("analysis", "analysis/output/analysis.json")).is_file()
+            require(plan["review_contract"] != CONTRACT or plan["review"].get("delivery_profile") == "scoped" or planning,
+                    "Current model review must retain the stage-specific reuse decision; missing records are not a legacy exemption")
         capture = local(root, plan["review"]["baseline_ref"])
         require(fingerprint(capture) == plan["review"].get("baseline_sha256"), "Captured original requirements changed or are not bound to this plan")
         baseline = read(capture)
@@ -683,7 +792,11 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         report["checks"]["regulation"] = regulation
         require(regulation["status"] != "failed", "Regulation design failed: " + "; ".join(regulation["issues"]))
         if checkpoint == "start":
-            report.update(status="incomplete" if regulation["status"] == "incomplete" else "passed",
+            science = _scientific_review(root, plan, None, "start")
+            report["checks"]["scientific"] = science
+            require(science["status"] != "failed", "Scientific comparison plan: " + "; ".join(science.get("issues", [])))
+            report.update(status="incomplete" if "incomplete" in {regulation["status"], current["status"], science["status"]}
+                          or plan["review_contract"] == CONTRACT and plan["review"].get("delivery_profile", "full_model") == "full_model" and reuse["status"] == "legacy_not_reviewed" else "passed",
                           consistent=True, read_next=sorted(set(report["read_next"])))
             return report
         analysis_ref = text(plan["files"].get("analysis"), "analysis path")
@@ -695,13 +808,20 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             report["unmet_axes"] = list(plan["review"]["required_axes"])
             return report
         analysis = read(local(root, plan["files"]["analysis"]))
-        require(analysis.get("review_contract") == CONTRACT, "Analysis lacks review contract")
+        require(analysis.get("review_contract") == plan["review_contract"], "Analysis lacks the adopted review contract")
         require(analysis.get("plan_id") == plan.get("plan_id") and analysis.get("model_version") == plan.get("model_version"), "Review mixes task/model versions")
+        current = check_current_artifacts(root, plan, analysis, checkpoint=checkpoint)
+        report["checks"]["current_model"] = current
+        require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current.get("issues", [])))
         completion = analysis.get("completion_review")
         require(isinstance(completion, dict), "Missing completion_review")
         axes = completion.get("axes")
         require(isinstance(axes, dict) and set(axes) == set(AXES), "Report all five completion axes separately")
         report["axes"] = {name: dict(value) for name, value in axes.items()}
+        science = _scientific_review(root, plan, analysis, checkpoint)
+        report["checks"]["scientific"] = science
+        if science["status"] == "failed":
+            report["issues"].extend("scientific: " + x for x in science.get("issues", []))
         regulation = check_regulation(root, plan, analysis, checkpoint=checkpoint)
         report["checks"]["regulation"] = regulation
         if regulation["status"] == "failed":
@@ -733,10 +853,17 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             report["issues"].append(f"requirements: {error}")
             report["unmet_requirements"] = [x["id"] for x in plan["requirements"]]
         pending = pending + report["unmet_requirements"]
+        if current["status"] == "incomplete":
+            report["unmet_requirements"].append("current_model_consistency")
+            pending.append("current_model_consistency")
+        for question_id in science.get("unresolved_question_ids", []):
+            identity = "scientific_check:" + question_id
+            report["unmet_requirements"].append(identity)
+            pending.append(identity)
         if (regulation_scope(plan) or {}).get("mode") == "implementation" and not regulation.get("complete"):
             report["unmet_requirements"].append("regulation_minimum_study")
             pending.append("regulation_minimum_study")
-        try: _decision(root, completion, pending, datasets)
+        try: _decision(root, completion, pending, datasets, plan, baseline)
         except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"decision: {error}")
         report["goal_complete"] = not pending and not report["issues"]
         report["ready_to_deliver"] = axes["delivery"].get("status") == "complete" and not report["issues"]
@@ -766,6 +893,22 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
                 report["progress"] = render_progress(root, plan, analysis, report)
     except (OSError, ValueError, TypeError, KeyError) as error:
         report["issues"].append(str(error))
+    if response_file or sent_response_file:
+        try:
+            require(checkpoint == "delivery" and report.get("ready_to_deliver"),
+                    "Check the complete current report, figures and data before checking a response file")
+            for reference, role in ((response_file, "prepared"), (sent_response_file, "supplied_sent")):
+                if reference:
+                    report["checks"]["response_file" if role == "prepared" else "supplied_sent_response"] = verify_response_file(
+                        root, str(reference), analysis["completion_review"]["delivery"], plan, analysis, source_kind=role)
+            report["ready_to_send"] = bool(response_file)
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            report["issues"].append("response: " + str(error))
+            report.update(status="failed", consistent=False, goal_complete=False, ready_to_deliver=False, ready_to_send=False)
+    elif report.get("ready_to_deliver") and plan.get("review_contract") == CONTRACT and checkpoint == "delivery":
+        report["warnings"].append("Report artifacts checked; the file to be sent has not been checked. Use --response-file immediately before sending its unchanged contents.")
+    if report["issues"]:
+        report.update(status="failed", consistent=False, goal_complete=False, ready_to_deliver=False, ready_to_send=False)
     report["read_next"] = sorted(set(report["read_next"]))
     return report
 
@@ -781,9 +924,16 @@ def main(argv=None):
     parser.add_argument("--capture", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--response-output", type=Path, help="Write the checked final response to a new project-local file")
+    parser.add_argument("--response-file", help="Recheck the actual project-local Markdown file to be sent")
+    parser.add_argument("--sent-response-file", help="Compare supplied actual sent-message text; this does not establish its provenance")
+    parser.add_argument("--historical", action="store_true", help="Read-only review of an explicitly selected historical plan; cannot export current delivery")
     args = parser.parse_args(argv)
     try:
-        result = capture_review(args.project, args.plan, args.skill) if args.capture else check_review(args.project, args.plan, args.checkpoint, args.skill)
+        require(not args.historical or not (args.capture or args.response_output or args.response_file or args.sent_response_file),
+                "Historical mode only reviews preserved records")
+        result = capture_review(args.project, args.plan, args.skill) if args.capture else check_review(
+            args.project, args.plan, args.checkpoint, args.skill, historical=args.historical,
+            response_file=args.response_file, sent_response_file=args.sent_response_file)
         if args.response_output:
             require(not args.capture and args.checkpoint == "delivery" and result.get("ready_to_deliver"),
                     "Cannot export a final response before delivery review passes")
@@ -793,6 +943,8 @@ def main(argv=None):
             require(path.is_relative_to(args.project.resolve()), "Response output outside project")
             with path.open("x", encoding="utf-8") as handle:
                 handle.write(analysis["completion_review"]["delivery"]["response_text"].strip() + "\n")
+            result = check_review(args.project, args.plan, args.checkpoint, args.skill,
+                                  response_file=path.relative_to(args.project.resolve()).as_posix())
         if args.output:
             path = (args.project / args.output).resolve()
             require(path.is_relative_to(args.project.resolve()), "Output outside project")

@@ -16,6 +16,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+from current_project import resolve_current_plan
+
 MAX_RECORD_BYTES = 3 * 1024 * 1024
 MAX_IMAGE_BYTES = 1024 * 1024
 MAX_HTML_BYTES = 3 * 1024 * 1024
@@ -125,6 +127,7 @@ def build_viewer(root, output, plan_ref="docs/task_plan.json", checkpoint="deliv
         raise ValueError("Viewer output must be an HTML file")
     if output.exists():
         raise FileExistsError("Viewer output already exists; choose a new filename")
+    plan_ref = resolve_current_plan(root, plan_ref).relative_to(root).as_posix()
     sources, warnings = {}, []
     plan = read_json(root, plan_ref, sources)
     analysis_ref = plan.get("files", {}).get("analysis")

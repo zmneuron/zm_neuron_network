@@ -106,6 +106,42 @@ def _atomic_json(path, value):
         temporary.unlink(missing_ok=True)
 
 
+def _pre_run_review(root, model_version):
+    """Bind new-protocol runs to requirements saved before computation.
+
+    Historical projects and standalone component tools remain readable. This
+    checks recorded preparation, not whether an agent read or understood it.
+    """
+    plan_path = root / "docs/task_plan.json"
+    if not plan_path.is_file():
+        return None
+    plan = read(plan_path)
+    if plan.get("review_contract") != "zm-neuron-review/2":
+        return None
+    require(plan.get("model_version") == model_version,
+            "Run version differs from the current task plan; resolve the adopted model first")
+    review = plan.get("review", {})
+    if review.get("delivery_profile") == "scoped" and not plan.get("current_model"):
+        return None
+    require(isinstance(plan.get("current_model"), dict) and plan["current_model"].get("name"),
+            "Identify the current neuron/model before starting computation")
+    require(isinstance(review.get("scientific_checks"), list) and bool(review["scientific_checks"]),
+            "Declare applicable scientific comparisons and assumptions before computation")
+    capture = local(root, review.get("baseline_ref"))
+    require(fingerprint(capture) == review.get("baseline_sha256"),
+            "Save and check current requirements before starting the run")
+    saved = read(capture)
+    require(saved.get("review_contract") == "zm-neuron-review/2" and saved.get("plan_id") == plan.get("plan_id"),
+            "Run requirements belong to another plan or review version")
+    captured = datetime.fromisoformat(saved["captured_at_utc"])
+    require(captured.tzinfo is not None and captured <= datetime.now(timezone.utc),
+            "Requirements capture must precede computation")
+    return dict(plan_ref="docs/task_plan.json", plan_id=plan["plan_id"],
+                model_version=model_version, plan_sha256=fingerprint(plan_path),
+                requirements_ref=_relative(root, capture), requirements_sha256=fingerprint(capture),
+                scientific_checks=copy.deepcopy(review["scientific_checks"]))
+
+
 def begin_run(root, output, *, config, stage, model_version, code_refs,
               command, environment, input_refs=(), parents=(), working_directory=None,
               source_store="results/source_versions"):
@@ -139,6 +175,7 @@ def begin_run(root, output, *, config, stage, model_version, code_refs,
         parent_info.append(dict(record=_relative(root, local(root, reference)), run_id=record["run_id"],
                                 sha256=fingerprint(local(root, reference))))
     require(len({p["run_id"] for p in parent_info}) == len(parent_info), "Duplicate parent run identity")
+    review_context = _pre_run_review(root, model_version)
     destination.mkdir(parents=True, exist_ok=False)
     config_path = destination / "resolved_config.json"
     _atomic_json(config_path, config)
@@ -170,6 +207,8 @@ def begin_run(root, output, *, config, stage, model_version, code_refs,
                   config_ref=_relative(root, config_path), config_sha256=fingerprint(config_path),
                   code_sha256=hashes, source_archive=archives, input_sha256=inputs,
                   parents=parent_info, output_sha256={})
+    if review_context is not None:
+        record["review_context"] = review_context
     path = destination / "run.json"
     _atomic_json(path, record)
     return _relative(root, path)
@@ -190,6 +229,18 @@ def verify_run(root, reference, *, require_completed=True, check_current_code=Fa
     require(record.get("record_schema") == RUN_SCHEMA, "Run lacks resolved provenance contract")
     for field in ("run_id", "stage", "model_version", "started_at_utc", "working_directory"):
         require(isinstance(record.get(field), str) and record[field].strip(), f"Missing run {field}")
+    if "review_context" in record:
+        context = record["review_context"]
+        require(isinstance(context, dict) and context.get("model_version") == record["model_version"],
+                "Run preparation uses another model version")
+        capture = local(root, context.get("requirements_ref"))
+        require(fingerprint(capture) == context.get("requirements_sha256"), "Run requirements changed after computation")
+        saved = read(capture)
+        require(saved.get("plan_id") == context.get("plan_id"), "Run preparation uses another task")
+        captured = datetime.fromisoformat(saved["captured_at_utc"])
+        started = datetime.fromisoformat(record["started_at_utc"])
+        require(captured.tzinfo is not None and started.tzinfo is not None and captured <= started,
+                "Requirements were captured after computation; do not claim a prior review")
     require(record.get("status") in ("partial", "failed", "completed"), "Invalid run status")
     if require_completed:
         require(record["status"] == "completed", f"Unfinished parent/run: {reference}")

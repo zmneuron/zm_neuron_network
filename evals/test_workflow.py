@@ -28,6 +28,10 @@ from test_regulation import RegulationChecks
 from test_progress import ProgressChecks
 from test_viewer import ViewerChecks
 from test_preview import PreviewChecks
+from test_current_project import CurrentModelChecks
+from test_scientific_review import ScientificReviewTests
+from test_delivery_response import DeliveryFileChecks, FreshArtifactReviewChecks
+from test_execution_contract import ExecutionContractChecks
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -188,7 +192,8 @@ def main():
     args = parser.parse_args()
     log = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks, ReuseChecks, RegulationChecks, ProgressChecks, ViewerChecks, PreviewChecks))
+                               for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks, ReuseChecks, RegulationChecks, ProgressChecks, ViewerChecks, PreviewChecks,
+                                           CurrentModelChecks, ScientificReviewTests, DeliveryFileChecks, FreshArtifactReviewChecks, ExecutionContractChecks))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
     retained = None
     if args.workspace and result.wasSuccessful():
@@ -203,6 +208,7 @@ def main():
              Path(__file__).with_name("test_progress.py"),
              Path(__file__).with_name("test_viewer.py"), SKILL / "assets/progress_viewer.html",
              Path(__file__).with_name("test_preview.py"),
+             *[Path(__file__).with_name(name) for name in ("test_current_project.py", "test_scientific_review.py", "test_delivery_response.py", "test_execution_contract.py")],
              SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,

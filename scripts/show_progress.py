@@ -28,7 +28,7 @@ STEP_STATES = {"complete", "pending", "running", "blocked", "failed", "not_appli
 AXIS_STATES = {
     "execution": {"completed", "incomplete", "failed", "not_applicable"},
     "calibration": {"satisfied", "not_satisfied", "not_evaluated", "not_applicable"},
-    "independent_evaluation": {"supported", "not_supported", "not_evaluated", "not_applicable"},
+    "independent_evaluation": {"supported", "not_supported", "inconclusive", "not_evaluated", "not_applicable"},
     "scientific_answer": {"answered", "partially_answered", "not_answered", "not_applicable"},
     "delivery": {"complete", "incomplete", "not_applicable"},
 }
@@ -36,7 +36,7 @@ LABELS = {
     "verified": "✅ 已完成并检查", "pending": "□ 未完成", "unverified": "□ 尚未确认",
     "running": "⏳ 进行中（最近核实的记录）", "blocked": "⏸ 等待条件", "failed": "✗ 未通过 / 失败",
     "not_applicable": "— 未纳入本轮", "not_satisfied": "✗ 尚未满足", "not_supported": "✗ 未获支持",
-    "not_evaluated": "□ 尚未评价", "not_answered": "□ 尚未回答", "partially_answered": "□ 部分回答",
+    "not_evaluated": "□ 尚未评价", "inconclusive": "□ 已评价，尚不能判断是否支持", "not_answered": "□ 尚未回答", "partially_answered": "□ 部分回答",
 }
 
 

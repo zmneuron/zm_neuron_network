@@ -10,6 +10,7 @@ import check_elements
 import check_model
 import check_outputs
 import review_project
+from current_project import resolve_current_plan, check_current_artifacts
 from check_records import fingerprint, local, read, require, verify_check, verify_run, RUN_SCHEMA
 
 
@@ -28,13 +29,15 @@ def table(path, key):
     return result
 
 
-def check_project(project, plan_path="docs/task_plan.json", phase="implemented", checklist=None, skill=None):
+def check_project(project, plan_path="docs/task_plan.json", phase="implemented", checklist=None, skill=None, *, historical=False):
     root = Path(project).resolve()
     checklist = Path(checklist) if checklist else Path(__file__).resolve().parents[1] / "references/construction-elements-checklist.md"
     report = {"status": "failed", "phase": phase, "issues": [], "checks": {},
               "scope": "Recorded cross-file consistency; source truth, scientific adequacy and honest execution still require review"}
     try:
-        plan = read(local(root, str(plan_path)))
+        plan_file = resolve_current_plan(root, str(plan_path), historical=historical)
+        plan_path = plan_file.relative_to(root).as_posix()
+        plan = read(plan_file)
         require(plan.get("schema_version") == 1, "Unsupported task plan schema")
         record_contract = plan.get("run_record_contract")
         require(record_contract in (None, RUN_SCHEMA), "Unsupported run record contract")
@@ -50,6 +53,9 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
                 "Construction method changed without updating the task plan")
         files = plan.get("files")
         require(isinstance(files, dict), "Missing task file map")
+        current = check_current_artifacts(root, plan, checkpoint="start")
+        report["checks"]["current_model"] = current
+        require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current["issues"]))
         registry = read(local(root, files["modules"]))
         require(registry.get("plan_id") == plan["plan_id"] and registry.get("model_version") == plan["model_version"],
                 "Module registry does not match this task/model version")
@@ -99,6 +105,9 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
             ids(module.get("step_ids"), f"{mid}.step_ids")
         if phase in {"implemented", "delivery"}:
             analysis = read(local(root, files["analysis"]))
+            current = check_current_artifacts(root, plan, analysis, checkpoint="delivery" if phase == "delivery" else "transition")
+            report["checks"]["current_model"] = current
+            require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current["issues"]))
             require(analysis.get("schema_version") == 2 and analysis.get("plan_id") == plan["plan_id"]
                     and analysis.get("model_version") == plan["model_version"], "Analysis belongs to another task/model version")
             if record_contract == RUN_SCHEMA:
@@ -136,11 +145,14 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
     # Keep recorded scientific/communication decisions visible even when a
     # software or file check failed. Neither status substitutes for the other.
     checkpoint = "start" if phase == "plan" else "delivery" if phase == "delivery" else "transition"
-    completion = review_project.check_review(root, str(plan_path), checkpoint, skill)
+    completion = review_project.check_review(root, str(plan_path), checkpoint, skill, historical=historical)
     report["checks"]["completion_review"] = completion
     report["goal_complete"] = completion.get("goal_complete", False) and report["status"] == "passed"
     report["ready_to_deliver"] = completion.get("ready_to_deliver", False) and report["status"] == "passed"
-    if completion.get("status") == "failed" or (phase == "delivery" and not report["ready_to_deliver"]):
+    if historical:
+        report.update(historical=True, goal_complete=False, ready_to_deliver=False,
+                      scope="Historical read-only inspection; not adoption or current delivery")
+    if completion.get("status") == "failed" or (phase == "delivery" and not historical and not report["ready_to_deliver"]):
         report["status"] = "failed"
         report["issues"].append("Research/delivery review is missing, inconsistent or incomplete; inspect its separate states")
     return report
@@ -154,8 +166,9 @@ def main(argv=None):
     parser.add_argument("--checklist", type=Path)
     parser.add_argument("--skill", type=Path, help="Adopted skill directory used for rule-version review")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--historical", action="store_true", help="Read an explicitly selected historical plan without treating it as current")
     args = parser.parse_args(argv)
-    report = check_project(args.project, args.plan, args.phase, args.checklist, args.skill)
+    report = check_project(args.project, args.plan, args.phase, args.checklist, args.skill, historical=args.historical)
     if args.output:
         path = (args.project / args.output).resolve()
         try:

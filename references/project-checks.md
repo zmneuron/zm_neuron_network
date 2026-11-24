@@ -103,7 +103,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。`review.viewer.auto_open` 默认 `true`，工程与计划建立后立即按[当前对话打开](execution-management.md#在-codex-内查看)执行；继续优化/调参时在恢复工程后、研究讨论前重新打开或刷新，阶段转换、恢复和交付时同时更新相应页面，查看器可访问不能替代浏览器已打开或科研完成判断。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
 
-复用 [task_plan.json](../assets/task_plan.json) 和 [analysis_manifest.json](../assets/analysis_manifest.json)，均声明 `review_contract: "zm-neuron-review/1"`。不要复制整套空模板后批量填写成功。
+复用 [task_plan.json](../assets/task_plan.json) 和 [analysis_manifest.json](../assets/analysis_manifest.json)，新建任务均声明 `review_contract: "zm-neuron-review/2"`。不要复制整套空模板后批量填写成功。
 
 - 每项 `requirements` 写明 `id,description,source_kind,source_ref`，继续使用原有模块、步骤、参数和结果关联。来源性质是 `user/document_suggestion/assistant_choice`；来源文件保存必要的目标与决定摘要，不要求复制私人聊天。构建过程中补充实现关联不算缩减范围。
 - `review` 保存 `objective`、`questions[{id,text,required}]`、`required_axes`、适用的 `skill_files`、`criteria_refs`、`datasets` 与 `baseline_ref`。接受依据使用 [校准工具](../scripts/calibration.py) 的目标格式，明确数据用途、条件、统计单位及范围。捕获前可以保留待确定问题，正式运行前补齐必要标准并记录变化；不能把运行后才决定的标准说成事前标准。
@@ -131,6 +131,40 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 阶段性开源复用同时读取任务计划中的 `reuse`：当前阶段是否比较已有能力，实际采用版本/本次更新检查与交接是否明确，软件运行是否关联对应版本的真实记录。规则及最小结构见[阶段性接入](open-source-reuse.md#在现有记录中落实采用)。结构通过只表示记录对应，不证明来源可靠、已经阅读或科研方法有效；旧工程缺记录时明确未审查，不自动补写历史。
 
 完整调控实施还核对 `review.regulation` 与 `completion_review.regulation`。已登记的实施范围不得删除后规避多组合搜索和确认；初期设计未齐可登记 `pending`，但不能标为研究完成。检查器从保存配置与实际 CSV 重算 B/D0/候选/确认，检查搜索设计、固定模型、独立条件、分项约束、真实调用与预算及三类结果关联。阴性且比较充分可完成研究过程，缺搜索/确认则未完成；两者都不能自动变成“恢复”或生物学独立评价支持。记录方式和计算范围见[调控执行与复核](regulation-design.md#执行记录与完成复核)。程序之外仍须查看原委托、作用实现、完整文献协议、原始分布/轨迹和图件，判断可比性、搜索充分性与科学结论。
+
+## 当前模型与实际发送的检查
+
+新任务使用`zm-neuron-review/2`，以下内容仍保存在原任务计划、分析记录和方法正文，不增加第二套流程。AI从当前方法、配置和实际分析生成这些字段，不要求用户填写程序表格。旧`/1`可按原约定读取，但返回提示说明未接受这些新增检查；升级时保存原记录，逐项判断影响，不把回顾补记说成运行前已经核对。
+
+**当前模型。** `docs/task_plan.json`是当前入口。`current_model`包含`name,spec_ref,config_ref,changed_parameter_ids,parameter_bindings`；方法及配置引用须与计划原字段一致，具体模型名出现在当前方法及两份摘要。每个绑定含`parameter_id,config_pointer,value,unit,spec_excerpt`，把本轮变更和关键参数对应到配置、原参数CSV及方法中的实际说明。检查整张参数表的配置值；`modify`还需`previous_config_ref`，据前后配置识别漏报的变更。旧配置确实不可得时写`previous_config_unavailable_reason`，保留尚未完成状态，不能靠只绑定一个未变参数通过。数字与短文本对应并不证明自然语言解释正确，仍须科学复核。
+
+**主要效应和偏差。** `review.scientific_checks`在计算前按问题登记必需的比较及重要方法取舍，`completion_review.scientific_checks`保存同ID的实算结果和处置。不用一个通用“模型合理”项目替代各题的主要比较。
+
+| 类型 | 开始时登记 | 从实际结果记录与检查 |
+|---|---|---|
+| `reference_change` | `id,question_id,kind,required,basis_ref,description,unit,tolerance,tolerance_basis` | `before,after,reference`引用实际CSV选择；参考可为数值或`lower/upper`区间。分别重算初始及最终距离；误差增大须说明取舍或尚未解决，不能用均值改善抵消。分布和时程先用适合问题的分析生成指标及图，不能以此标量接口取代完整比较。 |
+| `numerical_effect` | 同上；按每个主要条件差单列，精度依据来自问题；必要时加`direction_floor` | `before/after`为配对效应及可用区间，记录`pairing_ref/pairing_reason`说明实际网络和输入对应。超出精度、重要变号或区间明显变化分别处置；一组稳定不能替代另一组。小幅过零本身不证明有作用或无作用。 |
+| `method_assumption` | `id,question_id,kind,required,basis_ref,description` | `original_method,implemented_method,choice_reason,consequence`说明最近邻方法、关键输入/突触/观测假设及选择后果。按实际资料写已采用、条件性采用或尚未解决，不强制统一受体、三维表示或输入配平。 |
+
+CSV选择使用已有的`csv_ref,column,where,operation`；数值效应需要区间时用`{estimate,lower,upper}`三个选择。文件必须属于登记的真实运行/分析输出或参考资料，不能随手造一张表自证正确。新增分析注明探索性质；运行后增加的检查使用`timing: exploratory_after_run`，保留原定义，不改容差制造通过。
+
+完整结果行含`id,status,reason,support_scope,evidence_refs,disposition`。有变差、数值敏感或条件性假设时，补`next_action,report_excerpt`，并在`decision.scientific_check_ids`逐项交代采用、继续或停止的依据；`report_excerpt`必须实际进入报告和发送正文。`reference_change`的处置为`accepted/tradeoff/unresolved`，`numerical_effect`为`accepted/resolved/unresolved`，`method_assumption`为`adopted/conditional/unresolved`。数值问题称已解决时，`confirmation`引用新的实际比较并仍按原精度核对；尚未完成的必需比较对应问题不能标为已回答。合理的条件性结论或阴性结果可交付，缺数据和未完成工作如实保留，不自动要求扩大模拟。
+
+**运行前与续接。** 首先登记原目标；方案尚未确定时检查可返回`incomplete`，继续调研讨论。进入计算前补齐模型、适用比较和接受依据，再检查当前阶段。`begin_run`为新约定保存当时的要求引用与比较定义，不能在运行后补一份记录就声称完成过事前检查。`review.previous_analysis_ref`指向保留的上轮分析，预算记录`previous_consumed,round_consumed,consumed,limit,unit`，累计量为前两项之和；历史成本不全时保留已知下界并写`history_incomplete/history_reason`，不重置成零。更换计划不能删除原开源复用决定，复用或调整理由写回原`reuse`。
+
+旧运行可在`review.reused_runs`中记录`run_ref,run_sha256,preparation_status: retrospective_review,assessor,reason,evidence_refs`，核对原输出、配置及适用性后复用。它必须早于本轮要求记录，不能让新运行借历史名义跳过准备。回顾复核既不补造事前判据，也不因升级规则重跑所有计算。真实运行、各项检查及是否能支持科学结论仍分开判断。
+
+**独立比较与图件。** 已经进行描述性评价、但可比性或判据不足时，独立评价用`inconclusive`，记录`evaluation_completed:true`及实际`comparison_ids/result_ids`；显示“已评价，尚不能判断是否支持”，不打勾。没有计算仍用`not_evaluated`，有明确不支持依据才用`not_supported`。混合方法图用`depiction: mixed`和`panels[{id,depiction,label}]`；逐面板区分`schematic/actual_model/data_result`，完整标签在所属图注或正文可见。程序检查声明及文本，不能自动鉴定图片是否来自所称数据，实际看图仍是必要工作。
+
+**最后发送。** 先完成原交付复核，把当前状态表放入第5项；用`--response-output`导出正文时会再检查该文件。已有或修改后的文件用以下入口重新检查，不能只复用上一次成功记录：
+
+```text
+python <skill_dir>/scripts/review_project.py --project <project> --checkpoint delivery --response-file docs/response.md
+```
+
+只有`ready_to_send:true`才说明这次准备发送的文件与当前方法、数据和完整正文一致；直接使用其内容，补充问答已由原组装规则置于六项之后。脚本没有宿主发送权，`host_send_verified`不会因文件通过而变成真。`--sent-response-file`只复核由宿主读取或用户提供的实际消息文本，不自动取得聊天，也不把文件本身视为消息来源证明。`--historical`仅用于只读历史检查，不能导出当前交付。
+
+可运行的小网络及失败情境见[完整执行测试](../evals/test_execution_contract.py)、[分项科学判断](../evals/test_scientific_review.py)、[当前方法](../evals/test_current_project.py)和[发送正文](../evals/test_delivery_response.py)。这些验证软件行为，不证明未来所有科研判断正确。
 
 ## 清单更新与固定编号
 

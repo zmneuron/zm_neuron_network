@@ -86,7 +86,7 @@ def _target(identity, metric, bounds, role):
                 criterion=dict(kind="interval", bounds=bounds))
 
 
-def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None, display_progress=False):
+def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None, display_progress=False, modern=False):
     """Execute once in a new directory; retain truthful negative comparison states."""
     root = Path(root).resolve()
     require_new = not root.exists() or not any(root.iterdir())
@@ -125,7 +125,7 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                              used_for_selection=False, conditions="Separate constructed evaluation observations; software test only.",
                              source_ref="data/evaluation.csv"))
     dump(root, "data/targets.json", {"targets": targets})
-    plan = dict(schema_version=1, plan_id="review-example", model_version="m1", review_contract=review_project.CONTRACT,
+    plan = dict(schema_version=1, plan_id="review-example", model_version="m1", review_contract=review_project.LEGACY_CONTRACT,
                 files={"config": "model/config.json", "analysis": "analysis/output/analysis.json"},
                 requirements=[dict(id="R1", description="Compare both mean rate and silent fraction without hiding failures.",
                                    source_ref="docs/model_spec.md", source_kind="user")],
@@ -142,10 +142,28 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
             plan["review"]["skill_files"].append("references/regulation-design.md")
             plan["review"]["model_components"] = ["baseline", "adverse", "regulation"]
     plan["review"]["display_progress"] = display_progress
-    if reuse:
+    if reuse or modern:
         plan["reuse"] = dict(contract="zm-neuron-reuse/1", invocation_id="review-example", stages=[dict(
             stage="delivery", decision="existing_sufficient", reason="Existing consistency checks fit this software example",
             comparison_ref="docs/model_spec.md")], adoptions=[])
+    if modern:
+        plan["review"]["display_progress"] = True
+        display_progress = True
+        plan["review_contract"] = review_project.CONTRACT
+        plan["spec_ref"] = "docs/model_spec.md"
+        with (root / plan["spec_ref"]).open("a", encoding="utf-8") as handle:
+            handle.write("\nNeuron count n=8 cells.\n")
+        plan["spec_sha256"] = fingerprint(root / plan["spec_ref"])
+        plan["files"]["parameters"] = "docs/parameters.csv"
+        with (root / "docs/parameters.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["parameter_id", "config_path", "model_value", "model_unit"])
+            writer.writerow(["n", "/n", "8", "cells"])
+        plan["current_model"] = dict(name="point-LIF", spec_ref=plan["spec_ref"], config_ref="model/config.json",
+                                     changed_parameter_ids=[], parameter_bindings=[dict(parameter_id="n",
+                                         config_pointer="/n", value=8, unit="cells", spec_excerpt="Neuron count n=8 cells.")])
+        plan["review"]["scientific_checks"] = [dict(id="effective_model", question_id="Q1", kind="method_assumption",
+            required=True, basis_ref="docs/model_spec.md", description="Point-LIF software scope and represented network interactions")]
     dump(root, "docs/task_plan.json", plan)
     review_project.capture_review(root, skill=skill)
     plan = read(root, "docs/task_plan.json")
@@ -199,6 +217,8 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
         f"The final model mean is {mean:.6g} Hz against constructed reference values; no biological observations were used. No optimization is claimed; this first run is retained.",
         "The principal limitation is that synthetic reference agreement cannot establish biological validity."
     ]
+    if modern:
+        excerpts[4] += " This synthetic network checks software behavior; biological validity is not established."
     parts = []
     for kind, excerpt in zip(review_project.PARTS, excerpts):
         parts.append(dict(kind=kind, report_excerpt=excerpt, response_excerpt=excerpt, **judge()))
@@ -243,8 +263,18 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                                     next_action="A new authorized round would need a stated target and budget." if pending else "No further work in this software-only test.",
                                     stop_reason="budget_exhausted" if pending else "criteria_met", **judge("Actual comparison and the declared software-test budget determine this outcome.")),
                       delivery=dict(report_ref="docs/results.md", response_text="\n\n".join(response_paragraphs)+"\n", parts=parts, claims=claims))
+    if modern:
+        completion["budget"].update(previous_consumed=0, round_consumed=1, unit="simulator calls")
+        completion["scientific_checks"] = [dict(id="effective_model", status="complete", disposition="conditional",
+            reason="Actual code and saved outputs reviewed", support_scope="Only synthetic ring-network software behavior",
+            evidence_refs=["docs/model_spec.md"], original_method="Leaky integrate-and-fire point dynamics",
+            implemented_method="Eight point cells with an explicit recurrent ring",
+            choice_reason="Tests recording and multidimensional acceptance logic", consequence="No biological equivalence is inferred",
+            next_action="Constrain biological parameters for a separate real study",
+            report_excerpt="This synthetic network checks software behavior; biological validity is not established.")]
+        completion["decision"]["scientific_check_ids"] = ["effective_model"]
     analysis = dict(schema_version=2, plan_id=plan["plan_id"], model_version="m1", analysis_id="a1", report="docs/results.md",
-                    review_contract=review_project.CONTRACT, completion_review=completion,
+                    review_contract=plan["review_contract"], completion_review=completion,
                     datasets=[dict(id="rates", path="results/run/rates.csv", kind="simulation")],
                     figures=[dict(id="method", files=["analysis/output/methods.svg"], depiction="actual_model", data_ids=["rates"]),
                              dict(id="comparison", files=["analysis/output/comparison.svg"], depiction="data_result", data_ids=["rates"])])
@@ -272,6 +302,17 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
             observation="逐细胞输出数量与实际配置一致；生物学符合性另行评价。")]
         analysis["results"]=[dict(id="activity",question="Actual software activity",required=True,status="complete",data_ids=["rates"],figure_ids=["comparison"],figure_required=True)]
     dump(root, "analysis/output/analysis.json", analysis)
+    if modern:
+        prepared = review_project.check_review(root, checkpoint="transition", skill=skill)
+        if prepared.get("issues"):
+            raise ValueError("Modern fixture failed actual review: " + "; ".join(prepared["issues"]))
+        table = prepared["progress"]["table_markdown"]
+        for field in ("report_excerpt", "response_excerpt"):
+            completion["delivery"]["parts"][4][field] += "\n\n" + table
+        completion["delivery"]["response_text"] = review_project.compose_response(completion["delivery"], plan)
+        (root / "docs/results.md").write_text("\n\n".join(p["report_excerpt"] for p in completion["delivery"]["parts"]) + "\n", encoding="utf-8")
+        dump(root, "analysis/output/analysis.json", analysis)
+        (root / "docs/response.md").write_text(completion["delivery"]["response_text"] + "\n", encoding="utf-8")
     return {"actual": actual, "plan": plan, "analysis": analysis, "skill": str(skill)}
 
 
@@ -281,10 +322,12 @@ if __name__ == "__main__":
     parser.add_argument("--workspace", required=True, type=Path)
     parser.add_argument("--distribution-failure", action="store_true")
     parser.add_argument("--evaluation", choices=("pass", "fail"))
+    parser.add_argument("--modern", action="store_true", help="Use the current /2 review contract and prepare the exact response file")
     args = parser.parse_args()
-    created = create(args.workspace, distribution_failure=args.distribution_failure, evaluation=args.evaluation)
-    review = review_project.check_review(args.workspace)
+    created = create(args.workspace, distribution_failure=args.distribution_failure, evaluation=args.evaluation, modern=args.modern)
+    review = review_project.check_review(args.workspace, response_file="docs/response.md" if args.modern else None)
     dump(args.workspace, "analysis/output/completion_check.json", review)
     print(json.dumps({"workspace": str(args.workspace.resolve()), "actual": created["actual"],
                       "status": review["status"], "ready_to_deliver": review["ready_to_deliver"],
+                      "ready_to_send": review["ready_to_send"],
                       "goal_complete": review["goal_complete"]}, ensure_ascii=False, indent=2))

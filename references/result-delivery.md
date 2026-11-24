@@ -18,7 +18,7 @@
 
 用当前 `review.followup_questions` 暂存需在交付后回答的问题（`id,text`），在 `delivery.followup_answers` 保存同 ID 的答案；已及时解决的状态问题不重复入队。需要新增研究才能回答的事项如实说明尚未研究及下一步，不能挪用旧结果回答新问题。队列只辅助接续，不改变原科学问题与预算。
 
-`delivery.parts` 中的 `report_excerpt/response_excerpt` 保存每项的**完整交付内容，含本项图片、公式与必要说明**，不能只摘一句“已做”。用 `compose_response(delivery, plan)` 依序组装实际 `response_text`，检查器核对组装后的全文；图片和公式须在所属部分，出现在其他地方不能抵消遗漏。核对通过后可用 `review_project.py --project <工程> --checkpoint delivery --response-output <新的项目内文本路径>` 导出准备发送的正文；采用该正文，临时缩写或重组后必须重查。脚本能检查准备的内容，不能接管宿主发送动作或证明实际发送与准备稿一致，主 agent 对最后一次输出负责。
+`delivery.parts` 中的 `report_excerpt/response_excerpt` 保存每项的**完整交付内容，含本项图片、公式与必要说明**，不能只摘一句“已做”。用 `compose_response(delivery, plan)` 依序组装实际 `response_text`。执行 `review_project.py --project <工程> --checkpoint delivery --response-output <新的项目内文本路径>`，从实际数据重新复核并导出正文，确认`ready_to_send`后直接采用文件内容；不再另写一份缩略结尾。已有文件或任何改写使用`--response-file <项目内文件>`重新核对，缺图、少状态表、公式错序或数值改变均不能以“报告已检查”抵消。`ready_to_deliver`只说明保存材料可交付，`ready_to_send`才说明本次发送文件与当前检查一致；两者都不证明宿主实际发送。宿主能读取真实最终消息时，可保存其文本并用`--sent-response-file`复核；不能把准备稿标成已发送。字段及边界见[当前模型与实际发送](project-checks.md#当前模型与实际发送的检查)。
 
 ### 六项内容与实际来源
 

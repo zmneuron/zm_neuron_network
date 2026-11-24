@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import uuid
 
 from build_viewer import build_viewer, inside
+from current_project import resolve_current_plan
 
 CONTRACT = "zm-neuron-preview/1"
 IDLE_SECONDS = 7200
@@ -97,7 +98,7 @@ def alive(state):
 
 def prepare_preview(project, plan_ref="docs/task_plan.json", checkpoint="transition"):
     root, folder, key = location(project)
-    plan_ref = inside(root, plan_ref).relative_to(root).as_posix()
+    plan_ref = resolve_current_plan(root, plan_ref).relative_to(root).as_posix()
     if not (root / plan_ref).is_file():
         raise ValueError("Save this project's task plan before opening its viewer")
     plan = json.loads((root / plan_ref).read_text(encoding="utf-8-sig"))
@@ -110,7 +111,12 @@ def prepare_preview(project, plan_ref="docs/task_plan.json", checkpoint="transit
     with update_lock(folder):
         state = read_state(folder, key)
         if state and state.get("plan_ref") != plan_ref:
-            raise ValueError("This viewer is bound to a different task plan")
+            # resolve_current_plan already rejected conflicting identities and
+            # contents. An identical old copy can now use the canonical entry.
+            if not state.get("plan_ref"):
+                raise ValueError("This viewer is bound to a different task plan")
+            state["plan_ref"] = plan_ref
+            write_state(folder, state)
         temporary = folder / (".page-" + uuid.uuid4().hex + ".html")
         try:
             built = build_viewer(root, temporary, plan_ref, checkpoint)

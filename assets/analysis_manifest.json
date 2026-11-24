@@ -11,7 +11,7 @@
   "figures": [],
   "construction_steps": [],
   "results": [],
-  "review_contract": "zm-neuron-review/1",
+  "review_contract": "zm-neuron-review/2",
   "completion_review": {
     "axes": {
       "execution": {
@@ -50,13 +50,17 @@
     "iterations": [],
     "budget": {
       "limit": 0,
-      "consumed": 0
+      "consumed": 0,
+      "previous_consumed": 0,
+      "round_consumed": 0,
+      "unit": "simulator calls"
     },
     "decision": {
       "action": "continue",
       "reason": "",
       "next_action": "",
-      "stop_reason": ""
+      "stop_reason": "",
+      "scientific_check_ids": []
     },
     "delivery": {
       "report_ref": "docs/results.md",
@@ -64,6 +68,7 @@
       "parts": [],
       "claims": [],
       "followup_answers": []
-    }
+    },
+    "scientific_checks": []
   }
 }

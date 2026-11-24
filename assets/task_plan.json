@@ -21,7 +21,7 @@
   },
   "runtime_parameter_ids": [],
   "requirements": [],
-  "review_contract": "zm-neuron-review/1",
+  "review_contract": "zm-neuron-review/2",
   "review": {
     "baseline_ref": "docs/research/requirements_start.json",
     "objective": {
@@ -43,8 +43,12 @@
     },
     "delivery_profile": "full_model",
     "display_progress": true,
-    "viewer": {"auto_open": true},
-    "model_components": ["baseline"],
+    "viewer": {
+      "auto_open": true
+    },
+    "model_components": [
+      "baseline"
+    ],
     "followup_questions": [],
     "skill_files": [
       "SKILL.md",
@@ -67,12 +71,23 @@
     "criteria_refs": [],
     "datasets": [],
     "scope_changes": [],
-    "skill_changes": []
+    "skill_changes": [],
+    "scientific_checks": [],
+    "previous_analysis_ref": null,
+    "reused_runs": []
   },
   "reuse": {
     "contract": "zm-neuron-reuse/1",
     "invocation_id": "",
     "stages": [],
     "adoptions": []
+  },
+  "current_model": {
+    "name": "",
+    "spec_ref": "docs/model_spec.md",
+    "config_ref": "model/config/model.json",
+    "previous_config_ref": "",
+    "changed_parameter_ids": [],
+    "parameter_bindings": []
   }
 }
