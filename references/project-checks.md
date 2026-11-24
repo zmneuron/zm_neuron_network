@@ -101,7 +101,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 ### 记录与运行约定
 
-本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。`review.viewer.auto_open` 默认 `true`，工程与计划建立后立即按[当前对话打开](execution-management.md#在-codex-内查看)执行；阶段转换、恢复和交付时同时更新相应页面，查看器可访问不能替代浏览器已打开或科研完成判断。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
+本轮开始登记 `review.display_progress: true` 和 `review.model_components`，前者要求最终正文实际包含状态表，后者记录适用的基础/负面影响/调控部分。`review.viewer.auto_open` 默认 `true`，工程与计划建立后立即按[当前对话打开](execution-management.md#在-codex-内查看)执行；继续优化/调参时在恢复工程后、研究讨论前重新打开或刷新，阶段转换、恢复和交付时同时更新相应页面，查看器可访问不能替代浏览器已打开或科研完成判断。原要求中启用的展示不能删字段绕过；新增实现关联按实际工作补齐。阶段展示及字段见[用户可见状态](execution-management.md#让用户看见阶段与验证结果)。
 
 复用 [task_plan.json](../assets/task_plan.json) 和 [analysis_manifest.json](../assets/analysis_manifest.json)，均声明 `review_contract: "zm-neuron-review/1"`。不要复制整套空模板后批量填写成功。
 

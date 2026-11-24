@@ -76,6 +76,26 @@ class PreviewChecks(unittest.TestCase):
         self.assertEqual(first["url"], second["url"])
         self.assertIn("Updated recorded stage", self.page(second["url"]))
 
+    def test_resume_returns_current_chat_open_request_and_preserves_records(self):
+        root = self.project("continue-optimizing")
+        first = self.start(root)
+        plan_file = root / "docs/task_plan.json"
+        plan = json.loads(plan_file.read_text())
+        plan["model_version"] = "accepted-m1"
+        plan["review"]["objective"]["text"] = "Continue the existing model research"
+        plan_file.write_text(json.dumps(plan), encoding="utf-8")
+        saved = plan_file.read_bytes()
+        resumed = self.start(root, "resume")
+        self.assertEqual(resumed["url"], first["url"])
+        self.assertTrue(resumed["reused_server"])
+        self.assertFalse(resumed["browser_opened"])
+        self.assertEqual(resumed["model_version"], "accepted-m1")
+        self.assertEqual(resumed["open_request"], {
+            "target": {"type": "browser", "url": resumed["url"]}, "placement": "right"})
+        self.assertNotIn("threadId", resumed["open_request"])
+        self.assertIn("Continue the existing model research", self.page(resumed["url"]))
+        self.assertEqual(plan_file.read_bytes(), saved)
+
     def test_two_projects_never_share_the_same_viewer(self):
         first, second = self.start(self.project("alpha")), self.start(self.project("beta"))
         self.assertNotEqual(first["url"], second["url"])
@@ -130,7 +150,9 @@ class PreviewChecks(unittest.TestCase):
         plan = json.loads(file.read_text())
         plan["review"]["viewer"] = {"auto_open": False}
         file.write_text(json.dumps(plan), encoding="utf-8")
-        self.assertEqual(self.start(root)["status"], "disabled")
+        disabled = self.start(root, "resume")
+        self.assertEqual(disabled["status"], "disabled")
+        self.assertNotIn("open_request", disabled)
         self.assertFalse((root / "docs/viewer").exists())
 
 

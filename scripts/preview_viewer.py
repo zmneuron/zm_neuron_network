@@ -148,7 +148,9 @@ def prepare_preview(project, plan_ref="docs/task_plan.json", checkpoint="transit
         return dict(status="ready", url=state["url"], html=str(folder / "index.html"),
                     project=str(root), plan_id=built["plan_id"], model_version=built["model_version"],
                     checkpoint=checkpoint, reused_server=reused, browser_opened=False,
-                    next_action="Open or refresh this URL in the calling Codex chat; verify the project shown.")
+                    open_request={"target": {"type": "browser", "url": state["url"]},
+                                  "placement": "right"},
+                    next_action="Call the host open_in_codex with open_request in this chat, then verify the project shown. Reuse the existing tab at this URL; ready does not mean opened.")
 
 
 def stop_preview(project):
