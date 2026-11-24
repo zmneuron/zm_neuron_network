@@ -26,7 +26,7 @@
 | 生物学变化、原因依据、场景映射、参考/历史与对照 | [scenario-adaptation.md](scenario-adaptation.md)；最终文字归 [result-delivery.md](result-delivery.md#生物学变化与模型修改依据) |
 | 探索/正式构建、组件与网络检查、工作状态和数据用途 | [workflow-checks.md](workflow-checks.md) |
 | 文件职责、记录创建时机与版本 | [project-layout.md](project-layout.md)、[versioning.md](versioning.md) |
-| 运行偏差、有限优化、实测比较 | [run-compare-optimize.md](run-compare-optimize.md) |
+| 运行偏差、迭代优化直到满足、实测比较 | [run-compare-optimize.md](run-compare-optimize.md) |
 | 每步结果、科学结论、文献图与数据格式 | [result-delivery.md](result-delivery.md)、[literature-figures.md](literature-figures.md)、[output-manifest.md](output-manifest.md) |
 
 维护时先找现有归属，修改相应规则和受影响引用，不在多处追加同一套流程。案例用于说明选择，不把某个模型、参数、预算或历史入口变成所有任务的默认要求。需要新字段或工具时再检查兼容性；仅改工作方式不自动扩充代码或结构化格式。

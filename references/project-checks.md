@@ -90,10 +90,10 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 | 运行完成 | 本轮必要运行与分析是否实际结束，是否对应采用的配置、代码、输入和时间范围 |
 | 校准满足 | 预定可比条件与统计单位下，各项必需接受规则是否满足；均值合格不能抵消分布或其他约束失败 |
 | 独立评价支持 | 冻结后的模型是否得到未参与选择且条件可比的相应数据支持；新种子或合成参考不冒充生物数据 |
-| 科学问题已回答 | 原问题是否得到有判别能力的比较与合理解释；有效阴性或未能区分可以是答案，缺比较/数据则仍未完成 |
+| 科学问题已回答 | 原问题是否得到有判别能力的比较与合理解释；**主要拟合指标未满足文献与真实数据要求时不属于有效阴性，须继续优化**；有效阴性或未能区分可以是答案，缺比较/数据则仍未完成 |
 | 交付完整 | 六项适用内容是否由同版实际产物组成，报告和最终答复都包含核心说明、量化结果及图件，而不只有附件链接 |
 
-**报告可诚实交付，不等于原科学目标全部达到。** 例如外部比较已做完但不支持模型，交付仍应呈现实际差异；缺少所需真实数据或比较能力时不能把独立评价/科学问题标为满足。匹配比较核对其条件是否改变了原问题；主要差异核对适用的数值检查；只有主张作用可忽略时，才核对排除重要差异的依据。查看[具体比较](run-compare-optimize.md#主要效应的数值检查与阴性判断)；在现有问题判断的 `adequacy_reason` 和 `evidence_refs` 记录理由与结果，不新增一套状态。新模拟协议没有独立实测不能标记生物验证支持。必需目标未达时，记录可执行的下一步及继续/停止依据；剩余授权和预算足以完成必要工作时继续实施。程序只验证记录、数值与关系，来源真实性、目标覆盖、授权与科学论证仍由主 agent 及适用的[独立复核](delegation.md)查看原材料判断。
+**报告可诚实交付，不等于原科学目标全部达到，更不等于可以结束优化。** 主要指标未满足文献与真实数据要求时，完成复核的 `decision.action` 必须为 `continue`，并登记下一批要实际运行的多组参数组合；`predeclared_stop`、预算批次用尽、结果阴性、可诚实交付都不是结束优化的依据。 例如外部比较已做完但不支持模型，交付仍应呈现实际差异；缺少所需真实数据或比较能力时不能把独立评价/科学问题标为满足。匹配比较核对其条件是否改变了原问题；主要差异核对适用的数值检查；只有主张作用可忽略时，才核对排除重要差异的依据。查看[具体比较](run-compare-optimize.md#主要效应的数值检查与阴性判断)；在现有问题判断的 `adequacy_reason` 和 `evidence_refs` 记录理由与结果，不新增一套状态。新模拟协议没有独立实测不能标记生物验证支持。必需目标未达时，记录可执行的下一步及继续/停止依据；剩余授权和预算足以完成必要工作时继续实施。程序只验证记录、数值与关系，来源真实性、目标覆盖、授权与科学论证仍由主 agent 及适用的[独立复核](delegation.md)查看原材料判断。
 
 交付复核还需按[文字、表格与图件检查](external-skills/clear-writing.md#输出前如何检查)实际查看当前输出：名称/单位是否一致、术语和条件是否能理解、图内文字是否显示完整、改写是否保留数据与结论强度。图件的查看与修订记录复用 `figure_plan.md`，其他问题写入原复核说明；不新建另一套完成状态。未看的图件保持待检查，已发现且影响理解的文字问题先修正，不能凭软件检查通过宣称文字检查也通过。
 
@@ -111,7 +111,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 - 完整模型采用 `delivery_profile: full_model`。原任务只要调研、教学或部分分析时用 `scoped`，在 `delivery_parts` 按原顺序选适用部分，并以 `delivery_scope_reason/ref` 说明原范围。不能事后借此删除原任务必需结果。`independent_evidence: synthetic` 只用于明确的软件试验，真实生物评价默认 `biological`。
 - `analysis.completion_review` 保存五项 `axes`、逐要求 `requirements`、实际 `comparisons`、`iterations`、累计 `budget`、继续/停止 `decision` 和 `delivery`。判断均写明 `assessor,reason,evidence_refs`；运行成功、校准满足、独立支持、科学问题已回答、交付完整分别为 `completed/satisfied/supported/answered/complete`，未做、不支持和不适用使用各自状态，不能自动转换。
 - 比较条目关联 `axis,data_role,dataset_ids,targets_ref,measurements_ref,score_ref,config_ref,run_ref,candidate_id`。观测值除单位、条件等原有字段外，`source` 指向实际输出 CSV 的 `csv_ref,column,operation,where`；工具从运行绑定的数据复算后再判定。历史比较显式标为 `historical:true`，不能用于宣称当前模型满足要求。
-- 迭代条目用 `initial/candidate/final` 角色关联实际运行、配置、比较及取舍理由。预算记录累计 `limit/consumed`；未达标时 `decision.action` 是 `continue` 或有依据的 `stop`，同时写剩余动作。有效阴性或无法区分机制，仍需在问题判断中说明实际比较、`comparison_complete` 和 `adequacy_reason`。
+- 迭代条目用 `initial/candidate/final` 角色关联实际运行、配置、比较及取舍理由。预算记录累计 `limit/consumed`；**未达标时 `decision.action` 必须是 `continue`**，同时写明下一批多组参数组合、目标指标与剩余动作；只有用户明确改变范围或真实实现阻塞才允许 `stop`，且不得标 `goal_complete`，并保留可执行的后续参数组。有效阴性或无法区分机制，仍需在问题判断中说明实际比较、`comparison_complete` 和 `adequacy_reason`。
 - `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序保存完整分节正文（含本节图与公式）、关联已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
 
 ```text

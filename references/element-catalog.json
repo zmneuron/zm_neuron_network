@@ -2,7 +2,7 @@
   "schema_version": 1,
   "catalog_version": "2026-11-21.1",
   "source_file": "construction-elements-checklist.md",
-  "source_sha256": "159aec868782cc697df93782e3013a8f206365ee942e74ba12ba3394acf916b2",
+  "source_sha256": "d7b5c0919f1f44777d6edf05b4e98a87dc547be44bbebd057dce43b9766355fa",
   "id_policy": "IDs are permanent, independent of display order. Never renumber existing items after insertions.",
   "items": [
     {
@@ -596,7 +596,7 @@
     {
       "id": "14.06",
       "category": "14",
-      "requirement": "需要调参时，限定可调整参数、搜索范围、累计计算预算和停止条件。",
+      "requirement": "需要调参时，限定可调整参数、搜索范围、累计计算预算；按多组参数组合实际运行并逐组检验，主要指标未满足文献与真实数据要求时继续换组运行，直到满足，不因预算批次或阴性结果提前停止。",
       "conditional": true,
       "computational": false
     },
