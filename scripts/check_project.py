@@ -56,7 +56,7 @@ def check_structure(project, plan_path="docs/task_plan.json", phase="implemented
             require(isinstance(files.get(key), str) and files[key].strip(), f"Missing plan.files.{key}")
         require(fingerprint(local(root, plan.get("spec_ref"))) == plan.get("spec_sha256"),
                 "Construction method changed without updating the task plan")
-        current = check_current_artifacts(root, plan, checkpoint="start")
+        current = check_current_artifacts(root, plan, checkpoint="start", plan_ref=plan_path)
         report["checks"]["current_model"] = current
         require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current["issues"]))
         registry = read(local(root, files["modules"]))
@@ -108,7 +108,8 @@ def check_structure(project, plan_path="docs/task_plan.json", phase="implemented
             ids(module.get("step_ids"), f"{mid}.step_ids")
         if phase in {"implemented", "delivery"}:
             analysis = read(local(root, files["analysis"]))
-            current = check_current_artifacts(root, plan, analysis, checkpoint="delivery" if phase == "delivery" else "transition")
+            current = check_current_artifacts(root, plan, analysis, checkpoint="delivery" if phase == "delivery" else "transition",
+                                              plan_ref=plan_path)
             report["checks"]["current_model"] = current
             require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current["issues"]))
             require(analysis.get("schema_version") == 2 and analysis.get("plan_id") == plan["plan_id"]

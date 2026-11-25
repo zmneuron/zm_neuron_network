@@ -163,6 +163,171 @@ class DeliveryFileChecks(unittest.TestCase):
             self.assertEqual(check_presentation(self.delivery, plan, self.analysis)["status"], "not_applicable")
 
 
+class ModelFigureCoverageTests(unittest.TestCase):
+    """Exercise condition, figure and question linkage with the isolated model's outputs."""
+
+    def setUp(self):
+        import review_fixture
+        temp = tempfile.TemporaryDirectory(prefix="condition_figures_")
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name) / "study"
+        created = review_fixture.create(self.root, modern=True)
+        self.plan, self.analysis = created["plan"], created["analysis"]
+        self.delivery = self.analysis["completion_review"]["delivery"]
+        self.parts = {p["kind"]: p for p in self.delivery["parts"]}
+        self.graph, self.plot = self.analysis["figures"]
+
+    def sync(self):
+        sections = "\n\n".join(p["report_excerpt"].strip() for p in self.delivery["parts"])
+        (self.root / self.delivery["report_ref"]).write_text(sections + "\n", encoding="utf-8")
+
+    def check(self):
+        self.sync()
+        return check_presentation(self.delivery, self.plan, self.analysis, root=self.root)
+
+    def add_arm(self, name, role="condition", component=None, table=None):
+        # These deliberately identical synthetic measurements test run identity and lineage.
+        from check_records import begin_run, finish_run
+        source = self.analysis["datasets"][0]
+        ref = begin_run(self.root, "results/" + name, config={"seed": 101, "condition": name},
+                        stage="simulation", model_version=self.plan["model_version"], code_refs=["model/cells.py"],
+                        command=["synthetic-fixture"], environment={"python": sys.version})
+        output = f"results/{name}/rates.csv"
+        if table is None:
+            (self.root / output).write_bytes((self.root / source["path"]).read_bytes())
+        else:
+            (self.root / output).write_text(table, encoding="utf-8")
+        run = finish_run(self.root, ref, [output])
+        self.analysis["runs"].append(dict(run_id=run["run_id"], record=ref))
+        self.analysis["datasets"].append(dict(source, id=name, path=output, run_ids=[run["run_id"]]))
+        self.plan["review"].setdefault("final_model", {}).setdefault("variants", {})[ref] = {
+            "/condition" if role == "condition" else "/seed": dict(role=role, condition=name, reference_condition="rest")}
+        if component:
+            self.plan["review"].setdefault("model_components", ["baseline"]).append(component)
+            self.analysis["construction_steps"].append(dict(id="step_" + name, component=component,
+                  status="complete", data_ids=[name]))
+        return ref, output
+
+    def test_baseline_and_seed_repeats_do_not_require_duplicate_panels(self):
+        self.assertEqual(self.check()["conditions"], ["rest"])
+        self.add_arm("repeat201", role="seed")
+        self.assertEqual(self.check()["conditions"], ["rest"])
+
+    def test_shared_comparison_panel_covers_actual_adverse_and_regulation_outputs(self):
+        displayed = ["rest"]
+        for name, component in (("trigger", "adverse"), ("control_action", "regulation")):
+            self.add_arm(name, component=component)
+            with self.assertRaisesRegex(ValueError, "实际输出的条件图"):
+                self.check()
+            self.plot["data_ids"].append(name)
+            displayed.append(name)
+            self.plot["caption"] = " / ".join(displayed)
+            self.parts["questions"]["report_excerpt"] += "\n\n" + self.plot["caption"]
+            result = self.check()
+            self.assertIn(name, result["conditions"])
+            self.assertEqual(set(result["actual_figures"]), {"method", "comparison"})
+
+    def test_two_protocols_in_one_file_need_identifiable_displayed_conditions(self):
+        ref, path = self.add_arm("protocols", role="seed", table="protocol,rate_hz\nrest,30\npulse,36\n")
+        measured = {name: dict(metric="rate", condition=name, status="observed", value=rate,
+                    source=dict(csv_ref=path, where={"protocol": name}, column="rate_hz", operation="mean"))
+                    for name, rate in (("rest", 30), ("pulse", 36))}
+        document = "analysis/protocols.json"
+        (self.root / document).write_text(json.dumps({"measurements": measured}), encoding="utf-8")
+        self.analysis["completion_review"]["comparisons"].append(dict(run_ref=ref, measurements_ref=document))
+        self.plot["data_ids"].append("protocols")
+        self.plot["condition_labels"] = {"rest": "静息", "pulse": "刺激"}
+        self.plot["caption"] = "静息与刺激"  # Metadata alone is not visible to a report reader.
+        svg_path = self.root / self.plot["files"][0]
+        svg = svg_path.read_text(encoding="utf-8").replace("</svg>", "<defs><text>静息与刺激</text></defs></svg>")
+        svg_path.write_text(svg, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "可辨认"):
+            self.check()
+        self.parts["questions"]["report_excerpt"] = self.parts["questions"]["report_excerpt"].replace(
+            "![data comparison]", "![静息与刺激的实算响应]")
+        self.assertEqual(self.check()["conditions"], ["pulse", "rest"])
+        measured["pulse"]["source"]["where"] = {"protocol": "rest"}
+        (self.root / document).write_text(json.dumps({"measurements": measured}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "相同的原始取数位置"):
+            self.check()
+
+    def test_unfinished_explicit_component_is_not_assigned_a_fictitious_figure(self):
+        self.plan["review"].setdefault("model_components", ["baseline"]).append("adverse")
+        self.analysis["construction_steps"].append(dict(id="injury", component="adverse", status="pending",
+                                                        data_ids=[], observation="扰动条件尚无运行结果。"))
+        with self.assertRaisesRegex(ValueError, "报告未说明"):
+            self.check()
+        self.parts["questions"]["report_excerpt"] += "\n\n扰动条件尚无运行结果。"
+        self.assertEqual(self.check()["incomplete_components"], ["adverse"])
+
+    def test_unrun_required_protocol_needs_its_gap_in_the_report(self):
+        variants = self.plan["review"].setdefault("final_model", {}).setdefault("variants", {})
+        variants["results/extra/run.json"] = {"/protocol": dict(role="condition", condition="extra", reference_condition="rest")}
+        self.plan["requirements"].append(dict(id="extra", required=True, acceptance=dict(condition="extra", result_ids=["extra"])))
+        reason = "额外刺激条件尚未取得响应记录。"
+        self.analysis["results"].append(dict(id="extra", status="pending", reason=reason))
+        with self.assertRaisesRegex(ValueError, "具体缺口"):
+            self.check()
+        self.parts["questions"]["report_excerpt"] += "\n\n" + reason
+        self.assertEqual(self.check()["incomplete_conditions"], ["extra"])
+
+    def test_questions_need_the_result_data_and_the_overview_needs_model_context(self):
+        self.parts["questions"]["question_groups"][0]["figure_ids"] = ["unregistered_diagram"]
+        with self.assertRaisesRegex(ValueError, "本轮实算数据"):
+            self.check()
+        self.parts["questions"]["question_groups"][0]["figure_ids"] = ["comparison"]
+        self.graph["depiction"] = "data_result"
+        with self.assertRaisesRegex(ValueError, "模型全貌"):
+            self.check()
+
+    def test_history_or_an_unrelated_model_cannot_illustrate_the_current_question(self):
+        self.add_arm("unrelated")
+        self.plot["data_ids"] = ["unrelated"]
+        with self.assertRaisesRegex(ValueError, "所报告的模型数据"):
+            self.check()
+        self.analysis["datasets"][-1]["historical"] = True
+        with self.assertRaisesRegex(ValueError, "本轮实算数据"):
+            self.check()
+
+    def test_real_delivery_entry_rejects_link_only_hidden_and_absolute_report_figures(self):
+        import review_project
+        original = self.parts["questions"]["report_excerpt"]
+        image = "![data comparison](../analysis/output/comparison.svg)"
+        for replacement in (image[1:], "<!-- " + image + " -->", "`" + image + "`",
+                            "```md\n" + image + "\n```", "![plot](<" + (self.root / self.plot["files"][0]).as_posix() + ">)"):
+            with self.subTest(replacement=replacement):
+                self.parts["questions"]["report_excerpt"] = original.replace(image, replacement)
+                self.sync()
+                path = self.root / "analysis/output/analysis.json"
+                path.write_text(json.dumps(self.analysis, ensure_ascii=False), encoding="utf-8")
+                review = review_project.check_review(self.root, checkpoint="delivery")
+                self.assertFalse(review["ready_to_deliver"])
+                self.assertIn("图", str(review["issues"]))
+
+    def test_renamed_text_cannot_count_as_a_plot(self):
+        path = self.root / self.plot["files"][0]
+        for body in ("a data table", "<svg/>", "<html><p>Figure</p></html>",
+                     "<svg><g style='display:none'><rect width='5' height='4'/></g></svg>"):
+            with self.subTest(body=body):
+                path.write_text(body, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "可读图像"):
+                    self.check()
+
+    def test_encoded_relative_figure_paths_and_absolute_reply_paths(self):
+        path = self.root / self.plot["files"][0]
+        renamed = path.with_name("comparison (one).svg")
+        renamed.write_bytes(path.read_bytes())
+        self.plot["files"] = [renamed.relative_to(self.root).as_posix()]
+        for part in self.delivery["parts"]:
+            for key in ("response_excerpt", "report_excerpt"):
+                part[key] = part[key].replace(path.name, "comparison%20%28one%29.svg")
+        self.assertIn(self.plot["id"], self.check()["actual_figures"])
+        self.parts["questions"]["report_excerpt"] = self.parts["questions"]["report_excerpt"].replace(
+            "../analysis/output/", "%2Ftmp%2F")
+        with self.assertRaisesRegex(ValueError, "相对于报告"):
+            self.check()
+
+
 class FreshArtifactReviewChecks(unittest.TestCase):
     def test_text_match_cannot_replace_fresh_artifact_checks(self):
         # An actual eight-cell isolated run supplies files for the parent review.

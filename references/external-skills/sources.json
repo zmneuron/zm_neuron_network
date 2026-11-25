@@ -93,9 +93,9 @@
       "adaptations": [
         {
           "file": "academic-research.md",
-          "sha256": "c9ada55c5fe51e0d24d379aa9e76b235233229d388820852c860f46dc59efb24",
+          "sha256": "bcd1b98b0848b96a7bd3f6f76d396bca4c3e9a7a858541fa3cbad7e6f523ed48",
           "modified": true,
-          "description": "Attributed Chinese adaptation: computational modeling in the research workflow; additional scientific discussion and new optimization rounds follow the local interview rules."
+          "description": "Attributed Chinese adaptation for computational modeling, scientific discussion, optimization rounds and claim-based decisions on proposed experiments."
         }
       ]
     },

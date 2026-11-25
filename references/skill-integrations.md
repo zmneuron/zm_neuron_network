@@ -5,7 +5,7 @@
 | 工作 | 读取的技能文本 | 本模型工作中如何使用 |
 |---|---|---|
 | 从研究问题到模型实验、论文表达和审阅反馈的衔接 | [ARS 科研流程适配](external-skills/academic-research.md) | 采用 deep-research、academic-paper、academic-paper-reviewer 和 academic-pipeline 的相关方法；在研究设计与写作之间接入实际建模，并将补充实验返回本技能。 |
-| 构建方法说明、结果解释、论文段落和科学结论的撰写或修改 | [anti-defensive-writing](external-skills/anti-defensive-writing.md) | 先明确实际成立的结论及依据，再组织问题、方法、结果与意义；减少流水账和无依据的自我削弱。 |
+| 论文主线、补充实验取舍与科学文字 | [anti-defensive-writing](external-skills/anti-defensive-writing.md) | 按实际证据组织论述。收到增补建议时先评估[实验的必要性](scientific-questions.md#判断补充实验是否必要)，再决定是否进入计算。 |
 | 全部面向用户的文字，包括表格、图内标签、图注与网页 | [清楚的科研表达](external-skills/clear-writing.md) | 局部适配 plain-language-zh、shuo-ren-hua 和 Humanizer-zh；说明背景、对象、动作及数值含义，保留事实与科研文体，不再引入三套流程。 |
 | 模型构建代码、运行入口、分析代码的实现、修改或整理 | [Ponytail](external-skills/ponytail.md) | 先读现有调用关系和实际需要，优先复用适用实现与已有依赖，用容易理解的最小完整改动完成任务。 |
 

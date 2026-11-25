@@ -157,6 +157,55 @@ class ScientificReviewTests(unittest.TestCase):
         self.assertEqual(checked["data_refs"], ["results/summary.csv"])
         self.assertEqual([x["id"] for x in checked["explanation_excerpts"]], ["tail"])
 
+    def test_delivery_reference_reports_error_and_only_explicit_supplementary_comparisons(self):
+        self.ref("fit", "mean")
+        self.ref("tail", "tail", "tradeoff")
+        self.ref("planned", "mean")
+        self.ref("reported", "mean")
+        rows = self.analysis["completion_review"]["scientific_checks"]
+        rows[0].pop("next_action")
+        rows[1]["next_action"] = "Document the measured discrepancy and close this analysis."
+        planned = "Compare the two instruments in the same reference specimens."
+        reported = "Repeat the reference measurement in the retained low-response specimens."
+        self.plan["review"]["scientific_checks"][2]["minimum_comparison"] = planned
+        rows[2]["next_action"] = "Report the observed agreement in the present manuscript."
+        rows[3]["minimum_comparison"] = reported
+        for row in rows:
+            for key in ("before", "after", "reference"):
+                row[key]["csv_ref"] = "results/formal/raw.csv"
+        self.record_table(["id", "value"], [
+            ["mean_before", 8], ["mean_after", 4], ["mean_reference", 3],
+            ["tail_before", .32], ["tail_after", .06], ["tail_reference", .22],
+        ])
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "passed", checked)
+        self.assertEqual(checked["unresolved_question_ids"], [])
+        fit, tail, from_plan, from_report = checked["findings"]
+        for finding in (fit, tail):
+            self.assertIsNone(finding["minimum_comparison"])
+            self.assertEqual(finding["outcome"], "inconclusive")
+        self.assertEqual(fit["retained_observation"]["after_error"], 1)
+        self.assertAlmostEqual(tail["retained_observation"]["after_error"], .16)
+        self.assertEqual(tail["next_action"], rows[1]["next_action"])
+        self.assertEqual(from_plan["next_action"], rows[2]["next_action"])
+        self.assertEqual((from_plan["minimum_comparison"], from_report["minimum_comparison"]), (planned, reported))
+
+    def test_unresolved_reference_or_missing_data_cannot_become_a_resolved_claim(self):
+        self.ref("agreement", "mean", "unresolved")
+        checked = self.check()
+        finding = checked["findings"][0]
+        self.assertEqual((checked["status"], checked["unresolved_question_ids"]), ("incomplete", ["Q1"]))
+        self.assertEqual(finding["disposition"], "unresolved")
+        self.assertIsNone(finding["minimum_comparison"])
+        row = self.analysis["completion_review"]["scientific_checks"][0]
+        row["reference"] = selector("unobserved_reference")
+        checked = self.check()
+        finding = checked["findings"][0]
+        self.assertEqual((checked["status"], finding["outcome"]), ("failed", "not_evaluated"))
+        self.assertEqual(finding["retained_observation"]["readings"], {"before": 8, "after": 4})
+        self.assertIn("参照", finding["minimum_comparison"])
+        self.assertNotEqual(finding["minimum_comparison"], row["next_action"])
+
     def test_tiny_interval_boundary_crossing_does_not_establish_an_effect_change(self):
         with (self.root / "results/summary.csv").open("a", newline="", encoding="utf-8") as handle:
             csv.writer(handle).writerows([["tiny_coarse", .01, .001, .02], ["tiny_fine", .0101, -.001, .0201]])
@@ -171,6 +220,7 @@ class ScientificReviewTests(unittest.TestCase):
         checked = self.check()
         self.assertEqual(checked["status"], "failed")
         self.assertTrue(any("worsened metric" in x for x in checked["issues"]))
+        self.assertEqual(checked["findings"][0]["retained_observation"]["direction"], "worsened")
 
     def test_stable_source_effect_cannot_cover_unstable_control_effect(self):
         self.numerical("source_effect", "source")
@@ -207,7 +257,10 @@ class ScientificReviewTests(unittest.TestCase):
             pairing_ref="docs/method.md", pairing_reason="Same units/input in the finer comparison.")
         self.assertEqual(self.check()["status"], "passed", self.check())
         row["confirmation"]["before"] = estimate("control_coarse")
-        self.assertEqual(self.check()["status"], "failed")
+        checked = self.check()
+        self.assertEqual(checked["status"], "failed")
+        self.assertEqual(checked["findings"][0]["retained_observation"]["before"]["value"], -.8)
+        self.assertNotIn("confirmation", checked["findings"][0]["retained_observation"])
 
     def test_interval_reference_is_not_reduced_to_its_mean(self):
         self.ref("mean", "mean")
@@ -236,6 +289,7 @@ class ScientificReviewTests(unittest.TestCase):
         self.assertEqual(checked["status"], "passed", checked)
         self.assertEqual(checked["unresolved_question_ids"], [])
         self.assertEqual(checked["findings"][0]["alerts"], ["conditional_on_assumption"])
+        self.assertIsNone(checked["findings"][0]["minimum_comparison"])
         row = self.analysis["completion_review"]["scientific_checks"][0]
         row["choice_reason"] = ""
         self.assertEqual(self.check()["status"], "failed")
@@ -367,6 +421,58 @@ class ScientificReviewTests(unittest.TestCase):
         self.analysis["runs"].pop()
         self.assert_issue("run is not listed")
 
+    def test_delivery_with_parameter_error_retains_only_independently_attributed_results(self):
+        from check_project import check_project
+        from check_records import fingerprint
+
+        method = self.root / "docs/method.md"
+        method.write_text(method.read_text(encoding="utf-8") + "\nSynthetic recorder. Initial signal -8 units.", encoding="utf-8")
+        common = dict(control=raw_source("signal", run="control"), control_change="Remove only the recorded input.")
+        for identity, dependencies in (("independent", ["initial"]), ("affected", ["gain"]), ("unknown", None)):
+            check = activity(identity, **common)
+            if dependencies is not None:
+                check["parameter_ids"] = dependencies
+            self.declare(check)
+        self.record_table(["time", "signal"], [(t, t) for t in range(8)])
+        self.record_table(["time", "signal"], [(t, t + 2) for t in range(8)], run="control")
+        self.plan.update(spec_ref="docs/method.md", spec_sha256=fingerprint(method), files=dict(
+            config="docs/config.json", parameters="docs/parameters.csv", analysis="results/analysis.json"))
+        self.plan["current_model"].update(spec_ref="docs/method.md", config_ref="docs/config.json", changed_parameter_ids=[],
+            parameter_bindings=[dict(parameter_id="initial", config_pointer="/initial_signal", value=-8,
+                                     unit="units", spec_excerpt="Initial signal -8 units")])
+        self.analysis.update(plan_id=self.plan["plan_id"], model_version=self.plan["model_version"],
+                             review_contract=self.plan["review_contract"])
+        (self.root / "docs/config.json").write_text('{"initial_signal":-8,"gain":3}', encoding="utf-8")
+        (self.root / "docs/parameters.csv").write_text(
+            "parameter_id,config_path,model_value,model_unit\ninitial,/initial_signal,-8,units\ngain,/missing/gain,3,1\n", encoding="utf-8")
+        (self.root / "docs/task_plan.json").write_text(json.dumps(self.plan), encoding="utf-8")
+        (self.root / "results/analysis.json").write_text(json.dumps(self.analysis), encoding="utf-8")
+
+        def findings():
+            result = review_project.check_review(self.root)
+            self.assertEqual(result["status"], "failed")
+            self.assertFalse(result["ready_to_send_final_model"])
+            self.assertIn("docs/parameters.csv:3", " ".join(result["issues"]))
+            return {f["id"]: f for f in result["checks"]["scientific"]["findings"]}
+
+        found = findings()
+        self.assertEqual(found["independent"]["outcome"], "supported")
+        self.assertEqual(found["independent"]["retained_observation"]["windows"][0]["minimum"], -2)
+        self.assertTrue(all(found[k]["outcome"] == "not_evaluated" and found[k]["retained_observation"] is None
+                            for k in ("affected", "unknown")))
+        outer = check_project(self.root, phase="delivery")
+        self.assertEqual(outer["status"], "failed")
+        self.assertTrue(outer["checks"]["completion_review"]["checks"]["scientific"]["partial"])
+
+        # Editing the dependencies after capture cannot relabel an affected comparison.
+        self.plan["review"]["scientific_checks"][1]["parameter_ids"] = []
+        (self.root / "docs/task_plan.json").write_text(json.dumps(self.plan), encoding="utf-8")
+        self.assertEqual(findings()["affected"]["outcome"], "not_evaluated")
+        # The presence of a file cannot establish its origin after its recorded bytes change.
+        with (self.root / "results/control/raw.csv").open("a", encoding="utf-8") as stream:
+            stream.write("8,0\n")
+        self.assertEqual(findings()["independent"]["outcome"], "not_evaluated")
+
     def test_completed_indistinguishable_control_can_be_reported_as_inconclusive(self):
         row = self.declare(activity(source=raw_source("signal", arm="intact"), control=raw_source("signal", arm="off"),
                                     control_change="Remove the feedback term at matched times."), "inconclusive")
@@ -376,10 +482,92 @@ class ScientificReviewTests(unittest.TestCase):
         checked = self.check()
         self.assertEqual(checked["status"], "passed", checked)
         self.assertIn("inconclusive_mechanism", checked["findings"][0]["alerts"])
+        self.assertEqual(checked["findings"][0]["outcome"], "inconclusive")
+        self.assertIn("原观察窗", checked["findings"][0]["minimum_comparison"])
+        self.assertNotEqual(checked["findings"][0]["minimum_comparison"], row["next_action"])
         self.assertTrue(all(w["covered"] and not w["supported"] for w in checked["findings"][0]["windows"]))
         self.assertIn(row["report_excerpt"], [x["text"] for x in checked["explanation_excerpts"]])
         answer["questions"][0]["state"] = "answered"
         self.assert_issue("inconclusive mechanism")
+
+    def test_complete_negative_comparison_distinct_from_missing_observations(self):
+        self.declare(activity(minimum_comparison="Check a second input with the same timing."), "not_supported")
+        self.record_table(["time", "signal"], [(t, 0) for t in range(8)])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        finding = checked["findings"][0]
+        self.assertEqual(finding["outcome"], "not_supported")
+        self.assertEqual(finding["conclusion"], self.plan["review"]["scientific_checks"][0]["description"])
+        self.assertEqual(finding["minimum_comparison"], "Check a second input with the same timing.")
+        self.assertEqual(finding["retained_observation"]["windows"][0]["source_range"], [0, 0])
+
+    def test_denominator_counts_rows_in_the_included_group_and_retains_duplicate_record_total(self):
+        for identity, table, outcome in (("responses", "stimuli", "not_supported"), ("cells", "per_cell", "accepted")):
+            self.declare(design(identity, "one_row_per_unit", "cell", True, where={"table": table, "include": 1}), outcome)
+        stimulus = [(i, "stimuli", 1, "A") for i in range(96)] + [(i, "stimuli", 1, "B") for i in range(54)]
+        aggregated = [(i, "per_cell", 1, "pooled") for i in range(96)]
+        self.record_table(["cell", "table", "include", "stimulus"], stimulus + aggregated + [(0, "per_cell", 0, "A")])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        repeated, unique = checked["findings"]
+        self.assertEqual(repeated["retained_observation"]["actual"], dict(rows=150, distinct_units=96, duplicate_rows=54))
+        self.assertEqual(repeated["outcome"], "not_supported")
+        self.assertIn("每个独立单位", repeated["minimum_comparison"])
+        self.assertEqual(unique["actual"], dict(rows=96, distinct_units=96, duplicate_rows=0))
+        self.assertEqual(unique["outcome"], "supported")
+        self.assertIn("统计单位", unique["outcome_scope"])
+
+    def test_bad_control_keeps_only_the_verified_treatment_readings(self):
+        self.declare(activity(control=raw_source("signal", run="control"), control_change="Compare matched cells."))
+        for name in ("formal", "control"):
+            self.record_table(["time", "signal"], [(t, -2) for t in range(8)], run=name)
+        for bad_run, kept_run, kept_side in (("control", "formal", "source"), ("formal", "control", "control")):
+            with self.subTest(missing=bad_run):
+                path = self.root / "results" / bad_run / "raw.csv"
+                original = path.read_bytes()
+                path.write_bytes(original + b"8,0\n")
+                checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+                finding = checked["findings"][0]
+                self.assertEqual(checked["status"], "failed")
+                self.assertEqual(finding["outcome"], "not_evaluated")
+                by_side = finding["retained_observation"]["by_condition"]
+                self.assertEqual(set(by_side), {kept_side})
+                self.assertEqual(by_side[kept_side][1]["minimum"], -2)
+                self.assertNotIn("windows", finding)
+                self.assertEqual(checked["data_refs"], [f"results/{kept_run}/raw.csv"])
+                path.write_bytes(original)
+
+    def test_numerical_stability_and_reference_agreement_are_scoped_to_the_measured_comparison(self):
+        self.numerical("discretization", "source")
+        self.ref("agreement", "mean")
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        numerical, agreement = checked["findings"]
+        self.assertEqual(numerical["outcome"], "supported")
+        self.assertIn("数值设置", numerical["outcome_scope"])
+        self.assertEqual(agreement["outcome"], "inconclusive")
+        self.assertEqual(agreement["retained_observation"]["direction"], "improved")
+
+    def test_scalar_readout_keeps_only_the_attributed_operand(self):
+        before = dict(csv_ref="results/formal/raw.csv", column="value", operation="mean")
+        self.add(definition("difference", "numerical_effect"), result_row("difference",
+            before=before, after=selector("source_fine"), disposition="accepted", pairing_ref="docs/method.md",
+            pairing_reason="Both inputs have the same synthetic units and sampling."))
+        self.record_table(["value"], [[-2]])
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        finding = checked["findings"][0]
+        self.assertEqual(checked["status"], "failed", checked)
+        self.assertEqual(finding["outcome"], "not_evaluated")
+        readings = finding["retained_observation"]["readings"]
+        self.assertEqual(set(readings), {"before"})
+        self.assertEqual(readings["before"]["value"], -2)
+        self.assertEqual(finding["data_refs"], ["results/formal/raw.csv"])
+        self.assertTrue(finding["minimum_comparison"])
+        row = self.analysis["completion_review"]["scientific_checks"][0]
+        row.update(before=dict(csv_ref="results/missing.csv", column="value"), after=before)
+        finding = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")["findings"][0]
+        self.assertEqual(finding["outcome"], "not_evaluated")
+        self.assertEqual(finding["retained_observation"]["readings"], {"after": {"value": -2}})
 
     def test_single_sample_missing_interior_or_unpaired_control_remains_unresolved(self):
         for arm in ("initial", "gap", "unpaired"):
@@ -397,6 +585,9 @@ class ScientificReviewTests(unittest.TestCase):
         self.assertEqual(gap["max_observed_gap"], 2)
         self.assertFalse(unpaired["aligned"])
         self.assertFalse(any(w["covered"] or w["supported"] for w in (initial, gap, unpaired)))
+        finding = checked["findings"][0]
+        self.assertEqual(finding["outcome"], "not_evaluated")
+        self.assertEqual(finding["retained_observation"]["by_condition"]["source"][0]["maximum"], -9)
         self.analysis["completion_review"]["scientific_checks"][0]["disposition"] = "inconclusive"
         self.assert_issue("Incomplete window observations")
 

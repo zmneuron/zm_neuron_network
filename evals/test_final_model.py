@@ -3,6 +3,7 @@ import csv
 from copy import deepcopy
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -681,8 +682,55 @@ class FinalModelTests(unittest.TestCase):
         self.completion["delivery"]["response_text"] = "Other."
         self.assertTrue(self.check("incomplete")["requirements"]["text"]["pending"])
 
+    def test_observation_figure_must_contain_adopted_output(self):
+        self.prepare()
+        self.write("rate.svg", '<svg xmlns="http://www.w3.org/2000/svg"><text>rate</text></svg>')
+        self.analysis["datasets"].append(dict(id="reference", origin="external", path="data/train.csv"))
+        result, = self.analysis["results"]
+        result.update(data_ids=["rates", "reference"], figure_required=True, figure_ids=["rate_plot"])
+        plot = dict(id="rate_plot", depiction="data_result", files=["rate.svg"], data_ids=["reference"])
+        self.analysis["figures"].append(plot)
+        self.completion["delivery"]["parts"][0]["figure_ids"] = ["rate_plot"]
+
+        missing = self.check("incomplete")["requirements"]["fit"]["pending"]
+        self.assertIn("该项图件缺少最终采用模型的实际数据", str(missing))
+        plot["data_ids"] = ["rates"]
+        self.check("passed")
+
 
 class FinalDeliveryEntryTests(unittest.TestCase):
+    def test_project_cli_requires_the_figure_inside_the_scientific_report(self):
+        import optimization_round_case as case
+
+        with tempfile.TemporaryDirectory(prefix="zm_report_figure_") as temp:
+            root = Path(temp) / "study"
+            self.assertTrue(case.create(root)["final_model_ready"])
+            plan, analysis = case.read(root, case.PLAN), case.read(root, case.ANALYSIS)
+            questions = next(p for p in analysis["completion_review"]["delivery"]["parts"] if p["kind"] == "questions")
+            section = questions["report_excerpt"]
+            self.assertIn("![", section)
+
+            def project_delivery():
+                process = subprocess.run([sys.executable, "-B", "-X", "utf8", str(case.SKILL / "scripts/check_project.py"),
+                                          "--project", str(root), "--phase", "delivery"],
+                                         cwd=root, capture_output=True, encoding="utf-8")
+                self.assertTrue(process.stdout, process.stderr)
+                return process.returncode, json.loads(process.stdout)
+
+            # The same files and calculated values remain available through ordinary links.
+            questions["report_excerpt"] = section.replace("![", "[")
+            case.write_report(root, plan, analysis)
+            code, missing = project_delivery()
+            self.assertNotEqual(code, 0)
+            self.assertFalse(missing["final_model_ready"])
+            self.assertIn("图件未在正文中实际内嵌", str(missing["issues"]))
+
+            questions["report_excerpt"] = section
+            case.write_report(root, plan, analysis)
+            code, corrected = project_delivery()
+            self.assertEqual(code, 0, corrected["issues"])
+            self.assertTrue(corrected["final_model_ready"], corrected["issues"])
+
     def test_evaluation_sample_cannot_be_renamed_in_a_separate_table_at_delivery(self):
         import optimization_round_case as case
 

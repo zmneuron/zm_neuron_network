@@ -30,7 +30,7 @@ from test_viewer import ViewerChecks
 from test_preview import PreviewChecks
 from test_current_project import CurrentModelChecks
 from test_scientific_review import ScientificReviewTests
-from test_delivery_response import DeliveryFileChecks, FreshArtifactReviewChecks
+from test_delivery_response import DeliveryFileChecks, FreshArtifactReviewChecks, ModelFigureCoverageTests
 from test_execution_contract import ExecutionContractChecks
 
 
@@ -193,7 +193,8 @@ def main():
     log = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
                                for cls in (WorkflowChecks, RunRecords, CalibrationChecks, CompletionReviewChecks, ReuseChecks, RegulationChecks, ProgressChecks, ViewerChecks, PreviewChecks,
-                                           CurrentModelChecks, ScientificReviewTests, DeliveryFileChecks, FreshArtifactReviewChecks, ExecutionContractChecks))
+                                           CurrentModelChecks, ScientificReviewTests, DeliveryFileChecks, FreshArtifactReviewChecks,
+                                           ModelFigureCoverageTests, ExecutionContractChecks))
     final_model_suites = ("test_final_model", "test_round_followup", "test_optimization_round_case")
     for name in final_model_suites:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))

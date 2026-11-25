@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import shlex
 from subprocess import list2cmdline
+from urllib.parse import unquote
+from xml.etree import ElementTree
 
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
@@ -57,7 +59,386 @@ def _unique(items, label):
     return found
 
 
-def check_presentation(delivery, plan, analysis):
+def _image_links(value):
+    """Return displayed Markdown images, ignoring comments and literal Markdown examples."""
+    text = re.sub(r"<!--[\s\S]*?(?:-->|$)", "", value)
+    lines, fence = [], ""
+    for line in text.splitlines():
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if marker and marker[1].startswith(fence) and not marker[2].strip():
+                fence = ""
+        elif marker:
+            fence = marker[1]
+        elif not line.startswith(("    ", "\t")):
+            lines.append(line)
+    rendered = re.sub(r"(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)", "", "\n".join(lines))
+    pattern = r'(?<!\\)!\[((?:\\.|[^\]\\\n])*)\]\(\s*(?:<([^>\n]+)>|((?:[^\s()\\]|\\.|\([^()\s]*\))+))(?:\s+["\'][^\n]*?["\'])?\s*\)'
+    return [(angle or simple, alt) for alt, angle, simple in re.findall(pattern, rendered)]
+
+
+def _svg_marks(svg):
+    """Return displayed drawing elements, excluding definitions and hidden subtrees."""
+    tag = svg.tag.rsplit("}", 1)[-1]
+    if tag in {"defs", "symbol", "clipPath", "mask", "metadata", "title", "desc", "style", "script"}:
+        return
+    style = dict(rule.split(":", 1) for rule in svg.get("style", "").replace(" ", "").split(";") if ":" in rule)
+    if (style.get("display", svg.get("display")) == "none" or style.get("visibility", svg.get("visibility")) == "hidden"
+            or style.get("opacity", svg.get("opacity")) in {"0", "0.0"}):
+        return
+    if tag in {"path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "image", "use", "foreignObject"}:
+        yield ""
+    if tag in {"text", "tspan"} and svg.text and svg.text.strip():
+        yield svg.text
+    for child in svg:
+        yield from _svg_marks(child)
+        if tag in {"text", "tspan"} and child.tail and child.tail.strip():
+            yield child.tail
+
+
+def _raster_image(path):
+    suffix = path.suffix.lower()
+    with path.open("rb") as stream:
+        head = stream.read(32)
+        if suffix == ".png":
+            if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+                return False
+            stream.seek(-12, 2)
+            return all(int.from_bytes(head[x:x+4], "big") > 0 for x in (16, 20)) and stream.read(8) == b"\0\0\0\0IEND"
+        if suffix in {".jpg", ".jpeg"} and head.startswith(b"\xff\xd8\xff"):
+            stream.seek(-2, 2)
+            return stream.read(2) == b"\xff\xd9"
+        if suffix in {".gif", ".webp", ".bmp"}:
+            return ((suffix == ".gif" and head[:6] in {b"GIF87a", b"GIF89a"} and len(head) >= 13)
+                    or (suffix == ".webp" and head[:4] == b"RIFF" and head[8:12] == b"WEBP")
+                    or (suffix == ".bmp" and head[:2] == b"BM" and len(head) >= 26))
+    return False
+
+
+def _image_labels(path):
+    """Return readable SVG text or an empty raster legend, and None for an unusable image."""
+    if path.suffix.lower() != ".svg":
+        return "" if _raster_image(path) else None
+    try:
+        svg = ElementTree.parse(path).getroot()
+    except ElementTree.ParseError:
+        return None
+    marks = list(_svg_marks(svg)) if svg.tag.rsplit("}", 1)[-1] == "svg" else []
+    return " ".join(text for text in marks if text) if marks else None
+
+
+def _embedded_figures(root, report_path, parts, figures):
+    legends = {}
+    captions = {}
+    report = report_path.read_text(encoding="utf-8-sig")
+    for part in parts:
+        ids = part.get("figure_ids", [])
+        if not ids:
+            continue
+        require(part["report_excerpt"] in report, "图件段落未出现在所交付的报告中：" + part["kind"])
+        expected = {fid: {local(root, ref) for ref in figures[fid].get("files", [])} for fid in ids}
+        for field, is_report in (("report_excerpt", True), ("response_excerpt", False)):
+            shown = set()
+            for link, alt in _image_links(part[field]):
+                link = unquote(link)
+                path = Path(link)
+                if is_report:
+                    require(not (path.is_absolute() or PureWindowsPath(link).drive or link.startswith(("/", "\\"))),
+                            "报告内嵌图须使用相对于报告的路径：" + link)
+                    path = report_path.parent / path
+                elif not path.is_absolute():
+                    continue
+                path = local(root, str(path))
+                if path not in legends:
+                    legends[path] = _image_labels(path)
+                require(legends[path] is not None, "嵌入的文件不是可读图像：" + link)
+                shown.add(path)
+                if is_report:
+                    for fid, files in expected.items():
+                        if path in files:
+                            captions.setdefault(fid, set()).update((alt, legends[path]))
+                            caption = figures[fid].get("caption", "")
+                            if caption and caption in _visible(part[field]):
+                                captions[fid].add(caption)
+            for fid, files in expected.items():
+                require(bool(shown & files), "图件未在正文中实际内嵌（" + field + "）：" + fid)
+    return {fid: " ".join(parts) for fid, parts in captions.items()}
+
+
+def _figure_kinds(figure):
+    if figure.get("depiction") == "mixed":
+        return {panel.get("depiction") for panel in figure.get("panels", [])}
+    return {figure.get("depiction")}
+
+
+def _figure_data_lineage(root, did, datasets, records, cache, *, excluded=(), visiting=()):
+    """Return direct producing run IDs and all datasets in this figure input's recorded chain."""
+    require(did in datasets and did not in visiting, "Unknown or cyclic figure data input: " + did)
+    if did in excluded:
+        return set(), set()
+    if did not in cache:
+        dataset = datasets[did]
+        path = local(root, dataset.get("path")).relative_to(root).as_posix()
+        origin = dataset.get("origin", "model")
+        require(origin in {"model", "external"}, "Unknown figure dataset origin: " + did)
+        producers = {rid for rid in dataset.get("run_ids", []) if rid in records and path in records[rid]["output_sha256"]}
+        require(origin == "external" or producers, "Figure data are not a recorded output of their declared run: " + did)
+        inputs = {did}
+        for parent in dataset.get("input_data_ids", []):
+            _, parents = _figure_data_lineage(root, parent, datasets, records, cache,
+                                             excluded=excluded, visiting=(*visiting, did))
+            ref = local(root, datasets[parent]["path"]).relative_to(root).as_posix()
+            require(any(ref in records[rid]["input_sha256"] or ref in records[rid]["output_sha256"] for rid in producers),
+                    "Derived figure data lack their recorded input: " + parent)
+            inputs.update(parents)
+        cache[did] = producers, inputs
+    return cache[did]
+
+
+def _model_figure_data(root, actual, figures, analysis, run_records, history):
+    """Follow a figure's declared inputs to files produced by current simulations."""
+    datasets = _unique(analysis.get("datasets", []), "dataset")
+    runs = {r["run_id"]: r["record"] for r in analysis.get("runs", [])}
+    completed = {rid: run_records[ref] for rid, ref in runs.items()
+                 if ref not in history and run_records[ref].get("run_id") == rid and run_records[ref].get("status") == "completed"}
+    excluded = {did for did, d in datasets.items() if d.get("historical") or d.get("origin") == "external"
+                or (d.get("run_ids") and all(runs.get(i) in history for i in d["run_ids"]))}
+    cache, lineage = {}, {}
+
+    def source_data(did):
+        if did not in lineage:
+            _, inputs = _figure_data_lineage(root, did, datasets, completed, cache, excluded=excluded)
+            refs = {runs[rid] for parent in inputs for rid in cache[parent][0] if completed[rid]["stage"] == "simulation"}
+            lineage[did] = refs, {datasets[k]["path"] for k in inputs}
+        return lineage[did]
+
+    plotted = {}
+    for fid in actual:
+        refs, paths = set(), set()
+        for did in figures[fid].get("data_ids", []):
+            related_refs, related_paths = source_data(did)
+            refs.update(related_refs)
+            paths.update(related_paths)
+        if refs:
+            plotted[fid] = refs, paths
+    require(plotted, "报告缺少关联到本轮实际模拟数据的图件")
+    for step in analysis.get("construction_steps", []):
+        if step.get("status") == "complete":
+            for did in step.get("data_ids", []):
+                source_data(did)
+    return plotted, lineage
+
+
+def _question_figures(root, parts, delivery, analysis, plotted):
+    completion = analysis.get("completion_review", {})
+    results = {r["id"]: r for r in analysis.get("results", []) if r.get("status") == "complete" and not r.get("historical")}
+    answers = {q["id"]: q for q in completion.get("axes", {}).get("scientific_answer", {}).get("questions", [])}
+    claims = _unique(delivery.get("claims", []), "claim")
+    model_files = {d.get("path") for d in analysis.get("datasets", []) if d.get("origin", "model") == "model" and not d.get("historical")}
+    for group in parts.get("questions", {}).get("question_groups", []):
+        qid = group["question_id"]
+        used = set(group.get("figure_ids", [])) & plotted.keys()
+        require(used, "科学问题只引用了示意图或没有本轮实算数据的图：" + qid)
+        for rid in answers.get(qid, {}).get("result_ids", []):
+            result = results.get(rid, {})
+            if result.get("figure_required"):
+                require(used.intersection(result.get("figure_ids", [])), "科学问题缺少对应结果的实算图：" + qid + "/" + rid)
+        paths = set().union(*(plotted[f][1] for f in used))
+        for cid in group.get("claim_ids", []):
+            if cid in claims:
+                inputs = {p.relative_to(root).as_posix() for p in _claim_inputs(root, claims[cid])}
+                reported = inputs & model_files
+                require(reported <= paths, "科学问题的图未使用该问题所报告的模型数据：" + qid + "/" + cid)
+
+
+def _completed_conditions(root, review, analysis, run_records, history):
+    completion = analysis.get("completion_review", {})
+    variants = review.get("final_model", {}).get("variants", {})
+    current = {ref for ref, r in run_records.items() if ref not in history and r.get("stage") == "simulation"
+               and r.get("status") == "completed"}
+    selected = completion.get("final_model", {}).get("run_ref")
+    finals = {r["run_ref"] for r in completion.get("iterations", []) if r.get("role") == "final"}
+    if not selected and len(finals) == 1:
+        selected = next(iter(finals))
+    candidates = {r["run_ref"] for r in completion.get("iterations", []) if r.get("role") in {"candidate", "initial"}}
+    current -= candidates - finals - ({selected} if selected else set()) - {
+        r["run_ref"] for r in completion.get("comparisons", []) if not r.get("historical")}
+    # Repeats inherit the scientific condition. A run ID, seed or folder name is never a condition.
+    conditions = {}
+
+    def add_condition(label, ref, paths=()):
+        if label and ref in current:
+            refs, files = conditions.setdefault(label, (set(), set()))
+            refs.add(ref)
+            files.update(paths)
+
+    anchors = set()
+    other_conditions = set()
+    for ref, changes in variants.items():
+        if ref not in current:
+            continue
+        for change in changes.values():
+            if change.get("role") == "condition":
+                add_condition(change["condition"], ref)
+                anchors.add(change["reference_condition"])
+                other_conditions.add(ref)
+            elif change.get("role") == "control":
+                other_conditions.add(ref)
+    for ref in current - other_conditions:
+        for label in anchors:
+            add_condition(label, ref)
+    measurements = {}
+    for comp in completion.get("comparisons", []):
+        ref = comp.get("run_ref")
+        if ref not in current or comp.get("historical") or not comp.get("measurements_ref"):
+            continue
+        measured = read(local(root, comp["measurements_ref"])).get("measurements", {})
+        for row in measured.values():
+            if row.get("status") == "observed" and row.get("source", {}).get("csv_ref"):
+                measurements.setdefault(ref, []).append(row)
+    for ref, rows in measurements.items():
+        names = {row.get("condition") for row in rows if row.get("condition")}
+        by_metric = {}
+        for row in rows:
+            source, name = row["source"], row.get("condition")
+            metric = row.get("metric") or source.get("column")
+            if metric and name:
+                selection = (source["csv_ref"], source.get("column"), source.get("other_column"),
+                             tuple(sorted((k, str(v)) for k, v in source.get("where", {}).items())))
+                by_metric.setdefault(metric, {}).setdefault(name, set()).add(selection)
+        explicit = {name for labels in by_metric.values() if len(labels) > 1 for name in labels}
+        for metric, labels in by_metric.items():
+            selections = {frozenset(rows) for rows in labels.values()}
+            require(len(selections) == len(labels), "同一运行内两个条件引用了相同的原始取数位置：" + metric)
+        for row in rows:
+            name, source = row.get("condition"), row["source"]
+            # A target's label can describe a cell or measurement window, not an experimental arm.
+            arm_column = {"condition", "arm", "protocol", "state"} & set(source.get("where", {}))
+            if len(names) == 1 or name in explicit or name in conditions or arm_column:
+                add_condition(name, ref, [source["csv_ref"]])
+    named = set().union(*(refs for refs, _ in conditions.values()))
+    for r in analysis.get("runs", []):
+        ref = r["record"]
+        if ref in named:
+            continue
+        label = r.get("condition") or run_records[ref].get("condition")
+        if isinstance(label, dict):
+            options = {k: v for k, v in label.items()
+                       if not re.search(r"(?:^|_)(?:seed|repeat|replicate|random_state)(?:_|$)", k.lower())}
+            label = json.dumps(options, sort_keys=True, ensure_ascii=False) if options else None
+        if isinstance(label, str):
+            add_condition(label, ref)
+    equivalents = {ref for ref in current if variants.get(ref) and all(
+        v.get("role") == "seed" for v in variants[ref].values())}
+    adopted = equivalents | {selected} if selected in current else set()
+    return conditions, adopted
+
+
+def _check_condition_plots(conditions, plotted, figures, data_figures, captions):
+    covered = set()
+    for fid in data_figures if len(conditions) > 1 else plotted:
+        plot_runs, plot_files = plotted[fid]
+        supported = {name for name, (runs, _) in conditions.items() if runs & plot_runs}
+        # A shared simulation cannot identify its conditions by its run ID alone.
+        supported = {k for k in supported if not conditions[k][1] or conditions[k][1] & plot_files
+                     or not any(k != j and conditions[k][0] & conditions[j][0] & plot_runs for j in supported)}
+        if len(supported) <= 1:
+            covered.update(supported)
+            continue
+        labels = figures[fid].get("condition_labels", {})
+        require(isinstance(labels, dict), "图件 condition_labels 须对应条件与显示名：" + fid)
+        for condition in supported:
+            label = _text(labels.get(condition, condition), "condition label")
+            if re.search(r"(?<![a-z0-9_])" + re.escape(label) + r"(?![a-z0-9_])",
+                         captions.get(fid, ""), re.IGNORECASE):
+                covered.add(condition)
+    missing = sorted(conditions.keys() - covered)
+    require(not missing, "报告缺少可辨认且有实际输出的条件图：" + "、".join(missing))
+
+
+def _component_figures(parts, review, analysis, lineage, plotted, data_figures):
+    completion = analysis.get("completion_review", {})
+    regulation = completion.get("regulation", {})
+    groups = regulation.get("delivery", {}).get("groups", {})
+    regulation_figures = set(groups.get("B_D0_selected", []))
+    if regulation.get("status") == "complete" and regulation_figures:
+        require(regulation_figures & data_figures, "报告正文缺少基础、扰动与所选调控条件的实算比较图")
+    incomplete = []
+    components = review.get("model_components", ["baseline"])
+    body = "\n".join(_visible(p["report_excerpt"]) for p in parts.values())
+    for component in components if len(components) > 1 else []:
+        if regulation.get("status") == "complete" and regulation_figures & data_figures:
+            continue  # check_regulation independently checks the completed B, D0 and selected simulations.
+        steps = [s for s in analysis.get("construction_steps", []) if s.get("component") == component]
+        complete_data = {d for s in steps if s.get("status") == "complete" for d in s.get("data_ids", [])}
+        sources = set().union(*(lineage[d][0] for d in complete_data))
+        if sources:
+            require(any(sources & plotted[f][0] for f in data_figures), "缺少已完成模型部分的实算结果图：" + component)
+        elif (pending := [s for s in steps if s.get("status") != "complete"]):
+            reasons = [s.get(key) for s in pending for key in ("reason", "observation")]
+            require(any(isinstance(note, str) and note.strip() and note.strip() in body for note in reasons),
+                    "报告未说明尚未取得哪项条件结果：" + component)
+            if any(s.get("status") != "not_applicable" for s in pending):
+                incomplete.append(component)
+        else:
+            raise ValueError("尚无可对应本轮实际结果的模型部分：" + component)
+    return incomplete
+
+
+def _unfinished_conditions(plan, analysis, observed, parts):
+    """An explicitly required unrun arm is a reported gap, not another output to draw."""
+    variants = plan["review"].get("final_model", {}).get("variants", {})
+    planned = {v["condition"] for changes in variants.values() for v in changes.values() if v.get("role") == "condition"}
+    if not planned - observed.keys():
+        return []
+    results = {r["id"]: r for r in analysis.get("results", [])}
+    states = {r["id"]: r for r in analysis.get("completion_review", {}).get("requirements", [])}
+    body = "\n".join(_visible(p["report_excerpt"]) for p in parts.values())
+    missing = set()
+    for req in plan.get("requirements", []):
+        if not req.get("required", True):
+            continue
+        acc = req.get("acceptance", {})
+        names = {acc.get("condition"), *(b.get("condition", acc.get("condition")) for b in acc.get("comparisons", []))}
+        for name in names & planned - observed.keys():
+            result_ids = set(req.get("result_ids", [])) | set(acc.get("result_ids", []))
+            reasons = [results.get(rid, {}).get("reason") for rid in result_ids]
+            reasons.append(states.get(req["id"], {}).get("reason"))
+            require(any(isinstance(reason, str) and reason.strip() and reason.strip() in body for reason in reasons),
+                    "原定条件尚无已完成运行，须在报告中写明其具体缺口：" + name)
+            missing.add(name)
+    return sorted(missing)
+
+
+def _result_figures(root, delivery, plan, analysis, figures, captions):
+    """Relate visible figures to completed model outputs; one panel can serve several purposes."""
+    parts = {p["kind"]: p for p in delivery["parts"]}
+    methods = parts.get("methods", {}).get("figure_ids", [])
+    require(any(_figure_kinds(figures[f]) & {"schematic", "actual_model"} for f in methods),
+            "方法段缺少呈现模型全貌的总览图")
+    shown = {f for p in parts.values() for f in p.get("figure_ids", [])}
+    actual = {f for f in shown if _figure_kinds(figures[f]) & {"actual_model", "data_result"}}
+    run_records = {r["record"]: read(local(root, r["record"])) for r in analysis.get("runs", [])}
+    completion = analysis.get("completion_review", {})
+    comparisons = completion.get("comparisons", [])
+    history = {r["run_ref"] for r in comparisons if r.get("historical")}
+    history.update(r["run_ref"] for r in plan["review"].get("reused_runs", []))
+    # A verified archived run may be adopted for the current comparison after a rule upgrade.
+    history.difference_update(r["run_ref"] for r in comparisons if not r.get("historical"))
+    history.difference_update(completion.get("axes", {}).get("execution", {}).get("run_refs", []))
+    plotted, lineage = _model_figure_data(root, actual, figures, analysis, run_records, history)
+    _question_figures(root, parts, delivery, analysis, plotted)
+    conditions, adopted = _completed_conditions(root, plan["review"], analysis, run_records, history)
+    if adopted:
+        require(any(refs & adopted for refs, _ in plotted.values()), "报告缺少最终采用模型的数据图")
+    data_figures = {fid for fid in plotted if "data_result" in _figure_kinds(figures[fid])}
+    _check_condition_plots(conditions, plotted, figures, data_figures, captions)
+    incomplete = _component_figures(parts, plan["review"], analysis, lineage, plotted, data_figures)
+    return {"actual_figures": sorted(plotted), "conditions": sorted(conditions), "incomplete_components": incomplete,
+            "incomplete_conditions": _unfinished_conditions(plan, analysis, conditions, parts)}
+
+
+def check_presentation(delivery, plan, analysis, *, root=None):
     """For new full-model reviews, require model naming and visible panel kinds.
 
     Mixed figures use ``depiction: mixed`` and ``panels: [{id, depiction,
@@ -111,8 +492,14 @@ def check_presentation(delivery, plan, analysis):
             elif panels:
                 require(types == {depiction}, "Figure contains different panel kinds but is not declared mixed: " + identity)
             checked.append(identity)
-    return {"status": "passed", "model_name": name, "checked_figures": sorted(set(checked)),
-            "scope": "Names and visible declared panel labels checked; actual image content still requires visual review."}
+    coverage = {}
+    if root is not None:
+        project = Path(root).resolve()
+        captions = _embedded_figures(project, local(project, delivery["report_ref"]), parts, figures)
+        coverage = _result_figures(project, delivery, plan, analysis, figures, captions)
+    scope = ("核对了报告和答复中的图像、图件所用运行与数据、实际条件和科学问题。成图内容、数字与可读性需目视核实。"
+             if root is not None else "核对了模型名称与正文标注的图版类别。")
+    return {"status": "passed", "model_name": name, "checked_figures": sorted(set(checked)), **coverage, "scope": scope}
 
 
 def _same_config(left, right):
@@ -235,32 +622,13 @@ def _recorded_outputs(root, entry, delivery, analysis, model_ref, command_ref, r
         if item.get("required") and item.get("status") == "complete":
             delivered_figures.update(item.get("figure_ids", []))
     ancestors = {r["run_id"]: r for r in records.values()}
-    checked_data, visiting, figure_data = {}, set(), {}
+    checked_data, figure_data = {}, {}
 
     def data_sources(did):
-        if did in checked_data:
-            return checked_data[did]
-        require(did in datasets and did not in visiting, "Unknown or cyclic figure data input: " + did)
-        visiting.add(did)
-        dataset = datasets[did]
-        path = local(root, dataset.get("path")).relative_to(root).as_posix()
-        origin = dataset.get("origin", "model")
-        require(origin in {"model", "external"}, "Unknown figure dataset origin: " + did)
-        producers = {rid for rid in dataset.get("run_ids", [])
-                     if rid in ancestors and path in ancestors[rid]["output_sha256"]}
-        require(origin == "external" or producers, "Figure data are not a recorded output of their declared run: " + did)
-        sources = set(producers) if dataset.get("kind") == "raw" and origin == "model" else set()
-        data_ids = {did}
-        for parent in dataset.get("input_data_ids", []):
-            parent_sources, parent_ids = data_sources(parent)
-            parent_path = local(root, datasets[parent]["path"]).relative_to(root).as_posix()
-            require(any(parent_path in ancestors[rid]["input_sha256"] or parent_path in ancestors[rid]["output_sha256"]
-                        for rid in producers), "Derived figure data lack their recorded input: " + parent)
-            sources.update(parent_sources)
-            data_ids.update(parent_ids)
-        visiting.remove(did)
-        checked_data[did] = sources, data_ids
-        return checked_data[did]
+        _, data_ids = _figure_data_lineage(root, did, datasets, ancestors, checked_data)
+        sources = {rid for key in data_ids if datasets[key].get("kind") == "raw" and
+                   datasets[key].get("origin", "model") == "model" for rid in checked_data[key][0]}
+        return sources, data_ids
 
     figure_ids = entry.get("figure_ids", [])
     for fid in figure_ids:

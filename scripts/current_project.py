@@ -93,14 +93,14 @@ def _documented_value(excerpt, value):
     return False
 
 
-def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery"):
+def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery", *, plan_ref=CURRENT_PLAN):
     """Check current name, method, config and changed-parameter correspondence.
 
     Legacy records remain readable, but receive no claim that the added checks
     passed. Scoped research/audits do not acquire a fictional built model.
     """
     root = Path(root).resolve()
-    report = dict(status="failed", issues=[], warnings=[], bound_parameter_ids=[],
+    report = dict(status="failed", issues=[], warnings=[], bound_parameter_ids=[], parameter_issues=[],
                   scope="Declared current-model bindings; not simulator verification or biological validity")
     pending = []
     early = checkpoint in {"start", "resume"}
@@ -128,6 +128,22 @@ def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery"):
 
     def exists(path):
         return path is not None and path.is_file()
+
+    def parameter_issue(identity, path, location, reason):
+        item = dict(**location, parameter_id=identity, config_path=path,
+                    config_file=config.relative_to(root).as_posix() if config is not None else None, reason=reason)
+        report["parameter_issues"].append(item)
+        source = location["file"] + (f":{location['line']}" if "line" in location else "#" + location["pointer"])
+        report["issues"].append(f"{source} [{identity}] {item['config_file'] or '(configuration unavailable)'}#{path}: {reason}")
+
+    def compare_parameter(identity, path, expected, location, mismatch):
+        try:
+            actual = pointer(config_value, path)
+        except (KeyError, IndexError, TypeError, ValueError) as error:
+            parameter_issue(identity, path, location, f"Configuration path cannot be resolved ({error})")
+            return
+        if not same(actual, expected):
+            parameter_issue(identity, path, location, mismatch + ": " + identity)
 
     try:
         require(checkpoint in {"start", "transition", "resume", "delivery"}, "Unknown current-model checkpoint")
@@ -191,41 +207,58 @@ def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery"):
                 fields = reader.fieldnames or []
                 required = {"parameter_id", "config_path", "model_value", "model_unit"}
                 require(len(fields) == len(set(fields)) and required <= set(fields), "Current parameter table lacks unique required columns")
-                parameter_rows = list(reader)
-            parameters, table_paths = {}, set()
-            for row in parameter_rows:
+                parameter_rows = [(reader.line_num, row) for row in reader]
+            parameters, table_paths = {}, {}
+            for line, row in parameter_rows:
+                location = dict(file=parameter_file.relative_to(root).as_posix(), line=line)
                 key = _nonempty(row.get("parameter_id"), "parameter_id in current table")
-                require(key not in parameters, "Duplicate parameter_id in current parameter table")
-                path = _nonempty(row.get("config_path"), "config_path in current table")
-                require(path not in table_paths, "Duplicate configuration field in current parameter table")
-                table_paths.add(path)
+                path = row.get("config_path") or ""
+                if key in parameters:
+                    parameter_issue(key, path, location, "Duplicate parameter_id in current parameter table")
+                if path in table_paths:
+                    other, earlier = table_paths[path]
+                    for identity, place in ((other, earlier), (key, location)):
+                        parameter_issue(identity, path, place, "Duplicate configuration field in current parameter table")
+                table_paths[path] = key, location
+                if not path.strip():
+                    parameter_issue(key, path, location, "Missing config_path in current table")
                 _nonempty(row.get("model_unit"), "model_unit in current parameter table")
                 mapped = parse_json(row["model_value"])
                 require(mapped is not None and not isinstance(mapped, dict), "Current parameter needs a scalar/list mapped value: " + key)
-                if config_value is not None:
-                    require(same(pointer(config_value, path), mapped),
-                            "Current parameter table still has another value than the adopted configuration: " + key)
+                if config_value is not None and path.strip():
+                    compare_parameter(key, path, mapped, location,
+                                      "Current parameter table still has another value than the adopted configuration")
                 parameters[key] = row
-        seen, paths = set(), set()
-        for binding in bindings:
+        seen, paths = set(), {}
+        for index, binding in enumerate(bindings):
             require(isinstance(binding, dict), "Invalid current parameter binding")
             identity = _nonempty(binding.get("parameter_id"), "current binding parameter_id")
             require(identity not in seen, "Duplicate current parameter binding")
-            path = _nonempty(binding.get("config_pointer"), "current binding config_pointer")
-            require(path not in paths, "Duplicate current parameter configuration path")
             seen.add(identity)
-            paths.add(path)
+            location = dict(file=plan_ref, pointer=f"/current_model/parameter_bindings/{index}/config_pointer")
+            path = binding.get("config_pointer")
+            has_path = isinstance(path, str) and bool(path.strip())
+            if not has_path:
+                parameter_issue(identity, path, location, "Missing or invalid current binding config_pointer")
+            elif path in paths:
+                other, previous_location = paths[path]
+                for parameter, place in ((other, previous_location), (identity, location)):
+                    parameter_issue(parameter, path, place, "Duplicate current parameter configuration path")
+            else:
+                paths[path] = identity, location
             require("value" in binding, "Missing current parameter value: " + identity)
             expected = binding["value"]
-            if config_value is not None:
-                actual = pointer(config_value, path)
-                require(same(actual, expected), "Current parameter differs from adopted configuration: " + identity)
+            if config_value is not None and has_path:
+                compare_parameter(identity, path, expected, location, "Current parameter differs from adopted configuration")
             unit = _nonempty(binding.get("unit"), "current binding unit")
             if parameters is not None:
                 require(identity in parameters, "Current binding is missing from parameter table: " + identity)
                 row = parameters[identity]
-                require(row["config_path"] == path, "Current parameter points to a different configuration field: " + identity)
-                require(same(parse_json(row["model_value"]), expected), "Current parameter table still has another value: " + identity)
+                if has_path and row["config_path"] != path:
+                    parameter_issue(identity, path, location, "Current parameter points to a different configuration field: "
+                                    + identity + " (table: " + row["config_path"] + ")")
+                if not same(parse_json(row["model_value"]), expected):
+                    parameter_issue(identity, path, location, "Current parameter table still has another value: " + identity)
                 require(unit_name(unit) == unit_name(row["model_unit"]), "Current parameter units differ from mapping: " + identity)
             excerpt = _nonempty(binding.get("spec_excerpt"), "current parameter method excerpt")
             if method is not None:
@@ -245,7 +278,10 @@ def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery"):
         if previous and exists(previous_path) and config_value is not None and parameters is not None:
             previous_value = read(previous_path)
             changed_in_table = set()
+            invalid = {item["parameter_id"] for item in report["parameter_issues"]}
             for identity, row in parameters.items():
+                if identity in invalid:
+                    continue
                 try:
                     before = pointer(previous_value, row["config_path"])
                 except (KeyError, IndexError):
@@ -265,6 +301,11 @@ def check_current_artifacts(root, plan, analysis=None, checkpoint="delivery"):
         if pending:
             report["pending"] = sorted(set(pending))
             report["warnings"].append("Current method/configuration is not ready; no current-model completion is claimed")
+        if report["parameter_issues"]:
+            invalid = {item["parameter_id"] for item in report["parameter_issues"]}
+            report.update(status="failed", parameter_errors_localized=config_value is not None and parameters is not None,
+                          bound_parameter_ids=sorted(seen - invalid),
+                          verified_parameter_ids=sorted(set(parameters or {}) - invalid))
     except (OSError, ValueError, TypeError, KeyError, IndexError, csv.Error) as error:
         report["issues"].append(str(error))
     return report

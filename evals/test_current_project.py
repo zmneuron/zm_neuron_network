@@ -8,6 +8,7 @@ import copy
 import csv
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -96,6 +97,24 @@ class CurrentModelChecks(unittest.TestCase):
         self.mapping[0]["model_value"] = "156"
         self.save_mapping()
         self.assert_issue("table still has another value")
+
+    def test_unresolvable_parameter_gives_csv_line_parameter_and_full_config_path(self):
+        self.mapping[1]["config_path"] = "/analysis/unknown"
+        self.save_mapping()
+        result = self.check()
+        self.assertEqual(result["status"], "failed")
+        issue = result["parameter_issues"][0]
+        self.assertEqual((issue["file"], issue["line"], issue["parameter_id"], issue["config_path"], issue["config_file"]),
+                         ("docs/parameters.csv", 3, "P-I", "/analysis/unknown", "model/config.json"))
+        self.assertIn("docs/parameters.csv:3", result["issues"][0])
+        self.assertEqual(result["verified_parameter_ids"], ["P-E"])
+
+        self.mapping[1]["config_path"] = "/background/inh_pA"
+        self.save_mapping()
+        self.plan["current_model"]["parameter_bindings"][1].pop("config_pointer")
+        issue = self.check()["parameter_issues"][0]
+        self.assertEqual((issue["parameter_id"], issue["file"], issue["pointer"]),
+                         ("P-I", "docs/task_plan.json", "/current_model/parameter_bindings/1/config_pointer"))
 
     def test_wrong_unit_and_wrong_field_are_rejected(self):
         self.mapping[0]["model_unit"] = "nA"
@@ -284,6 +303,37 @@ class CurrentModelChecks(unittest.TestCase):
             self.assertTrue(history["historical"])
             self.assertFalse(history["ready_to_deliver"])
             self.assertTrue(check.call_args.kwargs["historical"])
+
+    def test_delivery_identifies_missing_review_axes_in_original_registration(self):
+        ref = "docs/research/initial_requirements.json"
+        source = dict(source_kind="user", source_ref=self.plan["spec_ref"])
+        self.plan["requirements"] = [dict(id="R", description="Review model parameters.", **source)]
+        self.plan["review"].update(baseline_ref=ref, objective=dict(text="Compare the recorded parameters.", **source),
+                                   required_axes=["execution", "scientific_answer", "delivery"])
+        self.plan["reuse"] = dict(contract="zm-neuron-reuse/1", invocation_id="review", adoptions=[],
+            stages=[dict(stage="delivery", decision="existing_sufficient", reason="Review recorded files.",
+                         comparison_ref=self.plan["spec_ref"])])
+        original = check_project.review_project.scope_state(self.plan)
+        del original["required_axes"]
+        saved = self.write(ref, dict(plan_id=self.plan["plan_id"], review_contract=self.plan["review_contract"], scope=original))
+        self.plan["review"]["baseline_sha256"] = fingerprint(saved)
+        plan_file = self.write("docs/task_plan.json", self.plan)
+        before = (saved.read_bytes(), plan_file.read_bytes())
+
+        process = subprocess.run([sys.executable, "-B", "-X", "utf8", str(SKILL / "scripts/check_project.py"),
+                                  "--project", str(self.root), "--phase", "delivery"], capture_output=True, encoding="utf-8")
+        report = json.loads(process.stdout)
+        self.assertEqual(process.returncode, 1, process.stderr)
+        review = report["checks"]["completion_review"]
+        self.assertEqual(review["status"], "failed")
+        self.assertFalse(report["final_model_ready"])
+        self.assertFalse(report["ready_to_deliver"])
+        self.assertEqual(review["checks"]["current_model"]["status"], "passed")
+        self.assertEqual(review["checks"]["reuse"]["status"], "passed")
+        issue, = review["issues"]
+        self.assertTrue(all(item in issue for item in (ref, "scope.required_axes", "原定", "完成")), issue)
+        self.assertTrue(any(issue in item for item in report["issues"]))
+        self.assertEqual((saved.read_bytes(), plan_file.read_bytes()), before)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
 from current_project import resolve_current_plan, check_current_artifacts
 from delivery_response import check_presentation, check_reproduction, verify_response_file, _visible as visible_text
-from scientific_review import check_scientific_review
+from scientific_review import check_scientific_review, unavailable_findings
 from show_progress import render_progress
 import statistics
 import tempfile
@@ -570,7 +570,11 @@ def _check_scope(root, plan, baseline, report, skill):
     local(root, state["objective"]["source_ref"])
     for item in state["requirements"].values():
         local(root, item["source_ref"])
-    actual = _scope_changes(baseline["scope"], state)
+    original_scope = baseline.get("scope")
+    require(isinstance(original_scope, dict) and "required_axes" in original_scope,
+            f"原始登记文件 {review['baseline_ref']} 缺少字段 scope.required_axes，无法核对当前计划是否保留"
+            "原定的全部检查，也无法确认已按原要求完成交付。")
+    actual = _scope_changes(original_scope, state)
     current_criteria = set(review.get("criteria_refs", []))
     for ref in current_criteria:
         _target_content(root, ref)
@@ -989,20 +993,79 @@ def _scientific_review(root, plan, analysis, checkpoint):
     refs.update(x["analysis_run_ref"] for x in completion.get("comparisons", []) if x.get("analysis_run_ref"))
     refs.update(x["run_ref"] for x in completion.get("iterations", []))
     refs.update(x["record"] for x in analysis.get("runs", []))
-    allowed = {path for item in plan["review"].get("datasets", []) if item.get("available")
-               for path in _reference_files(root, item)}
+    allowed = set()
+    for item in plan["review"].get("datasets", []):
+        if item.get("available"):
+            try:
+                allowed.update(_reference_files(root, item))
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                result["issues"].append(f"Dataset {item.get('id')}: {error}")
     for ref in refs:
-        record = verify_run(root, ref, require_completed=False)
-        if record["status"] == "completed":
-            allowed.update(local(root, p) for p in record.get("output_sha256", {}))
-    require(all(local(root, ref) in allowed for ref in result["data_refs"]),
-            "Scientific comparison uses data outside recorded runs or declared references")
+        try:
+            record = verify_run(root, ref, require_completed=False)
+            if record["status"] == "completed":
+                allowed.update(local(root, p) for p in record.get("output_sha256", {}))
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            result["issues"].append(f"Run {ref}: {error}")
+    verified = {p.relative_to(root).as_posix() for p in allowed}
+    missing = set(result["data_refs"]) - verified
+    if missing:
+        reason = "Scientific comparison uses data outside recorded runs or declared references: " + ", ".join(sorted(missing))
+        result["issues"].append(reason)
+        pending = {f["id"]: f for f in unavailable_findings(plan, reason)}
+        for index, finding in enumerate(result["findings"]):
+            if missing.intersection(finding.get("data_refs", [])):
+                partial = pending[finding["id"]]
+                readings = {key: value for key, value in finding.get("observed_operands", {}).items()
+                            if set(finding["operand_sources"][key]) <= verified}
+                arms = {key: value for key, value in finding.get("observed_readings", {}).items()
+                        if finding[key]["csv_ref"] in verified}
+                if readings or arms:
+                    partial["retained_observation"] = {"readings": readings} if readings else {"by_condition": arms}
+                    partial["data_refs"] = sorted(set(finding["data_refs"]) & verified)
+                    partial["minimum_comparison"] = "补齐归属不明的一侧，再与已核实的读数按原判据配对比较。"
+                result["findings"][index] = partial
+                result["unresolved_question_ids"] = sorted(set(result["unresolved_question_ids"]) | {finding["question_id"]})
+        result["data_refs"] = sorted(set(result["data_refs"]) - missing)
+    if result["issues"]:
+        result["status"] = "failed"
     return result
+
+
+def _current_model_check(root, plan, plan_ref, report, checkpoint, analysis=None):
+    current = check_current_artifacts(root, plan, analysis, checkpoint=checkpoint if analysis is not None else "start",
+                                      plan_ref=plan_ref)
+    report["checks"]["current_model"] = current
+    if current["status"] != "failed":
+        return current
+    if current.get("parameter_issues") and checkpoint != "start":
+        # The model cannot be delivered. Recover only individual, frozen comparisons
+        # whose observations can still be assigned to this study and actual run.
+        try:
+            require(current.get("parameter_errors_localized"), "Other model errors prevent isolation of the parameter issue")
+            if analysis is None:
+                analysis = read(local(root, plan["files"]["analysis"]))
+            require(all(analysis.get(key) == plan[key] for key in ("review_contract", "plan_id", "model_version")),
+                    "Analysis is not bound to the current task and model version")
+            capture_path = local(root, plan["review"].get("baseline_ref"))
+            require(fingerprint(capture_path) == plan["review"].get("baseline_sha256"), "The original comparison definitions cannot be verified")
+            capture = read(capture_path)
+            require(capture.get("review_contract") == plan["review_contract"] and capture.get("plan_id") == plan["plan_id"],
+                    "Comparison definitions belong to another task")
+            science = check_scientific_review(root, plan, analysis, checkpoint=checkpoint, parameter_review=current, capture=capture)
+            if not science["findings"] and science["issues"]:
+                science["findings"] = unavailable_findings(plan, "; ".join(science["issues"]))
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            reason = "Cannot attribute these comparisons: " + str(error)
+            science = dict(status="incomplete", issues=[reason], findings=unavailable_findings(plan, reason), data_refs=[])
+        science["partial"] = True
+        report["checks"]["scientific"] = science
+    raise ValueError("Current model/method mismatch: " + "; ".join(current["issues"]))
 
 
 def _delivery(root, delivery, plan, analysis, axes):
     require(isinstance(delivery, dict), "Missing delivery content")
-    presentation = check_presentation(delivery, plan, analysis)
+    presentation = check_presentation(delivery, plan, analysis, root=root)
     report_path = local(root, delivery.get("report_ref"))
     report_text = report_path.read_text(encoding="utf-8")
     require(delivery["report_ref"] == analysis.get("report"), "Delivery uses another report")
@@ -1089,11 +1152,12 @@ def _delivery(root, delivery, plan, analysis, axes):
             require(isinstance(files, list) and files, "Figure lacks existing manifest files")
             paths = {local(root, reference) for reference in files}
             require(figure.get("depiction") in {"schematic", "actual_model", "data_result", "mixed"}, "Missing or unknown schematic/actual figure classification")
-            for content, base, final_response in ((part["report_excerpt"], report_path.parent, False), (part["response_excerpt"], root, True)):
-                images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
-                require(any((not final_response or Path(x.strip("<>")).is_absolute()) and
-                            (base / x.strip("<>")).resolve() in paths for x in images),
-                        "Core figure is not embedded in report/final response with a usable absolute response path")
+            if presentation["status"] == "not_applicable":
+                for content, base, final_response in ((part["report_excerpt"], report_path.parent, False), (part["response_excerpt"], root, True)):
+                    images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
+                    require(any((not final_response or Path(x.strip("<>")).is_absolute()) and
+                                (base / x.strip("<>")).resolve() in paths for x in images),
+                            "Core figure is not embedded in report/final response with a usable absolute response path")
             all_required_images.extend(files)
         if part["kind"] == "equations":
             equations = part.get("equations")
@@ -1541,7 +1605,9 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
     try:
         require(checkpoint in READING, "Unknown review checkpoint")
         require(not historical or not (response_file or sent_response_file), "Historical review cannot prepare or certify the current response")
-        plan = read(resolve_current_plan(root, plan_path, historical=historical))
+        plan_file = resolve_current_plan(root, plan_path, historical=historical)
+        plan_ref = plan_file.relative_to(root).as_posix()
+        plan = read(plan_file)
         full = full_model_task(plan)
         report["full_model_task"] = full
         report["historical"] = historical
@@ -1552,9 +1618,7 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Unsupported review contract")
         if plan["review_contract"] == LEGACY_CONTRACT:
             report["warnings"].append("Historical /1 review: current methods, per-question scientific dispositions and the sendable response file have not received /2 checks. Do not claim the new safeguards were applied.")
-        current = check_current_artifacts(root, plan, checkpoint="start")
-        report["checks"]["current_model"] = current
-        require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current.get("issues", [])))
+        current = _current_model_check(root, plan, plan_ref, report, checkpoint)
         reuse = check_reuse(root, plan)
         report["checks"]["reuse"] = reuse
         if plan.get("reuse") is not None:
@@ -1620,9 +1684,7 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         analysis = read(local(root, plan["files"]["analysis"]))
         require(analysis.get("review_contract") == plan["review_contract"], "Analysis lacks the adopted review contract")
         require(analysis.get("plan_id") == plan.get("plan_id") and analysis.get("model_version") == plan.get("model_version"), "Review mixes task/model versions")
-        current = check_current_artifacts(root, plan, analysis, checkpoint=checkpoint)
-        report["checks"]["current_model"] = current
-        require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current.get("issues", [])))
+        current = _current_model_check(root, plan, plan_ref, report, checkpoint, analysis)
         completion = analysis.get("completion_review")
         require(isinstance(completion, dict), "Missing completion_review")
         require(isinstance(completion.get("decision"), dict), "Missing current continuation or completion decision")

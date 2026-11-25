@@ -1321,8 +1321,15 @@ class _Evidence:
         figures = {fid for part in self.parts.values() for fid in part.get("figure_ids", [])}
         for identity in result_ids:
             result = _lookup(self.results, identity, "analysis.results")
-            if result.get("figure_required") and not figures.intersection(result.get("figure_ids", [])):
+            if not result.get("figure_required"):
+                continue
+            visible = figures.intersection(result.get("figure_ids", []))
+            if not visible:
                 raise Pending("交付中尚缺本项结果的图件 " + identity)
+            if acc["purpose"] in {"observation", "fit", "prediction", "mechanism"}:
+                if not any(self.dataset(did) for fid in visible if self.figures[fid].get("depiction") != "schematic"
+                           for did in self.figures[fid].get("data_ids", [])):
+                    raise Pending("该项图件缺少最终采用模型的实际数据 " + identity)
 
     def requirement(self, identity, requirement, report, row):
         acc = requirement["acceptance"]

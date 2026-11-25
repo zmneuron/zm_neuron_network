@@ -119,6 +119,20 @@ class CompletionReviewChecks(unittest.TestCase):
         self.assertTrue(result["consistent"] and result["goal_complete"] and result["ready_to_deliver"])
         self.assertEqual(result["checks"]["delivery"]["claims_recomputed"], ["mean", "silent"])
 
+    def test_parameter_issue_with_another_analysis_version_cannot_lend_the_study_a_result(self):
+        self.other(modern=True)
+        mapping = self.root / "docs/parameters.csv"
+        mapping.write_text(mapping.read_text(encoding="utf-8").replace("/n,", "/unknown/n,"), encoding="utf-8")
+        self.change("analysis/output/analysis.json", lambda a: a.update(model_version="other"))
+        report = self.failed("docs/parameters.csv:2")
+        self.assertFalse(report["ready_to_deliver"])
+        partial = report["checks"]["scientific"]
+        self.assertTrue(partial["partial"])
+        finding = partial["findings"][0]
+        self.assertEqual(finding["outcome"], "not_evaluated")
+        self.assertIsNone(finding["retained_observation"])
+        self.assertNotEqual(finding["minimum_comparison"], finding["reason"])
+
     def test_same_mean_distribution_failure_remains_visible(self):
         self.other(distribution_failure=True)
         result = self.check()

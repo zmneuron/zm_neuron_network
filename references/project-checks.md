@@ -157,6 +157,10 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 
 **主要效应和偏差。** `review.scientific_checks`在计算前按问题登记必需的比较及重要方法取舍，`completion_review.scientific_checks`保存同ID的实算结果和处置。不用一个通用“模型合理”项目替代各题的主要比较。
 
+对会影响主结论的比较，填写具体可检验的 `description`，需要指向上层主张时可另写 `conclusion`。报告所涉主张、实际读数和仍可保留的观察。`outcome_scope` 说明 `outcome` 针对哪项判据。数值稳定性只回答精度问题，统计单位或实验顺序的核对只回答比较设计问题。完整且有判别力的比较可支持假设（`supported`）或不支持假设（`not_supported`）。多个解释仍相容时用 `inconclusive`，条件、数据归属或必要配对有缺口时用 `not_evaluated`。只有[原主张仍需判别](scientific-questions.md#判断补充实验是否必要)时才在 `minimum_comparison` 说明最小补充比较。完整的参照误差可以直接报告，该字段可留空。
+
+一项参数错误可能只影响部分问题。错误报告标出参数表文件、CSV 行、参数 ID、配置文件和字段路径。要保留能独立完成的科学比较，在运行前用 `parameter_ids` 列出该比较实际依赖的参数。明确独立于模型参数的读数可填空数组；没有填写时，参数异常期间依赖关系仍未知。核对原计划与本轮分析、原始运行或留存的实测记录后，正常审查入口会分别重算可归属的项目。依赖错误参数、事后改变依赖、无法确定统计单位或原始对照归属的结论保持未评价。已核实的单侧读数和已有时间窗可作为描述性观察保存，整体交付仍须处理参数错误。
+
 | 类型 | 开始时登记 | 从实际结果记录与检查 |
 |---|---|---|
 | `reference_change` | `id,question_id,kind,required,basis_ref,description,unit,tolerance,tolerance_basis` | `before,after,reference`引用实际CSV选择；参考可为数值或`lower/upper`区间。分别重算初始及最终距离；误差增大须说明取舍或尚未解决，不能用均值改善抵消。分布和时程先用适合问题的分析生成指标及图，不能以此标量接口取代完整比较。 |
@@ -164,6 +168,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 | `method_assumption` | `id,question_id,kind,required,basis_ref,description` | `original_method,implemented_method,choice_reason,consequence`说明最近邻方法、关键输入/突触/观测假设及选择后果。按实际资料写已采用、条件性采用或尚未解决，不强制统一受体、三维表示或输入配平。 |
 | `mechanism_activity` | 问题列出 `required_mechanisms`。各机制登记 `mechanism_id`、运行来源、正式时窗、观测量、作用方向与判据。 | 从该次运行输出读取量值，逐窗区分短暂出现与持续作用。必要时在共同时间点核对只改变该机制的匹配对照。 |
 | `comparison_design` | 问题列出 `required_design_dimensions`。按适用维度登记 `dimension_id`、预定处理或统计单位、范围、水平或重复数。 | 从实际比较使用的逐行数据核对各组。偏离方案时说明偏差及其限制；原问题仍无法判断时保留未完成。 |
+
+当分母声称为独立动物或细胞时，可在 `comparison_design` 用 `rule: one_row_per_unit`、`expected: true` 和现有 `source.column` 指定单位 ID。`where` 选择实际纳入分母的记录。程序返回纳入行数、不同 ID 数和超过每单位一行的重复行数。同一细胞可有多次刺激，原刺激记录仍可用于刺激层面的分析。细胞比例要对照真正进入计算的逐细胞汇总行；这些细胞是否来自独立动物，另按实验设计核对。
 
 这两类检查的取数方法和判读见[科学约束](scientific-constraints.md)。明确本轮可用的模拟预算时，把 `limit,unit` 写入事前 `review.simulation_budget`；用尽的调用需与实际运行记录相符。完整建模交付还核对 `delivery.reproduction.commands` 中发表的命令、默认或显式配置和采用版本，沿用[结果交付](result-delivery.md)中的说明。实现检查与复现材料的缺口须进入当前判断。
 
