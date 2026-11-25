@@ -22,6 +22,7 @@ from xml.etree import ElementTree
 
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
+from recovery_fraction import recovery_columns
 
 CONTRACT = "zm-neuron-review/2"
 DEPICTIONS = {"schematic", "actual_model", "data_result"}
@@ -277,6 +278,8 @@ def _model_figure_data(root, actual, figures, analysis, run_records, history):
 def _observed_columns(source):
     if source.get("operation") == "count":
         return frozenset()
+    if source.get("operation") == "recovery_fraction":
+        return frozenset(recovery_columns(source))
     keys = ("column", "other_column") if source.get("operation") == "pearson" else ("column",)
     return frozenset(source[k] for k in keys)
 
@@ -420,6 +423,8 @@ def _completed_conditions(root, review, analysis, run_records, history):
             if metric and name:
                 selection = (source["csv_ref"], source.get("column"), source.get("other_column"),
                              tuple(sorted((k, str(v)) for k, v in source.get("where", {}).items())))
+                if source.get("operation") == "recovery_fraction":
+                    selection = (source["csv_ref"], _observed_columns(source), selection[-1])
                 by_metric.setdefault(metric, {}).setdefault(name, set()).add(selection)
         explicit = {name for labels in by_metric.values() if len(labels) > 1 for name in labels}
         for metric, labels in by_metric.items():

@@ -17,6 +17,7 @@ from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
 from current_project import resolve_current_plan, check_current_artifacts
 from delivery_response import check_presentation, check_reproduction, verify_response_file, _visible as visible_text
+from recovery_fraction import FRACTION_UNITS, recovery_from_rows
 from scientific_review import check_scientific_review, unavailable_findings
 from study_design import check_study_design
 from show_progress import render_progress
@@ -975,13 +976,18 @@ def _axis(root, axis, value, comparisons, plan, analysis):
 def _csv_statistic(root, claim, allowed):
     path = local(root, claim.get("csv_ref"))
     require(allowed is None or path in allowed, "Quantitative claim CSV is not bound to a completed run or declared reference data")
-    with path.open(encoding="utf-8-sig", newline="") as handle:
-        rows = list(csv.DictReader(handle))
     where = claim.get("where", {})
     require(isinstance(where, dict), "Invalid claim row selector")
+    operation = claim.get("operation", "mean")
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        if operation == "recovery_fraction":
+            try:
+                return recovery_from_rows(csv.DictReader(handle, strict=True), claim, where)
+            except csv.Error as error:
+                raise ValueError(f"恢复比例原表的 CSV 格式无效：{error}") from error
+        rows = list(csv.DictReader(handle))
     selected = [r for r in rows if all(r.get(k) == str(v) for k, v in where.items())]
     require(selected, "Claim selector matches no data")
-    operation = claim.get("operation", "mean")
     if operation == "count":
         actual = len(selected)
     else:
@@ -1018,6 +1024,9 @@ def _claim(root, claim, allowed=None, raw_paths=None):
     elif raw_paths is not None:
         require(local(root, claim.get("csv_ref")) in raw_paths,
                 "A derived result table needs a raw calculation for its reported quantitative claim")
+    terms = [raw["left"], raw["right"]] if raw and raw.get("operation") == "difference" else [raw or {}]
+    if any(term.get("operation") == "recovery_fraction" for term in [claim, *terms]):
+        require(not claim.get("unit") or claim["unit"] in FRACTION_UNITS, "恢复比例的结果单位应为无量纲")
     require(calibration.finite(claim.get("value")) and math.isclose(actual, claim["value"], rel_tol=0, abs_tol=1e-9), "Quantitative claim disagrees with actual CSV data")
     rendered = format(actual, claim.get("format", ".6g"))
     if claim.get("unit"):

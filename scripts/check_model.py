@@ -18,7 +18,8 @@ from check_records import checked_files, fingerprint, local, verify_check
 UNITS = {
     "1": ("dimensionless", 1.0), "count": ("count", 1.0),
     "s": ("time", 1.0), "ms": ("time", 1e-3), "us": ("time", 1e-6),
-    "m": ("length", 1.0), "mm": ("length", 1e-3), "um": ("length", 1e-6),
+    "m": ("length", 1.0), "cm": ("length", 1e-2), "mm": ("length", 1e-3), "um": ("length", 1e-6),
+    "rad": ("angle", 1.0), "deg": ("angle", math.pi / 180),
     "V": ("voltage", 1.0), "mV": ("voltage", 1e-3), "uV": ("voltage", 1e-6),
     "A": ("current", 1.0), "nA": ("current", 1e-9), "pA": ("current", 1e-12),
     "S": ("conductance", 1.0), "uS": ("conductance", 1e-6), "nS": ("conductance", 1e-9),
@@ -26,6 +27,7 @@ UNITS = {
     "uF": ("capacitance", 1e-6), "nF": ("capacitance", 1e-9), "pF": ("capacitance", 1e-12),
     "Hz": ("frequency", 1.0), "kHz": ("frequency", 1e3),
 }
+PER_TIME_DIMENSIONS = {"dimensionless": "frequency", "length": "speed", "angle": "angular_velocity"}
 METHODS = {"direct", "unit_conversion", "derived", "fitted", "assumption", "numerical_setting"}
 REQUIRED = {
     "parameter_id", "config_path", "source_ref", "source_value", "source_unit",
@@ -49,6 +51,20 @@ def unit_name(value):
     return value.strip().replace("µ", "u").replace("μ", "u")
 
 
+def unit_scale(unit):
+    unit = unit.replace("°", "deg").replace("⁻¹", "^-1")
+    if unit in UNITS:
+        return UNITS[unit]
+    if unit.endswith("^-1"):
+        unit = "1/" + unit[:-3]
+    numerator, _, denominator = unit.partition("/")
+    top = UNITS.get(numerator)
+    bottom = UNITS.get(denominator)
+    if top and bottom and bottom[0] == "time" and top[0] in PER_TIME_DIMENSIONS:
+        return PER_TIME_DIMENSIONS[top[0]], top[1] / bottom[1]
+    return None
+
+
 def number(value):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(f"Expected finite number, got {value!r}")
@@ -65,11 +81,11 @@ def values(value):
 
 def convert(value, source_unit, target_unit):
     source_unit, target_unit = unit_name(source_unit), unit_name(target_unit)
-    if source_unit not in UNITS or target_unit not in UNITS:
+    source, target = unit_scale(source_unit), unit_scale(target_unit)
+    if source is None or target is None:
         raise ValueError(f"Unsupported conversion: {source_unit} -> {target_unit}")
-    source, target = UNITS[source_unit], UNITS[target_unit]
     if source[0] != target[0]:
-        raise ValueError(f"Incompatible dimensions: {source_unit} -> {target_unit}")
+        raise ValueError(f"Incompatible dimensions or quantity kinds: {source_unit} -> {target_unit}")
     if isinstance(value, list):
         return [convert(item, source_unit, target_unit) for item in value]
     return number(value) * source[1] / target[1]

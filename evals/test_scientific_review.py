@@ -769,6 +769,168 @@ class ScientificReviewTests(unittest.TestCase):
         self.assertEqual(checked["findings"][0]["actual"], 0)
         self.assertEqual(checked["unresolved_question_ids"], ["Q1"])
 
+    def test_disjoint_raw_drives_allow_within_arm_repeats_and_expose_overlap(self):
+        for scenario in ("independent", "shared"):
+            self.declare(design(scenario, "disjoint_sources", "drive", True, where=dict(case=scenario),
+                                control=raw_source("origin", run="repeat", case=scenario)))
+        source_ids = ["a", "b", "c", "d", "e", "a"]
+        self.record_table(["case", "drive"], [(case, v) for case in ("independent", "shared") for v in source_ids])
+        self.record_table(["case", "origin"], [("independent", v) for v in ("x", "y", "x")]
+                          + [("shared", v) for v in reversed(source_ids)], "repeat")
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "failed", checked)
+        independent, shared = checked["findings"]
+        self.assertEqual(independent["outcome"], "supported")
+        self.assertEqual((independent["rows"], independent["actual"]["source"]["distinct_ids"]), (6, 5))
+        self.assertEqual(independent["actual"]["control"]["distinct_ids"], 2)
+        self.assertEqual(shared["outcome"], "not_supported")
+        self.assertEqual(shared["actual"]["overlap_count"], 5)
+        self.assertEqual(shared["actual"]["overlap_examples"], ["a", "b", "c"])
+        self.analysis["completion_review"]["scientific_checks"][1]["disposition"] = "conditional"
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "passed", checked)
+        self.assertIn("conditional_on_design", checked["findings"][1]["alerts"])
+        self.assertEqual(set(checked["data_refs"]), {"results/formal/raw.csv", "results/repeat/raw.csv"})
+
+    def test_paired_composite_keys_detect_member_swaps_duplicates_and_wrong_initial_history(self):
+        rows = [("t1", "0", "reset"), ("t1", "1", "left"), ("t2", "0", "reset"), ("t2", "1", "right")]
+        controls = dict(
+            permuted=list(reversed(rows)),
+            swapped=[rows[0], ("t1", "1", "right"), rows[2], ("t2", "1", "left")],
+            other_members=[("t3" if trial == "t2" else trial, tick, v) for trial, tick, v in rows],
+            duplicate=[*rows, rows[0]],
+            history=[*rows[:2], ("t2", "0", "left"), rows[3]])
+        for case in controls:
+            self.declare(design(case, "paired_values", "feature", True, pair_by=["trial", "tick"],
+                                where=dict(case=case), control=raw_source("replayed", run="replay", case=case)),
+                         "accepted" if case == "permuted" else "not_supported")
+        self.record_table(["case", "trial", "tick", "feature"], [(case, *r) for case in controls for r in rows])
+        self.record_table(["case", "trial", "tick", "replayed"], [(case, *r) for case, group in controls.items()
+                                                                  for r in group], "replay")
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "passed", checked)
+        cases = {v["id"]: v for v in checked["findings"]}
+        self.assertTrue(cases["permuted"]["matches"])
+        self.assertEqual(cases["permuted"]["actual"]["compared_keys"], 4)
+        self.assertEqual(cases["swapped"]["actual"]["different_values"], 2)
+        self.assertEqual(cases["other_members"]["actual"]["source_only_keys"], 2)
+        self.assertEqual(cases["other_members"]["actual"]["control_only_examples"], [["t3", "0"], ["t3", "1"]])
+        duplicate = cases["duplicate"]["actual"]
+        self.assertEqual((duplicate["control"]["duplicate_keys"], duplicate["compared_keys"]), (1, 3))
+        self.assertEqual(duplicate["control"]["duplicate_key_examples"], [["t1", "0"]])
+        self.assertEqual(cases["history"]["actual"]["different_value_examples"],
+                         [dict(key=["t2", "0"], source="reset", control="left")])
+        self.assertTrue(all(f["outcome"] == "not_supported" for k, f in cases.items() if k != "permuted"))
+
+    def test_paired_numeric_tolerance_is_inclusive_finite_and_recorded_with_units(self):
+        for case, tolerance, outcome in (("bound", .1, "accepted"), ("beyond", .1, "not_supported"),
+                                        ("zero", 0, "accepted"), ("invalid", .1, "unresolved")):
+            self.declare(design(case, "paired_values", "a", True, where=dict(case=case), pair_by=["time"],
+                                control=raw_source("b", case=case), abs_tolerance=tolerance, unit="mV",
+                                tolerance_basis="Independent readout precision in this synthetic test."), outcome)
+        self.record_table(["case", "time", "a", "b"], [("bound", 0, "1.1", "1"), ("bound", 1, "1", "1.1"),
+            ("beyond", 0, "0.10000000000000000000000000001", "0"), ("zero", 0, "1.00", "1"),
+            ("invalid", 0, ".5", ".5"), ("invalid", 1, "NaN", "3"), ("invalid", 2, "2", "inf")])
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "incomplete", checked)
+        bound, beyond, zero, invalid = checked["findings"]
+        self.assertEqual((bound["actual"]["abs_tolerance"], bound["actual"]["unit"]), (.1, "mV"))
+        self.assertTrue(bound["matches"] and zero["matches"])
+        self.assertEqual(beyond["actual"]["different_values"], 1)
+        self.assertEqual(invalid["outcome"], "not_evaluated")
+        actual = invalid["retained_observation"]["actual"]
+        self.assertEqual((actual["compared_keys"], actual["source"]["invalid_rows"], actual["control"]["invalid_rows"]), (1, 1, 1))
+
+    def test_missing_operand_retains_only_verified_observations_and_empty_groups_are_unresolved(self):
+        for rule in ("disjoint_sources", "paired_values"):
+            fields = dict(pair_by=["time"]) if rule == "paired_values" else {}
+            self.declare(design(rule + "_empty", rule, "input", True, where=dict(condition="missing"),
+                                control=raw_source("input", condition="present"), **fields), "unresolved")
+            self.declare(design(rule + "_unowned", rule, "input", True,
+                                control=dict(raw_source("input"), csv_ref="results/summary.csv"), **fields), "unresolved")
+            self.declare(design(rule + "_missing_file", rule, "input", True,
+                                control=dict(raw_source("input"), csv_ref="results/formal/missing.csv"), **fields), "unresolved")
+        self.record_table(["condition", "time", "input"], [("present", 0, "s1"), ("present", 1, "s2")])
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "failed", checked)
+        self.assertEqual(checked["data_refs"], ["results/formal/raw.csv"])
+        for finding in checked["findings"]:
+            self.assertEqual(finding["outcome"], "not_evaluated")
+            if finding["id"].endswith("_empty"):
+                self.assertEqual((finding["rows"], finding["control_rows"], finding["matches"]), (0, 2, False))
+                self.assertIn("comparison_design_incomplete", finding["alerts"])
+            else:
+                retained = finding["retained_observation"]["by_condition"]
+                self.assertEqual(set(retained), {"source"})
+                self.assertEqual(retained["source"]["rows"], 2)
+        self.analysis["completion_review"]["scientific_checks"][0]["disposition"] = "conditional"
+        self.assert_issue("missing comparison needs unresolved")
+
+    def test_cannot_self_compare_or_filter_on_the_value_being_compared(self):
+        for rule in ("disjoint_sources", "paired_values"):
+            fields = dict(pair_by=["time"]) if rule == "paired_values" else {}
+            self.declare(design(rule, rule, "input", True, control=raw_source("input"), **fields))
+        self.record_table(["time", "input"], [(0, "seed-1")])
+        checked = self.check()
+        self.assertEqual(sum("distinct observations" in issue for issue in checked["issues"]), 2)
+        self.assertFalse(any(f["outcome"] == "supported" for f in checked["findings"]))
+        self.plan["review"]["scientific_checks"][1]["control"]["where"] = {"input": "seed-1"}
+        self.assert_issue("without filtering")
+
+    def test_paired_replay_in_a_preregistered_time_stratum(self):
+        self.declare(design("onset", "paired_values", "online", True, where={"time": 0},
+                            control=raw_source("replay", time=0), pair_by=["trial", "time"]))
+        self.record_table(["trial", "time", "online", "replay"],
+                          [(1, 0, "reset", "reset"), (1, 1, "running", "other")])
+        comparison = self.check()["findings"][0]
+        self.assertTrue(comparison["matches"])
+        self.assertEqual(comparison["actual"]["compared_keys"], 1)
+
+    def test_new_rules_require_declared_controls_keys_and_numeric_tolerance_basis(self):
+        base = design("pairs", "paired_values", "readout", True, pair_by=["time"], control=raw_source("other"))
+        invalid = [(key, value) for key, value in (("expected", 1), ("control", None), ("pair_by", []),
+                   ("pair_by", ["time", "time"]), ("pair_by", ["readout"]), ("pair_by", ["other"]),
+                   ("abs_tolerance", -1), ("abs_tolerance", float("inf")), ("abs_tolerance", float("nan")),
+                   ("abs_tolerance", True), ("abs_tolerance", 0.1), ("tolerance", 0.1))]
+        candidates = [dict(base, **{k: v}) for k, v in invalid]
+        candidates.extend([dict(base, abs_tolerance=0, unit="mV"), dict(base, abs_tolerance=0, tolerance_basis="resolution"),
+                           design("drives", "disjoint_sources", "drive", True),
+                           design("drives", "disjoint_sources", "drive", [], control=raw_source("other"))])
+        for candidate in candidates:
+            with self.subTest(candidate=candidate):
+                self.plan["review"]["scientific_checks"] = [candidate]
+                self.assertEqual(check_scientific_review(self.root, self.plan, checkpoint="start")["status"], "failed")
+
+    def test_adopted_formal_model_recomputes_both_cross_source_rules(self):
+        from test_final_model import FinalModelTests, REPEAT
+
+        for rule in ("disjoint_sources", "paired_values"):
+            with self.subTest(rule=rule):
+                study = FinalModelTests()
+                study.setUp()
+                self.addCleanup(study.doCleanups)
+                spec = study.plan["review"]["scientific_checks"][1]
+                spec.update(rule=rule, expected=True, control=dict(run_ref=REPEAT, csv_ref="results/repeat/raw.csv", column="region"))
+                if rule == "paired_values":
+                    spec["pair_by"] = ["cell_id", "time"]
+                else:
+                    table = study.table
+
+                    def record_seed(ref, fields, rows):
+                        if ref.startswith("results/") and ref.endswith("/raw.csv"):
+                            config = study.root.joinpath(*ref.split("/")[:2], "resolved_config.json")
+                            seed = json.loads(config.read_text(encoding="utf-8"))["seed"]
+                            return table(ref, [*fields, "drive_seed"], [list(r) + [seed] for r in rows])
+                        return table(ref, fields, rows)
+
+                    study.table = record_seed
+                    spec["source"]["column"] = spec["control"]["column"] = "drive_seed"
+                study.prepare()
+                self.assertEqual(study.check("passed")["requirements"]["design"]["status"], "passed")
+                finding = next(row for row in study.science["findings"] if row["id"] == spec["id"])
+                finding["actual"]["source"]["rows"] = 999
+                self.assertIn("科学检查与正式运行输出的复算不符", str(study.check("failed")["issues"]))
+
 
 if __name__ == "__main__":
     unittest.main()

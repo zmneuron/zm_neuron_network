@@ -137,7 +137,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 - 完整模型采用 `delivery_profile: full_model`。原任务只要调研、教学或部分分析时用 `scoped`，在 `delivery_parts` 按原顺序选适用部分，并以 `delivery_scope_reason/ref` 说明原范围。不能事后借此删除原任务必需结果。`independent_evidence: synthetic` 只用于明确的软件试验，真实生物评价默认 `biological`。
 - `analysis.completion_review` 保存五项 `axes`、逐要求 `requirements`、实际 `comparisons`、`iterations`、累计 `budget`、继续/停止 `decision` 和 `delivery`。判断均写明 `assessor,reason,evidence_refs`；运行成功、校准满足、独立支持、科学问题已回答、交付完整分别为 `completed/satisfied/supported/answered/complete`，未做、不支持和不适用使用各自状态，不能自动转换。
 - 比较条目关联 `axis,data_role,dataset_ids,targets_ref,measurements_ref,score_ref,config_ref,run_ref,candidate_id`。观测值除单位、条件等原有字段外，`source` 指向实际输出 CSV 的 `csv_ref,column,operation,where`；工具从运行绑定的数据复算后再判定。历史比较显式标为 `historical:true`，不能用于宣称当前模型满足要求。
-- 正文中的关键数值应从已登记的原始记录计算。若正文引用派生结果表，在相应的 `delivery.claims[]` 写入 `raw_calculation`，重新计算并比对表值与正文。均值等使用原始列和条件；配对相关使用 `operation: pearson` 和同一行的 `column,other_column`；组间差用 `operation: difference` 和两个原始选择 `left,right`。更复杂的变换保留原分析代码、输入、逐层输出及复算过程，人工核对统计单位和变换含义。
+- 正文中的关键数值应从已登记的原始记录计算。若正文引用派生结果表，在相应的 `delivery.claims[]` 写入 `raw_calculation`，重新计算并比对表值与正文。均值使用原始列和条件，配对相关用 `pearson` 与同一行的 `column,other_column`，组间差用 `difference` 与两个原始选择 `left,right`。三条件的恢复比例用 `recovery_fraction` 从逐独立单位读数计算，预先指定估计量与小分母处理。更复杂的变换保留原分析代码、输入、逐层输出及复算过程，人工核对统计单位和变换含义。[恢复比例的字段与算例](comparative-experiments.md#从逐单位数据写出结论)
 - 迭代条目用 `initial/candidate/final` 关联实际运行、配置、比较和取舍理由。预算记录累计 `limit/consumed`。完整研究有未满足项且仍有可行工作时，登记 `continue` 并执行。参数偏差对应下一批有依据的配置，机制、观测方法或对照偏差对应受影响条件的修正和重跑。按本节区分继续优化、原定范围内已核实的失败和外部原因暂停。充分的阴性检验在科学回答中记录实际比较、`comparison_complete` 和 `adequacy_reason`。
 - `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序保存完整分节正文（含本节图与公式）、关联已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
 
@@ -177,7 +177,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 | `numerical_effect` | 同上；按每个主要条件差单列，精度依据来自问题；必要时加`direction_floor` | `before/after`为配对效应及可用区间，记录`pairing_ref/pairing_reason`说明实际网络和输入对应。超出精度、重要变号或区间明显变化分别处置；一组稳定不能替代另一组。小幅过零本身不证明有作用或无作用。 |
 | `method_assumption` | `id,question_id,kind,required,basis_ref,description` | `original_method,implemented_method,choice_reason,consequence`说明最近邻方法、关键输入/突触/观测假设及选择后果。按实际资料写已采用、条件性采用或尚未解决，不强制统一受体、三维表示或输入配平。 |
 | `mechanism_activity` | 问题列出 `required_mechanisms`。各机制登记 `mechanism_id`、运行来源、正式时窗、观测量、作用方向与判据。 | 从该次运行输出读取量值，逐窗区分短暂出现与持续作用。必要时在共同时间点核对只改变该机制的匹配对照。 |
-| `comparison_design` | 问题列出 `required_design_dimensions`。按适用维度登记 `dimension_id`、预定处理或统计单位、范围、水平或重复数。 | 从实际比较使用的逐行数据核对各组。偏离方案时说明偏差及其限制；原问题仍无法判断时保留未完成。 |
+| `comparison_design` | 问题列出 `required_design_dimensions`。按适用维度登记 `dimension_id`、预定单位、范围、水平、重复或配对字段。 | 从实际逐行记录检查单组设计，或跨来源检查留出 ID 的交集、相同配对键上的实得数值。偏差及支持范围见[比较规则](scientific-constraints.md#预注册比较与实际执行记录)。 |
 
 当分母声称为独立动物或细胞时，可在 `comparison_design` 用 `rule: one_row_per_unit`、`expected: true` 和现有 `source.column` 指定单位 ID。`where` 选择实际纳入分母的记录。程序返回纳入行数、不同 ID 数和超过每单位一行的重复行数。同一细胞可有多次刺激，原刺激记录仍可用于刺激层面的分析。细胞比例要对照真正进入计算的逐细胞汇总行；这些细胞是否来自独立动物，另按实验设计核对。
 

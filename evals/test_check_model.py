@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
 import random
 import subprocess
 import sys
@@ -105,6 +106,14 @@ class ModelChecks(unittest.TestCase):
         self.assertEqual(report["status"], "failed", report)
         self.assertIn(name, {item["check"] for item in report["issues"]}, report)
 
+    def add_mapped_quantity(self, name, source, source_unit, expected, model_unit, method="unit_conversion"):
+        self.config[name] = expected
+        row = dict(self.rows[2], parameter_id=name, config_path="/" + name, method=method,
+                   source_value=json.dumps(source), source_unit=source_unit,
+                   model_value=json.dumps(expected), model_unit=model_unit)
+        self.rows.append(row)
+        return row
+
     def test_valid_parameter_and_exported_network(self):
         report = self.check()
         self.assertEqual(report["status"], "passed", report)
@@ -119,6 +128,50 @@ class ModelChecks(unittest.TestCase):
     def test_psp_cannot_be_relabeled_as_conductance(self):
         self.rows[7].update(method="unit_conversion", source_value="1", source_unit="mV")
         self.assert_issue(self.check(), "parameter")
+
+    def test_kinematics_angles_and_rates_in_parameter_mapping(self):
+        for case in (
+            ("reach_speed", 40, "cm/s", 0.4, "m/s"),
+            ("axonal_velocity", [-400, 250], "μm/ms", [-0.4, 0.25], "mm/ms"),
+            ("heading", 180, "deg", math.pi, "rad"),
+            ("turning_speed", 90, "°/s", math.pi / 2, "rad/s"),
+            ("decay_rate", 0.002, "1/ms", 2, "Hz"),
+            ("sample_rate", 2, "kHz", 2, "ms⁻¹"),
+            ("event_rate", 2000, "s^-1", 0.002, "us^-1"),
+        ):
+            self.add_mapped_quantity(*case)
+        report = self.check(network=False)
+        self.assertEqual(report["status"], "passed", report)
+
+    def test_quantity_kind_and_scale_errors_are_identified(self):
+        cases = (
+            ("length_as_speed", 1, "cm", 1, "m/s", "Incompatible dimensions"),
+            ("cycles_as_angular_speed", 1, "Hz", 1, "rad/s", "Incompatible dimensions"),
+            ("angular_speed_as_rate", 1, "deg/ms", 1, "1/s", "Incompatible dimensions"),
+            ("angle_as_unitless", 1, "rad", 1, "1", "Incompatible dimensions"),
+            ("unknown_unit", 1, "unknown/s", 1, "m/s", "Unsupported conversion"),
+            ("wrong_scale", 40, "cm/s", 40, "m/s", "Mapped value disagrees"),
+        )
+        for name, value, source, expected, target, _ in cases:
+            self.add_mapped_quantity(name, value, source, expected, target)
+        report = self.check(network=False)
+        errors = [item["detail"] for item in report["issues"] if item["check"] == "parameter"]
+        self.assertEqual(len(errors), len(cases), report)
+        for name, *_, reason in cases:
+            with self.subTest(name=name):
+                self.assertTrue(any(detail.startswith(name + " ") and reason in detail for detail in errors), report)
+
+    def test_declared_units_outside_conversion_table_keep_method_semantics(self):
+        for method in ("direct", "assumption", "numerical_setting", "derived", "fitted"):
+            row = self.add_mapped_quantity(method, 2, "spikes/trial", 2, "spikes/trial", method)
+            if method in {"derived", "fitted"}:
+                row.update(source_value="", derivation_ref="model.py")
+        report = self.check(network=False)
+        self.assertEqual(report["status"], "passed", report)
+        self.assertEqual({item["parameter_id"] for item in report["manual_review"]}, {"derived", "fitted"})
+        self.add_mapped_quantity("direct_unit_change", 1, "Hz", 1, "1/s", method="direct")
+        report = self.check(network=False)
+        self.assertTrue(any("Direct adoption must retain units" in item["detail"] for item in report["issues"]), report)
 
     def test_unmapped_numeric_parameter_is_reported(self):
         self.config["unexpected_gain"] = 2

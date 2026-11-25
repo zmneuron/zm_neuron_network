@@ -18,6 +18,7 @@ import calibration
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
 from delivery_response import _same_config
+from recovery_fraction import FRACTION_UNITS, RECOVERY_FIELDS, UNIT_FIELDS, recovery_columns, validate_recovery
 from scientific_review import RUN_CHECKS, _design_plan, _mechanism_plan, _raw_rows, _review_run_check
 
 
@@ -140,7 +141,7 @@ def _selector(rule, *, raw=False):
             require(child.get("operation") != "difference" and "raw_calculation" not in child, "差值须直接读取两个原始统计量")
             _selector(child, raw=True)
         return
-    require(op in {"first", "mean", "sum", "median", "count", "zero_fraction", "pearson"}, "未知取数运算 " + op)
+    require(op in {"first", "mean", "sum", "median", "count", "zero_fraction", "pearson", "recovery_fraction"}, "未知取数运算 " + op)
     allowed = {"file", "column", "column_unit", "operation", "where", "where_units", "row_key"}
     file = _text(rule.get("file"), "取数 file")
     parts = PurePosixPath(file)
@@ -160,6 +161,11 @@ def _selector(rule, *, raw=False):
         column = _text(rule.get("other_column"), "相关系数 other_column")
         unit = _text(rule.get("other_column_unit"), "相关系数 other_column_unit")
         require(units.get(column, unit) == unit, "同一相关列的单位有冲突 " + column)
+    if op == "recovery_fraction":
+        allowed.update((*RECOVERY_FIELDS, *UNIT_FIELDS))
+        validate_recovery(rule)
+        require(all(units.get(name, rule["column_unit"]) == rule["column_unit"] for name in recovery_columns(rule)),
+                "恢复比例各列与筛选条件的观测单位有冲突")
     if not raw and "raw_calculation" in rule:
         allowed.add("raw_calculation")
         _selector(rule["raw_calculation"], raw=True)
@@ -180,7 +186,14 @@ def _statistical_rows(rule, result_unit):
     dimensionless = {"1", "dimensionless", "unitless", "fraction", "proportion"}
     counts = {"count", "counts", "spike", "spikes", "event", "events"}
     key = rule.get("row_key", [])
-    if op in {"zero_fraction", "pearson"}:
+    raw = rule.get("raw_calculation", {})
+    terms = [raw["left"], raw["right"]] if raw.get("operation") == "difference" else [raw]
+    if any(term.get("operation") == "recovery_fraction" for term in terms):
+        for term in terms:
+            _statistical_rows(term, result_unit)
+    if op == "recovery_fraction":
+        require(result_unit in FRACTION_UNITS, "恢复比例的结果单位应为无量纲")
+    elif op in {"zero_fraction", "pearson"}:
         require(result_unit in dimensionless, "比例或相关系数应使用无量纲结果单位")
     elif op == "count":
         require(result_unit in counts | {"1", "rows"}, "计数结果单位与行数不符")
@@ -1100,8 +1113,14 @@ class _Evidence:
         where = _where(rule["where"], "事前取数 where")
         require(_where(source.get("where", {}), "measured.source.where") == where,
                 "测量选取的行与事前 where 不符 " + relative)
-        require(source.keys() <= {"csv_ref", "column", "operation", "where", "other_column", "raw_calculation"},
-                "measured.source 含未执行的取数条件")
+        allowed = {"csv_ref", "column", "operation", "where", "other_column", "raw_calculation"}
+        if rule["operation"] == "recovery_fraction":
+            validate_recovery(source)
+            require(all(_same_config(rule[k], source[k]) for k in RECOVERY_FIELDS), "恢复比例的比较列、统计单位或算法与事前取数定义不符")
+            require(all(source[k] == rule["column_unit"] for k in UNIT_FIELDS if k in source),
+                    "实测恢复比例的观测单位与事前取数定义不符")
+            allowed.update((*RECOVERY_FIELDS, *UNIT_FIELDS))
+        require(source.keys() <= allowed, "measured.source 含未执行的取数条件")
         record = self.runs.record(owner)
         require(relative in record["output_sha256"] and relative not in record["input_sha256"], "取数表未由指定运行产生")
         datasets = [d for d in self.runs.data if d.get("path") == relative and d.get("origin", "model") == "model"
@@ -1110,6 +1129,8 @@ class _Evidence:
         units = {rule["column"]: rule["column_unit"]}
         if "other_column" in rule:
             units[rule["other_column"]] = rule["other_column_unit"]
+        if rule["operation"] == "recovery_fraction":
+            units.update(dict.fromkeys(recovery_columns(rule), rule["column_unit"]))
         units.update(rule.get("where_units", {}))
         columns = units.keys() | where.keys()
         for dataset in datasets:

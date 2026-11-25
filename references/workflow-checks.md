@@ -118,6 +118,8 @@
 
 ## 检查技能本身是否有效
 
+改动比较实验设计或结果判读时，按[科研质量评分与迁移评测](../evals/model-quality-rubric.md)事先确定受影响的主张、正确对照和可检出的错误。用实际新任务评价所生成模型的质量，并按原始独立单位、资源和判据比较新旧版本。
+
 自动打开与本机页面维护时，工作流测试同时执行 [test_preview.py](../evals/test_preview.py)：使用仅有计划的隔离目录，实际启动 HTTP 服务、更新同一地址、分离两个工程并验证关闭重开，确认不暴露其他工程文件。宿主当前对话打开动作另实际观察页面工程名；脚本测试通过不能代替这一观察。
 
 交付顺序和阶段展示维护时，现有 `test_workflow.py` 一并执行 [test_review_project.py](../evals/test_review_project.py)、[test_progress.py](../evals/test_progress.py) 与 [test_viewer.py](../evals/test_viewer.py)。检查中途问题挤掉正文、问题答复插入六项之间、图或公式位于错误部分、缺实际构建、非法状态变成对钩、失败后仍显示旧成功标记，以及网页读入不完整记录的行为；实际打开查看页检查交互和图件。自动检查针对已准备的发送稿，不能拦截宿主最终消息，也不代替科学内容复核。具体发现与已验证范围见[交付与展示检查](../evals/delivery-progress-review.md)。

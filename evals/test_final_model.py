@@ -167,6 +167,9 @@ class FinalModelTests(unittest.TestCase):
             measurement = {k: target[k] for k in ("metric", "statistic", "unit", "condition", "data_role")}
             rule = self.plan["requirements"][i]["acceptance"]["comparisons"][0]["selectors"][key]
             source = {k: rule[k] for k in ("column", "operation", "where", "other_column") if k in rule}
+            if rule["operation"] == "recovery_fraction":
+                from recovery_fraction import RECOVERY_FIELDS
+                source.update({k: rule[k] for k in RECOVERY_FIELDS})
             source["csv_ref"] = run_ref.replace("run.json", rule["file"])
             value = review_project._csv_statistic(self.root, source, {self.root / source["csv_ref"]})
             measurement.update(context=CONTEXT, value=value, status="observed", source=source)

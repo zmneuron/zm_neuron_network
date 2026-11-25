@@ -1,25 +1,25 @@
 {
-  "executed_utc": "2026-11-25T05:30:45.733662+00:00",
+  "executed_utc": "2026-11-25T16:49:39.442823+00:00",
   "command": [
     "python",
     "-B",
     "-X",
     "utf8",
-    ".agents\\skills\\zm_neuron_network\\evals\\test_check_model.py",
+    "evals/test_check_model.py",
     "--report",
-    "<local_path>/latest-check-results.json"
+    "<local_path>/parameters-new.json"
   ],
-  "working_directory": "<local_path>/Network_skill",
+  "working_directory": "<local_path>/zm_neuron_network",
   "python": "3.13.5",
-  "checker_sha256": "ae64ffd831003a5fbdb17b38ddc308f7e74a483a2da53eef471b5c1189d4b25e",
-  "test_runner_sha256": "3388d05efc58ab8256833636ea4fcf541792c092749ea1c125119384849a4cc7",
+  "checker_sha256": "8b3ace25fed0fc0679b9deafb51c1efccce3b2e87136a997be105531b3953952",
+  "test_runner_sha256": "5c3645350958a8d75b956da104c9443f9433801a89b3b088de5b7ca5046ed6de",
   "parameter_template_sha256": "2f8ea8165cc8bde0c1e82d789c38c129c773463e320b290a8c63ee136602076d",
   "dependencies_sha256": {
-    "scripts/check_records.py": "3dbde7bce0bbfa484e377cce025d18b46575957382c31b557b06d7de8db0e557"
+    "scripts/check_records.py": "80103657129cd6a45f39cd432f58b6eecee5560e1814cc9d09fde7d170b32049"
   },
   "scope": "Synthetic checks of parameter mapping, exported network and CLI; not biological or independent agent evaluation",
   "status": "passed",
-  "tests_run": 23,
+  "tests_run": 26,
   "cases": [
     {
       "case": "test_actual_weight_and_negative_delay",
@@ -31,6 +31,10 @@
     },
     {
       "case": "test_cli_read_only_and_nonzero_failure",
+      "status": "passed"
+    },
+    {
+      "case": "test_declared_units_outside_conversion_table_keep_method_semantics",
       "status": "passed"
     },
     {
@@ -59,6 +63,10 @@
     },
     {
       "case": "test_invalid_network_structure_returns_failure",
+      "status": "passed"
+    },
+    {
+      "case": "test_kinematics_angles_and_rates_in_parameter_mapping",
       "status": "passed"
     },
     {
@@ -91,6 +99,10 @@
     },
     {
       "case": "test_psp_cannot_be_relabeled_as_conductance",
+      "status": "passed"
+    },
+    {
+      "case": "test_quantity_kind_and_scale_errors_are_identified",
       "status": "passed"
     },
     {

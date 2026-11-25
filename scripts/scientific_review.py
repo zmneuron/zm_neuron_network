@@ -7,8 +7,9 @@ the returned data references and required explanations in the actual delivery.
 from __future__ import annotations
 
 import csv
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, MAX_EMAX, MIN_EMIN, Overflow, ROUND_UP, localcontext
 from functools import partial
+from heapq import nsmallest
 import math
 from pathlib import Path
 import statistics
@@ -16,6 +17,7 @@ import statistics
 from check_records import fingerprint, finite, local, require, verify_run
 
 RUN_CHECKS = {"mechanism_activity", "comparison_design"}
+CROSS_SOURCE_RULES = {"disjoint_sources", "paired_values"}
 KINDS = {"reference_change", "numerical_effect", "method_assumption"} | RUN_CHECKS
 QUESTION_REQUIREMENTS = {"required_mechanisms": ("mechanism_activity", "mechanism_id"),
                          "required_design_dimensions": ("comparison_design", "dimension_id")}
@@ -127,7 +129,7 @@ def _effect(root, row, definition, read_operand, prefix=""):
                 interval_crossing_zero=interval_crossing, alerts=reasons)
 
 
-def _source_plan(source, other_columns=()):
+def _source_plan(source, other_columns=(), *, pairing_keys=False):
     require(isinstance(source, dict), "Declare the raw observation source")
     require(set(source) <= {"run_ref", "csv_ref", "column", "where"}, "Unknown raw observation selector field")
     for field in ("run_ref", "csv_ref", "column"):
@@ -135,7 +137,8 @@ def _source_plan(source, other_columns=()):
     columns = {source["column"], *other_columns}
     require(len(columns) == 1 + len(other_columns), "Observation columns must have distinct roles")
     where = source.get("where", {})
-    require(isinstance(where, dict) and not columns.intersection(where),
+    protected = {source["column"]} if pairing_keys else columns
+    require(isinstance(where, dict) and not protected.intersection(where),
             "Select the condition or instance without filtering on the observations being checked")
     for key, value in where.items():
         _text(key, "raw observation selector column")
@@ -182,6 +185,9 @@ def _design_plan(check):
         require(type(expected) is int and expected > 0, "Declare a positive number of distinct observed IDs")
     elif rule == "one_row_per_unit":
         require(expected is True, "one_row_per_unit requires expected=true for the included denominator")
+    elif rule in CROSS_SOURCE_RULES:
+        require(expected is True, f"{rule} requires expected=true")
+        require(isinstance(check.get("control"), dict), f"{rule} requires a second raw observation source in control")
     else:
         raise ValueError("Unknown comparison design rule")
     extra = ()
@@ -190,9 +196,26 @@ def _design_plan(check):
         extra = (_text(check.get("split_column"), "observed partition column"),)
     elif rule == "ordered_steps":
         extra = (_text(check.get("order_column"), "executed step order column"),)
-    _source_plan(check.get("source"), extra)
+    elif rule == "paired_values":
+        extra = check.get("pair_by")
+        require(isinstance(extra, list) and extra and all(isinstance(k, str) and k.strip() for k in extra)
+                and len(set(extra)) == len(extra), "paired_values requires distinct, nonempty pair_by columns")
+        require("tolerance" not in check, "Use abs_tolerance for paired numeric values")
+        if "abs_tolerance" in check:
+            tolerance = check["abs_tolerance"]
+            require((type(tolerance) is int or finite(tolerance)) and tolerance >= 0,
+                    "paired_values requires a finite, nonnegative abs_tolerance")
+            _text(check.get("unit"), "unit of paired numeric values")
+            _text(check.get("tolerance_basis"), "basis for the paired absolute tolerance")
+        else:
+            require("tolerance_basis" not in check,
+                    "Use abs_tolerance, unit and tolerance_basis for paired numeric values")
+    if rule == "disjoint_sources":
+        require(not any(key in check for key in ("pair_by", "abs_tolerance", "tolerance_basis", "tolerance")),
+                "disjoint_sources compares unpaired source IDs exactly")
+    _source_plan(check.get("source"), extra, pairing_keys=rule == "paired_values")
     if "control" in check:
-        _source_plan(check["control"], extra)
+        _source_plan(check["control"], extra, pairing_keys=rule == "paired_values")
 
 
 def _observation_run(root, plan, check, ref, runs, listed_runs):
@@ -260,7 +283,7 @@ def _verify_partial_sources(root, plan, check, refs, capture, runs, listed_runs)
 
 
 def _distinct_control(root, source, control):
-    if local(root, source["csv_ref"]) == local(root, control["csv_ref"]) and source["column"] == control["column"]:
+    if source["column"] == control["column"] and local(root, source["csv_ref"]).samefile(local(root, control["csv_ref"])):
         left, right = source.get("where", {}), control.get("where", {})
         require(any(str(left[k]) != str(right[k]) for k in left.keys() & right.keys()),
                 "Target and control must identify distinct observations")
@@ -374,8 +397,103 @@ def _comparison_design(check, role, read_rows):
     return dict(rule=rule, expected=expected, actual=actual, rows=count, matches=matches)
 
 
+def _source_id_observations(rows, summary):
+    ids = set()
+    for (raw_id,) in rows:
+        summary["rows"] += 1
+        identity = raw_id.strip()
+        if identity:
+            ids.add(identity)
+        else:
+            summary["invalid_rows"] += 1
+    summary.update(distinct_ids=len(ids), id_examples=nsmallest(3, ids))
+    return ids
+
+
+def _paired_observations(rows, summary, numeric):
+    values, duplicates = {}, set()
+    duplicate_rows = 0
+    for raw, *columns in rows:
+        summary["rows"] += 1
+        key = tuple(cell.strip() for cell in columns)
+        value = raw.strip() or None
+        if numeric and value is not None:
+            try:
+                value = Decimal(value)
+                if not value.is_finite():
+                    value = None
+            except InvalidOperation:
+                value = None
+        if not all(key):
+            summary["invalid_rows"] += 1
+            continue
+        if value is None:
+            summary["invalid_rows"] += 1
+        if key in values:
+            duplicates.add(key)
+            duplicate_rows += 1
+            values[key] = None
+        else:
+            values[key] = value
+    summary.update(distinct_keys=len(values), duplicate_keys=len(duplicates), duplicate_rows=duplicate_rows,
+                   duplicate_key_examples=[list(k) for k in nsmallest(3, duplicates)])
+    valid_keys = (k for k, value in values.items() if value is not None)
+    summary["value_examples"] = [dict(key=list(k), value=str(values[k])) for k in nsmallest(3, valid_keys)]
+    return values
+
+
+def _cross_source_design(root, check, read_rows, finding):
+    rule = check["rule"]
+    pair_by = check.get("pair_by", [])
+    numeric = "abs_tolerance" in check
+    summaries = finding.setdefault("observed_readings", {})
+
+    def observe(role):
+        summary = dict(rows=0, invalid_rows=0)
+        rows = read_rows(role, pair_by)
+        observed = (_source_id_observations(rows, summary) if rule == "disjoint_sources"
+                    else _paired_observations(rows, summary, numeric))
+        summaries[role] = summary
+        return observed
+
+    sides = _read_comparison(("source", "control"), observe)
+    _distinct_control(root, check["source"], check["control"])
+    left, right = sides["source"], sides["control"]
+    complete = all(side["rows"] > 0 and side["invalid_rows"] == 0 for side in summaries.values())
+    actual = dict(source=summaries["source"], control=summaries["control"])
+    if rule == "disjoint_sources":
+        overlap = left & right
+        actual.update(overlap_count=len(overlap), overlap_examples=nsmallest(3, overlap))
+        same_design = not overlap
+    else:
+        left_only, right_only = left.keys() - right.keys(), right.keys() - left.keys()
+        comparable = {k for k in left.keys() & right.keys() if left[k] is not None and right[k] is not None}
+        if numeric:
+            tolerance = Decimal(str(check["abs_tolerance"]))
+            # Outward rounding keeps a difference just above the declared decimal bound outside it.
+            with localcontext() as context:
+                context.prec = max(context.prec, len(tolerance.as_tuple().digits))
+                context.rounding = ROUND_UP
+                context.Emax, context.Emin = MAX_EMAX, MIN_EMIN
+                context.traps[Overflow] = False
+                differing = {k for k in comparable if left[k] != right[k]
+                             and (not tolerance or abs(left[k] - right[k]) > tolerance)}
+            actual.update(abs_tolerance=check["abs_tolerance"], unit=check["unit"], tolerance_basis=check["tolerance_basis"])
+        else:
+            differing = {k for k in comparable if left[k] != right[k]}
+        actual.update(pair_by=pair_by, compared_keys=len(comparable), different_values=len(differing),
+                      different_value_examples=[dict(key=list(k), source=str(left[k]), control=str(right[k]))
+                                                for k in nsmallest(3, differing)],
+                      source_only_keys=len(left_only), source_only_examples=[list(k) for k in nsmallest(3, left_only)],
+                      control_only_keys=len(right_only), control_only_examples=[list(k) for k in nsmallest(3, right_only)])
+        same_design = not (left_only or right_only or differing or any(side["duplicate_keys"] for side in summaries.values()))
+    return dict(rule=rule, expected=True, actual=actual, rows=summaries["source"]["rows"],
+                control_rows=summaries["control"]["rows"], complete_observations=complete, matches=complete and same_design)
+
+
 def _review_run_check(root, check, disposition, finding, read_rows):
-    if "control" in check:
+    cross_source = check["kind"] == "comparison_design" and check.get("rule") in CROSS_SOURCE_RULES
+    if "control" in check and not cross_source:
         _distinct_control(root, check["source"], check["control"])
     if check["kind"] == "mechanism_activity":
         windows = _mechanism_activity(check, read_rows, finding)
@@ -399,17 +517,20 @@ def _review_run_check(root, check, disposition, finding, read_rows):
             finding.setdefault("observed_readings", {})[role] = dict(value)
             return value
 
-        sides = _read_comparison(("source", "control") if "control" in check else ("source",), measure)
-        measured = sides["source"]
-        missing = not measured["rows"]
-        if "control" in sides:
-            control = sides["control"]
-            measured.update(control_actual=control["actual"], control_rows=control["rows"],
-                            matches=measured["matches"] and control["matches"])
-            missing = missing or not control["rows"]
+        if cross_source:
+            measured = _cross_source_design(root, check, read_rows, finding)
+        else:
+            sides = _read_comparison(("source", "control") if "control" in check else ("source",), measure)
+            measured = sides["source"]
+            if "control" in sides:
+                control = sides["control"]
+                measured.update(control_actual=control["actual"], control_rows=control["rows"],
+                                matches=measured["matches"] and control["matches"])
+        missing = not (measured["rows"] and measured.get("control_rows", 1) and measured.get("complete_observations", True))
         finding.update(measured, dimension_id=check["dimension_id"])
         if not finding["matches"]:
-            finding["alerts"].append("comparison_design_deviation")
+            finding["alerts"].append("comparison_design_incomplete" if measured.get("complete_observations") is False
+                                     else "comparison_design_deviation")
         require(disposition in {"accepted", "not_supported", "conditional", "unresolved"}, "Unknown comparison design disposition")
         require(disposition != "accepted" or finding["matches"],
                 f"Executed {check['rule']} differs from the registered design for {check['dimension_id']}")
@@ -441,9 +562,11 @@ def _interpret(check, finding, row=None, reason=None):
             outcome = "supported"
         elif all(w["covered"] for w in windows):
             outcome = "inconclusive" if row.get("disposition") == "inconclusive" else "not_supported"
-    elif "matches" in finding and finding["rows"] and finding.get("control_rows", 1):
-        retained = {k: finding[k] for k in ("rule", "expected", "actual", "rows", "control_actual", "control_rows") if k in finding}
-        outcome = "supported" if finding["matches"] else "not_supported"
+    elif "matches" in finding and ("complete_observations" in finding or finding["rows"] and finding.get("control_rows", 1)):
+        retained = {k: finding[k] for k in ("rule", "expected", "actual", "rows", "control_actual", "control_rows",
+                                            "complete_observations") if k in finding}
+        if finding.get("complete_observations", True):
+            outcome = "supported" if finding["matches"] else "not_supported"
     elif check.get("kind") == "numerical_effect" and "change" in finding:
         retained = {k: finding[k] for k in ("before", "after", "change", "tolerance", "confirmation") if k in finding}
         sensitive = {"magnitude_change", "direction_change", "interval_zero_relation_changed"} & set(finding["alerts"])
@@ -467,6 +590,9 @@ def _interpret(check, finding, row=None, reason=None):
     next_comparison = row.get("minimum_comparison") or check.get("minimum_comparison")
     if not next_comparison and finding.get("rule") == "one_row_per_unit" and finding.get("matches") is False:
         next_comparison = "按每个独立单位汇总实际纳入的记录，使每个单位对应一行，再复算以独立单位为分母的结果。"
+    if not next_comparison and outcome == "not_evaluated" and check.get("rule") in CROSS_SOURCE_RULES:
+        next_comparison = ("补齐两侧运行输出中的来源标识，再比较实际来源集合。" if check["rule"] == "disjoint_sources"
+                           else "补齐两侧运行输出中的配对键及观测值，再逐键比较。")
     if outcome in {"inconclusive", "not_evaluated"} and not next_comparison:
         if finding.get("unverified_parameter_ids"):
             ids = "、".join(finding["unverified_parameter_ids"])

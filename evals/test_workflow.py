@@ -196,7 +196,8 @@ def main():
                                            CurrentModelChecks, ScientificReviewTests, DeliveryFileChecks, FreshArtifactReviewChecks,
                                            ModelFigureCoverageTests, ExecutionContractChecks))
     final_model_suites = ("test_final_model", "test_round_followup", "test_optimization_round_case",
-                         "test_study_design", "test_figure_reading", "test_empirical_calibration")
+                         "test_study_design", "test_figure_reading", "test_empirical_calibration",
+                         "test_experiment_inputs", "test_recovery_fraction")
     for name in final_model_suites:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
@@ -215,7 +216,8 @@ def main():
              Path(__file__).with_name("test_preview.py"),
              *[Path(__file__).with_name(name) for name in ("test_current_project.py", "test_scientific_review.py", "test_delivery_response.py", "test_execution_contract.py")],
              *[Path(__file__).with_name(name + ".py") for name in final_model_suites],
-             Path(__file__).with_name("optimization_round_case.py"),
+             Path(__file__).with_name("optimization_round_case.py"), Path(__file__).with_name("adaptation_transfer_case.py"),
+             SKILL / "assets/experiment_inputs.py",
              SKILL / "references/element-catalog.json"]
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "command": sys.orig_argv, "status": "passed" if result.wasSuccessful() else "failed",
               "tests_run": result.testsRun, "failures": len(result.failures), "errors": len(result.errors), "test_log": log.getvalue(), "retained_example": retained,
