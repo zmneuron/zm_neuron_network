@@ -63,7 +63,13 @@
       "stop_reason": "",
       "gap": "",
       "recovery_condition": "",
+      "attribution": [],
+      "correction_ref": null,
+      "affected_comparison_ids": [],
+      "affected_scientific_check_ids": [],
       "next_batch": [],
+      "attempts": [],
+      "alternatives": [],
       "scientific_check_ids": []
     },
     "delivery": {

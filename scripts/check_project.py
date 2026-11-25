@@ -163,7 +163,7 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
     structure = dict(report, checks=dict(report["checks"]), issues=list(report["issues"]))
     completion = review_project.check_review(root, str(plan_path), checkpoint, skill, historical=historical, _structure=structure)
     report["checks"]["completion_review"] = completion
-    report.update(goal_complete=False, ready_to_deliver=False)
+    report.update(goal_complete=False, ready_to_deliver=False, final_model_ready=False)
     if completion.get("status") == "failed":
         report["status"] = "failed"
         report["issues"].extend("Completion review: " + issue for issue in completion["issues"] if issue not in report["issues"])
@@ -194,6 +194,7 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
         complete = (report["status"] == "passed" and completion["status"] == "passed" and checked and
                     report["ready_to_deliver"] and completion.get("goal_complete") is True)
         report.update(goal_complete=complete, status="passed" if complete else "incomplete")
+        report["final_model_ready"] = bool(complete and completion.get("final_model_ready"))
     return report
 
 
@@ -216,7 +217,7 @@ def main(argv=None):
                 json.dump(report, handle, ensure_ascii=False, indent=2, allow_nan=False)
                 handle.write("\n")
         except (OSError, ValueError) as error:
-            report.update(status="failed", goal_complete=False, ready_to_deliver=False)
+            report.update(status="failed", goal_complete=False, ready_to_deliver=False, final_model_ready=False)
             report["issues"].append(str(error))
     print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     return {"passed": 0, "incomplete": 2}.get(report["status"], 1)

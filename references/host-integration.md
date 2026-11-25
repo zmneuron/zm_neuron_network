@@ -42,7 +42,8 @@
 python <skill_dir>/scripts/check_project.py --project <project> --phase plan|implemented|delivery
 python <skill_dir>/scripts/review_project.py --project <project> --capture --skill <采用的技能目录>
 python <skill_dir>/scripts/review_project.py --project <project> --checkpoint start|resume|transition|delivery
-python <skill_dir>/scripts/review_project.py --project <project> --checkpoint delivery --response-output <新文件>
+python <skill_dir>/scripts/review_project.py --project <project> --checkpoint delivery --response-output <项目内新文件>
+python <skill_dir>/scripts/review_project.py --project <project> --stage-report-output <项目内新文件.md>
 python <skill_dir>/scripts/show_progress.py --project <project>
 python <skill_dir>/scripts/build_viewer.py --project <project> --output <新HTML>
 python <skill_dir>/scripts/preview_viewer.py --project <project> --checkpoint start|resume|transition|delivery
@@ -53,7 +54,7 @@ python <skill_dir>/scripts/check_skill_sources.py
 
 ## 四、执行流程
 
-**六步主线：**确定问题 → 调研并讨论取舍 → 形成可执行方法 → 检查输入与小规模运行 → 正式运行、比较与逐模块优化 → 回答问题并交付。调研贯穿全程，新发现只返回受影响部分。
+**六步主线：**确定问题 → 调研并讨论取舍 → 形成可执行方法 → 检查输入与小规模运行 → 正式运行、比较与逐模块优化 → 回答问题并交付。调研贯穿全程。完整建模按用户原始要求在同一最终采用版本上复核。未达项按原因返回构建、计算或比较，重跑受影响条件并复查旧项。分批计算与任务暂停按[迭代规则](run-compare-optimize.md#根据偏差执行迭代优化)执行。
 
 **五轴独立完成判断：**运行完成、校准满足、独立评价支持、科学问题回答、交付完整分别判断；程序通过不等于研究完成。
 

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "catalog_version": "2026-11-21.1",
   "source_file": "construction-elements-checklist.md",
-  "source_sha256": "c9876d5bd28bf373c754922f88b7247604727b964b2e586557d4e522f7b76a69",
+  "source_sha256": "17911ad616525401531b7c29a719b928ad4c3d4a10688dde112b83551b239586",
   "id_policy": "IDs are permanent, independent of display order. Never renumber existing items after insertions.",
   "items": [
     {

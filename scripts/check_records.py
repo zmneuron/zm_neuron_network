@@ -57,6 +57,31 @@ def finite(value):
 
 
 RUN_SCHEMA = "zm-neuron-run/1"
+FOLLOWUP_REQUEST = "ZM_NEURON_FOLLOWUP_REQUEST"
+
+
+def check_run_parameters(config, parameters):
+    """Match selected config fields or JSON pointers, preserving boolean types."""
+    def matches(actual, expected):
+        if isinstance(expected, dict):
+            return isinstance(actual, dict) and all(k in actual and matches(actual[k], v) for k, v in expected.items())
+        if isinstance(expected, list):
+            return isinstance(actual, list) and len(actual) == len(expected) and all(map(matches, actual, expected))
+        return actual == expected and isinstance(actual, bool) == isinstance(expected, bool)
+
+    for key, expected in parameters.items():
+        actual = config
+        tokens = [key] if not key.startswith("/") else [
+            token.replace("~1", "/").replace("~0", "~") for token in key[1:].split("/")]
+        for token in tokens:
+            if isinstance(actual, list):
+                require(token.isascii() and token.isdigit() and str(int(token)) == token and int(token) < len(actual),
+                        "Missing planned array element: " + key)
+                actual = actual[int(token)]
+            else:
+                require(isinstance(actual, dict) and token in actual, "Missing planned parameter: " + key)
+                actual = actual[token]
+        require(matches(actual, expected), "Resolved configuration differs from planned parameter: " + key)
 
 
 def resolve_config(base, overrides):
@@ -106,7 +131,65 @@ def _atomic_json(path, value):
         temporary.unlink(missing_ok=True)
 
 
-def _pre_run_review(root, model_version):
+def _check_formal_requirements(root, plan, saved):
+    """Compare the fields frozen by capture_review without importing the skill."""
+    require(isinstance(saved.get("final_plan"), dict) and saved["final_plan"].get("status") == "passed",
+            "Formal simulation needs passed final_plan acceptance definitions before computation")
+    frozen = saved.get("scope", {}).get("requirements")
+    current = plan.get("requirements")
+    require(isinstance(frozen, dict) and frozen and isinstance(current, list),
+            "Missing frozen or current formal requirements")
+    fields = ("id", "description", "source_kind", "source_ref", "acceptance")
+
+    def required_rows(rows):
+        result = {}
+        seen = set()
+        for row in rows:
+            require(isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()
+                    and row["id"] not in seen and type(row.get("required", True)) is bool,
+                    "Invalid or duplicate formal requirement")
+            seen.add(row["id"])
+            if row.get("required", True):
+                require(row.get("acceptance"), "Missing acceptance for required item: " + row["id"])
+                keys = set(fields).union(frozen.get(row["id"], {})) - {"required"}
+                result[row["id"]] = {key: row[key] for key in keys if key in row}
+        return result
+
+    original = required_rows(frozen.values())
+    actual = required_rows(current)
+    require(original and json.dumps(actual, sort_keys=True) == json.dumps(original, sort_keys=True),
+            "Required items or acceptance differ from the captured plan; review the changes before a formal run")
+    if "scientific_checks" in saved["scope"]:
+        frozen_checks = {k: row for k, row in saved["scope"]["scientific_checks"].items() if row.get("required")}
+        checks = [row for row in plan["review"].get("scientific_checks", []) if row.get("required")]
+        current_checks = {row["id"]: row for row in checks}
+        require(len(current_checks) == len(checks) and
+                json.dumps(frozen_checks, sort_keys=True) == json.dumps(current_checks, sort_keys=True),
+                "Required scientific checks differ from the captured standards before formal simulation")
+    if "criteria" in saved:
+        def required_targets(rows):
+            require(isinstance(rows, list), "Expected a list of frozen comparison targets")
+            result = {}
+            for row in rows:
+                if row.get("required", True):
+                    require(isinstance(row.get("id"), str) and row["id"] not in result, "Missing or duplicate target ID")
+                    result[row["id"]] = row
+            return result
+
+        criteria = {}
+        for ref in plan["review"].get("criteria_refs", []):
+            value = json.loads(local(root, ref).read_text(encoding="utf-8-sig"))
+            rows = required_targets(value["targets"] if isinstance(value, dict) else value)
+            if rows:
+                criteria[ref] = rows
+        frozen_targets = {ref: rows for ref, targets in saved["criteria"].items() if (rows := required_targets(targets))}
+        require(json.dumps(criteria, sort_keys=True) == json.dumps(frozen_targets, sort_keys=True),
+                "Required comparison targets differ from the captured standards before formal simulation")
+    if saved.get("requirement_sources"):
+        checked_files(root, saved["requirement_sources"], "captured requirement sources")
+
+
+def _pre_run_review(root, model_version, stage):
     """Bind new-protocol runs to requirements saved before computation.
 
     Historical projects and standalone component tools remain readable. This
@@ -115,13 +198,23 @@ def _pre_run_review(root, model_version):
     plan_path = root / "docs/task_plan.json"
     if not plan_path.is_file():
         return None
+    plan_digest = fingerprint(plan_path)
     plan = read(plan_path)
     if plan.get("review_contract") != "zm-neuron-review/2":
         return None
+    review = plan.get("review", {})
+    if stage in {"research", "diagnostic"}:
+        # The stage remains in run.json even when the formal plan does not yet exist.
+        return None
     require(plan.get("model_version") == model_version,
             "Run version differs from the current task plan; resolve the adopted model first")
-    review = plan.get("review", {})
-    if review.get("delivery_profile") == "scoped" and not plan.get("current_model"):
+    full_model = (review.get("final_model_requested") is True or
+                  review.get("delivery_profile", "full_model") == "full_model" and plan.get("mode") in {"build", "modify"})
+    if not full_model and review.get("delivery_profile") == "scoped" and not plan.get("current_model"):
+        if stage == "simulation" and review.get("baseline_ref") and review.get("baseline_sha256"):
+            saved = read(local(root, review["baseline_ref"]))
+            require(not saved.get("scope", {}).get("full_model") and "final_plan" not in saved,
+                    "A captured full model cannot start a formal simulation under a scoped task without a model")
         return None
     require(isinstance(plan.get("current_model"), dict) and plan["current_model"].get("name"),
             "Identify the current neuron/model before starting computation")
@@ -136,10 +229,23 @@ def _pre_run_review(root, model_version):
     captured = datetime.fromisoformat(saved["captured_at_utc"])
     require(captured.tzinfo is not None and captured <= datetime.now(timezone.utc),
             "Requirements capture must precede computation")
-    return dict(plan_ref="docs/task_plan.json", plan_id=plan["plan_id"],
-                model_version=model_version, plan_sha256=fingerprint(plan_path),
-                requirements_ref=_relative(root, capture), requirements_sha256=fingerprint(capture),
-                scientific_checks=copy.deepcopy(review["scientific_checks"]))
+    if stage == "simulation" and (full_model or saved.get("scope", {}).get("full_model") or "final_plan" in saved):
+        _check_formal_requirements(root, plan, saved)
+    context = dict(plan_ref="docs/task_plan.json", plan_id=plan["plan_id"],
+                   model_version=model_version, plan_sha256=plan_digest,
+                   requirements_ref=_relative(root, capture), requirements_sha256=review["baseline_sha256"],
+                   scientific_checks=copy.deepcopy(review["scientific_checks"]))
+    previous = saved.get("previous_analysis")
+    if previous:
+        previous_path = local(root, previous["ref"])
+        require(fingerprint(previous_path) == previous["sha256"], "Previous analysis changed before computation")
+        decision = read(previous_path).get("completion_review", {}).get("decision", {})
+        if decision.get("action") == "continue" and decision.get("correction_ref"):
+            refs = [decision["correction_ref"]] + [row["rationale_ref"] for row in decision.get("next_batch", [])]
+            context["correction_sha256"] = {ref: fingerprint(local(root, ref)) for ref in refs}
+    require(fingerprint(plan_path) == plan_digest and fingerprint(capture) == review["baseline_sha256"],
+            "Plan or captured requirements changed before computation")
+    return context
 
 
 def begin_run(root, output, *, config, stage, model_version, code_refs,
@@ -175,7 +281,16 @@ def begin_run(root, output, *, config, stage, model_version, code_refs,
         parent_info.append(dict(record=_relative(root, local(root, reference)), run_id=record["run_id"],
                                 sha256=fingerprint(local(root, reference))))
     require(len({p["run_id"] for p in parent_info}) == len(parent_info), "Duplicate parent run identity")
-    review_context = _pre_run_review(root, model_version)
+    review_context = _pre_run_review(root, model_version, stage)
+    requested = os.environ.get(FOLLOWUP_REQUEST)
+    if requested:
+        slot = json.loads(requested)
+        require(Path(slot["project"]) == root and fingerprint(local(root, slot["baseline_ref"])) == slot["baseline_sha256"]
+                and (review_context is None or review_context["requirements_sha256"] == slot["baseline_sha256"])
+                and model_version == slot["model_version"] and stage in slot["stages"]
+                and (destination / "run.json") == (root / slot["run_ref"]).resolve(),
+                "Actual project, output, stage or preparation differs from the requested follow-up")
+        check_run_parameters(config, slot["parameters"])
     destination.mkdir(parents=True, exist_ok=False)
     config_path = destination / "resolved_config.json"
     _atomic_json(config_path, config)
@@ -209,6 +324,8 @@ def begin_run(root, output, *, config, stage, model_version, code_refs,
                   parents=parent_info, output_sha256={})
     if review_context is not None:
         record["review_context"] = review_context
+    if requested:
+        record["round_followup"] = {k: slot[k] for k in ("baseline_sha256", "previous_analysis_sha256", "batch_index")}
     path = destination / "run.json"
     _atomic_json(path, record)
     return _relative(root, path)

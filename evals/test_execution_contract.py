@@ -56,6 +56,219 @@ class ExecutionContractChecks(unittest.TestCase):
         result = self.check()
         self.assertTrue(result["ready_to_deliver"], result)
         self.assertFalse(result["ready_to_send"])
+        self.assertFalse(result["final_model_ready"])  # The fixture's stated objective is a software audit.
+
+    def test_full_model_pause_requires_an_actual_external_constraint_or_user_stop(self):
+        source, run = "docs/allowance.md", "results/run/run.json"
+        (self.root / source).write_text("One simulator call is authorized. Stop the study here.", encoding="utf-8")
+        decision = dict(stop_reason="budget_exhausted", source_ref=source, source_kind="resource_provider",
+                        source_excerpt="One simulator call is authorized.", gap="No authorized simulator calls remain.",
+                        recovery_condition="A further call is authorized.",
+                        next_action="Recompute the missing comparison on the revised model.",
+                        attempts=[dict(method="Integrated the initial network.", evidence_ref=run)],
+                        alternatives=[dict(method="Reuse the current raw trace.", feasible=False,
+                            blocked_by="The withheld protocol requires a new simulation.", evidence_ref=source)])
+        budget = dict(consumed=1, limit=1)
+        review_project._external_pause(self.root, decision, budget, {run})
+        for reason in ("predeclared_stop", "range_exhausted", "no_justified_batch", "implementation_blocked", "independent_non_support"):
+            with self.subTest(reason=reason), self.assertRaisesRegex(ValueError, "external obstacle"):
+                review_project._external_pause(self.root, dict(decision, stop_reason=reason), budget, {run})
+        with self.assertRaisesRegex(ValueError, "feasible action"):
+            review_project._external_pause(self.root, dict(decision, alternatives=[dict(decision["alternatives"][0], feasible=True)]), budget, {run})
+        with self.assertRaisesRegex(ValueError, "external allowance"):
+            review_project._external_pause(self.root, dict(decision, source_kind="assistant_choice"), budget, {run})
+        review_project._external_pause(self.root, dict(decision, stop_reason="user_decision", source_kind="user",
+                                      source_excerpt="Stop the study here."), budget, {run})
+        with self.assertRaisesRegex(ValueError, "absent from its source"):
+            review_project._external_pause(self.root, dict(decision, source_excerpt="The quota was cancelled."), budget, {run})
+
+    def test_pause_uses_the_current_user_message_in_context(self):
+        ref = "docs/user-message.txt"
+        source = self.root / ref
+        decision = dict(stop_reason="user_decision", source_kind="user", source_ref=ref, attempts=[],
+                        gap="Second round outstanding", recovery_condition="User resumes",
+                        next_action="Run the second round")
+        budget = dict(limit=2, consumed=1)
+        for message in ("请立即暂停本次建模任务。", "Stop the study here.", "Please pause this project for now.",
+                        "请不要再继续本项研究。", "Do not continue the study."):
+            with self.subTest(message=message):
+                source.write_text(message, encoding="utf-8")
+                review_project._external_pause(self.root, dict(decision, source_excerpt=message), budget, set())
+        for message, quote in (
+            ("请继续完成第二轮。", "请继续完成第二轮。"),
+            ("我并非要求暂停本次研究。", "暂停本次研究。"),
+            ("如果下一轮仍然没有改善，请暂停本次研究。", "请暂停本次研究。"),
+            ("请不要停止。", "停止。"),
+            ("Please continue the study.", "Please continue the study."),
+            ("Do not stop the study here.", "stop the study here."),
+            ("If the next round fails, stop the study here.", "stop the study here."),
+            ("Stop the study tomorrow.", "Stop the study tomorrow."),
+            ("Stop the study here? Please continue.", "Stop the study here"),
+            ("Earlier request:\nStop the study here.\nPlease continue now.", "Stop the study here."),
+        ):
+            with self.subTest(message=message):
+                source.write_text(message, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    review_project._external_pause(self.root, dict(decision, source_excerpt=quote), budget, set())
+
+        # Check the latest user turn, even when an earlier turn contains the exact quotation.
+        messages = [dict(role="user", content="Stop the study here."), dict(role="user", content="Continue.")]
+        source.write_text(json.dumps({"messages": messages}), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            review_project._external_pause(self.root, dict(decision, source_excerpt=messages[0]["content"]), budget, set())
+
+    def test_first_round_pause_distinguishes_outage_from_finished_batch(self):
+        import optimization_round_case as case
+
+        root, config = case.prepare(self.base / "pause-study")
+        case.run_initial(root, config)
+        plan = fixture.read(root, case.PLAN)
+        ref = plan["files"]["analysis"]
+        analysis = fixture.read(root, ref)
+        completion = analysis["completion_review"]
+        self.assertEqual((completion["budget"]["consumed"], completion["budget"]["limit"]), (1, 2))
+        self.assertEqual(completion["axes"]["calibration"]["status"], "not_satisfied")
+        source = "docs/queue-response.txt"
+        original = completion["decision"]
+        stop = dict(original, action="stop", assessor="study operator", evidence_refs=[source], source_ref=source,
+                    gap="The next simulation requires the queue.", recovery_condition="Queue accepts jobs again.",
+                    alternatives=[dict(method="Submit on the authorized queue", feasible=False,
+                                       blocked_by="Submission was refused", evidence_ref=source)])
+        # Each variant has the same unspent allowance, actual first run and planned correction.
+        for reason, kind, receipt, excerpt, state in (
+            ("resources_unavailable", "assistant_choice", "本批已执行完，还有一次配额。", None, "repair_required"),
+            ("resources_unavailable", "resource_provider", "本批已执行完，还有一次配额。", None, "repair_required"),
+            ("user_decision", "user", "请继续完成第二轮。", "请继续完成第二轮。", "repair_required"),
+            ("user_decision", "user", "请暂停本次研究。", "请暂停本次研究。", "paused"),
+            ("user_decision", "user", "Please stop the study now.", "Please stop the study now.", "paused"),
+            ("resources_unavailable", "resource_provider",
+             {"url": "https://compute.example/jobs", "status_code": 503}, None, "paused"),
+            ("resources_unavailable", "resource_provider",
+             {"resource": "gpu-queue", "request_id": "allocation-82", "available": False}, None, "paused"),
+            ("resources_unavailable", "resource_provider",
+             {"url": "https://compute.example/jobs", "status_code": 200, "remaining": 1}, None, "repair_required"),
+            ("resources_unavailable", "resource_provider",
+             {"resource": "gpu-queue", "request_id": "allocation-82", "scope": "batch",
+              "available": False, "remaining": 1}, None, "repair_required"),
+            ("resources_unavailable", "resource_provider",
+             {"url": "https://compute.example/quota", "available": False, "remaining": 1}, None, "repair_required"),
+            ("resources_unavailable", "access_log",
+             "POST https://compute.example/jobs\nHTTP/1.1 503 Service Unavailable\nRetry-After: 600", None, "paused"),
+            ("resources_unavailable", "resource_provider",
+             {"url": "https://compute.example/jobs", "status_code": 503, "available": True}, None, "repair_required"),
+        ):
+            with self.subTest(reason=reason, receipt=receipt):
+                (root / source).write_text(receipt if isinstance(receipt, str) else json.dumps(receipt), encoding="utf-8")
+                completion["decision"] = dict(stop, stop_reason=reason, source_kind=kind, source_excerpt=excerpt)
+                fixture.dump(root, ref, analysis)
+                report = review_project.check_review(root, checkpoint="transition")
+                self.assertEqual(report["work_state"], state, report["issues"])
+                self.assertFalse(report["goal_complete"])
+                self.assertFalse(report["final_model_ready"])
+                self.assertIn("calibration", report["unmet_axes"])
+                if state == "paused":
+                    self.assertEqual(report["status"], "incomplete", report["issues"])
+
+    def test_external_quota_and_denied_data_access_match_the_recorded_work(self):
+        source, run = "docs/provider.json", "results/run/run.json"
+        unit = "simulator calls"
+        budget = dict(limit=1, consumed=1, previous_consumed=0, round_consumed=1, unit=unit)
+        plan = dict(mode="build", review_contract=review_project.CONTRACT, review=dict(delivery_profile="full_model"))
+        capture = fixture.read(self.root, "docs/review_start.json")
+        decision = dict(action="stop", reason="The required comparison cannot be run", assessor="reviewer",
+                        source_ref=source, source_kind="resource_provider", stop_reason="budget_exhausted",
+                        gap="Outstanding prediction", recovery_condition="Access restored", next_action="Test the prediction",
+                        attempts=[dict(method="Run the model", evidence_ref=run)], evidence_refs=[source],
+                        alternatives=[dict(method="Repeat the observation", feasible=False,
+                                           blocked_by="Provider denied access", evidence_ref=source)])
+        datasets = {"held": dict(role="evaluation", available=False, comparable=False, source_ref="docs/model_spec.md",
+                                 source_id="https://data.example/held")}
+        completion = dict(budget=budget, axes={}, decision=decision)
+
+        def check(receipt):
+            fixture.dump(self.root, source, receipt)
+            review_project._decision(self.root, completion, ["independent_evaluation"], datasets, plan, capture,
+                                     {}, {}, [dict(record=run)], False, {})
+
+        allowance = dict(scope="total", limit=1, remaining=0, unit=unit)
+        check(allowance)
+        for change in (dict(remaining=1), dict(scope="batch"), dict(limit=2), dict(unit="hours")):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                check(dict(allowance, **change))
+        budget.update(previous_consumed=1, consumed=2, limit=2)
+        with self.assertRaisesRegex(ValueError, "Unverified earlier calls"):
+            check(dict(allowance, limit=2))
+        budget.update(limit=1, consumed=1, previous_consumed=0)
+        (self.root / source).write_text("本次研究共授权一次模拟。", encoding="utf-8")
+        review_project._external_pause(self.root, dict(decision, source_excerpt="本次研究共授权一次模拟。"), budget, {run})
+        budget.update(limit=2)
+        decision.update(stop_reason="missing_data", source_kind="data_provider", dataset_ids=["held"])
+        check(dict(url=datasets["held"]["source_id"], status_code=403))
+        with self.assertRaisesRegex(ValueError, "specific unavailable dataset"):
+            check(dict(url="https://data.example/other", status_code=403))
+        with self.assertRaises(ValueError):
+            check(dict(url=datasets["held"]["source_id"], status_code=200, available=True))
+
+    def test_new_capture_cannot_erase_an_earlier_calibration_standard(self):
+        previous = fixture.read(self.root, "docs/review_start.json")
+        plan = fixture.read(self.root, "docs/task_plan.json")
+        targets = fixture.read(self.root, "data/targets.json")
+        targets["targets"][0]["criterion"]["bounds"] = [0, 100]
+        fixture.dump(self.root, "data/targets.json", targets)
+        current = dict(previous, criteria={"data/targets.json": targets["targets"]},
+                       previous_requirements={"ref":"docs/review_start.json", "sha256":fingerprint(self.root/"docs/review_start.json")})
+        issues = review_project._original_standards(self.root, plan, current, review_project.scope_state(plan))
+        self.assertTrue(any("Original calibration" in item and "#mean" in item for item in issues), issues)
+        selector = {"file": "responses.csv", "column": "value", "where": {"time_ms": "10"}}
+        before = {"comparisons": [{"id": "fit", "selectors": {"mean": selector}}]}
+        narrowed = dict(selector, where={"time_ms": "10", "subject": "highest_responder"})
+        after = {"comparisons": [{"id": "fit", "selectors": {"mean": narrowed}}]}
+        self.assertFalse(review_project._retains_acceptance(before, after, set(), []))
+
+    def test_original_independent_cohorts_each_need_their_own_comparison_and_observations(self):
+        plan = fixture.read(self.root, "docs/task_plan.json")
+        before = fixture.read(self.root, "docs/review_start.json")
+        def cohort(label):
+            ref = "docs/" + label + ".csv"
+            (self.root / ref).write_text("subject,value\n" + label + ",10\n", encoding="utf-8")
+            return dict(id=label, source_id=label, role="evaluation", source_ref=ref,
+                        available=True, observation_ids=[label])
+        data = {key: cohort(key) for key in ("group1", "group2", "new1", "new2")}
+        before["datasets"] = [data["group1"], data["group2"]]
+        plan["review"]["datasets"] = [data["new1"], data["new2"]]
+        bindings = [dict(id="estimate_" + k, dataset_ids=[k], target_ids=["mean"]) for k in ("group1", "group2")]
+        def gaps(new_bindings, split=False):
+            state = review_project.scope_state(plan)
+            saved = dict(before["scope"])
+            req = next(iter(saved["requirements"].values()))
+            if split:
+                saved["requirements"] = {"a": dict(req, acceptance={"comparisons": bindings[:1]}),
+                                         "b": dict(req, acceptance={"comparisons": bindings[1:]})}
+                state["requirements"] = {k: dict(v, acceptance={"comparisons": new_bindings})
+                                         for k, v in saved["requirements"].items()}
+            else:
+                saved["requirements"] = {"a": dict(req, acceptance={"comparisons": bindings})}
+                state["requirements"] = {"a": dict(req, acceptance={"comparisons": new_bindings})}
+            return review_project._original_standards(self.root, plan, dict(before, scope=saved), state)
+
+        separate = [dict(b, dataset_ids=["new" + str(i)]) for i, b in enumerate(bindings, start=1)]
+        self.assertEqual(gaps(separate), [])
+        for split in (False, True):
+            self.assertTrue(any("distinct corresponding" in problem for problem in gaps(separate[:1], split)))
+        reused = [dict(b, dataset_ids=["new1"]) for b in bindings]
+        self.assertTrue(any("originally separate" in problem for problem in gaps(reused)))
+        single = dict(bindings[0], dataset_ids=["group1", "group2"])
+        bindings[:] = [single]
+        self.assertTrue(any("datasets were omitted" in problem for problem in gaps(separate[:1])))
+
+    def test_stage_markdown_keeps_unverified_items_visible(self):
+        plan = fixture.read(self.root, "docs/task_plan.json")
+        r = dict(full_model_task=True, historical=False, goal_complete=False, checks={}, issues=["Missing late-window trace"],
+                 unmet_requirements=["inhibitory_conductance"])
+        message = review_project.stage_report_text(self.root, plan, r)
+        self.assertIn("阶段报告", message)
+        self.assertIn("inhibitory_conductance", message)
+        self.assertIn("Missing late-window trace", message)
 
     def test_short_final_message_cannot_replace_reviewed_output(self):
         (self.root / "docs/response.md").write_text("Simulation finished. See the report.", encoding="utf-8")

@@ -76,6 +76,12 @@ def assessment(root, value, label):
         local(root, reference)
 
 
+def full_model_task(plan):
+    review = plan.get("review", {})
+    return (review.get("final_model_requested") is True or
+            review.get("delivery_profile", "full_model") == "full_model" and plan.get("mode") in {"build", "modify"})
+
+
 def scope_state(plan):
     review = plan.get("review")
     require(isinstance(review, dict), "Missing plan.review")
@@ -87,13 +93,14 @@ def scope_state(plan):
     requirements = unique(plan.get("requirements"), "id", "requirements")
     require(requirements, "No applicable requirements")
     for item in requirements.values():
+        require(type(item.get("required", True)) is bool, "Declare requirement applicability as a boolean")
         text(item.get("description"), "requirement.description")
         require(item.get("source_kind") in {"user", "document_suggestion", "assistant_choice"}, "Unknown requirement source kind")
         text(item.get("source_ref"), "requirement.source_ref")
     # Module/parameter/result links evolve during implementation; they are
     # checked by check_project and are not changes to the requested scope.
     requirement_scope = {identity: {key: item[key] for key in
-                         ("id", "description", "source_kind", "source_ref", "required") if key in item}
+                         ("id", "description", "source_kind", "source_ref", "required", "acceptance") if key in item}
                          for identity, item in requirements.items()}
     questions = unique(review.get("questions", []), "id", "questions")
     for item in questions.values():
@@ -129,10 +136,13 @@ def scope_state(plan):
     require(isinstance(axes, list) and axes and "delivery" in axes
             and len(set(axes)) == len(axes) and set(axes) <= set(AXES), "Declare nonempty required axes including delivery")
     profile = review.get("delivery_profile", "full_model")
-    structure = plan.get("mode") in {"build", "modify"} or bool({"coverage", "modules"} & plan.get("files", {}).keys())
+    structure = full_model_task(plan) or plan.get("mode") in {"build", "modify"} or bool({"coverage", "modules"} & plan.get("files", {}).keys())
     reproduction = review.get("require_reproduction", False)
     require(type(reproduction) is bool, "Declare reproduction applicability")
     require(profile in {"full_model", "scoped"}, "Unknown delivery profile")
+    if full_model_task(plan) and plan.get("review_contract") == CONTRACT:
+        require(profile == "full_model" and {"execution", "scientific_answer", "delivery"} <= set(axes),
+                "A final model requires its actual execution, scientific answers and full delivery")
     parts = review.get("delivery_parts", list(PARTS))
     require(isinstance(parts, list) and parts and len(parts) == len(set(parts))
             and set(parts) <= set(PARTS), "Invalid applicable delivery parts")
@@ -142,7 +152,9 @@ def scope_state(plan):
     else:
         text(review.get("delivery_scope_reason"), "scoped delivery reason")
         text(review.get("delivery_scope_ref"), "scoped delivery source")
-    return dict(objective=objective, requirements=requirement_scope, questions=questions,
+    require(type(review.get("final_model_requested", False)) is bool, "Declare whether this task adopts a final model")
+    return dict(objective=objective, requirements=requirement_scope, questions=questions, full_model=full_model_task(plan),
+                final_model=review.get("final_model", {}),
                 independent_goal=independent_goal, component_calibration=component_plan, simulation_budget=budget,
                 scientific_checks=unique(review.get("scientific_checks", []), "id", "scientific checks"),
                 previous_analysis_ref=review.get("previous_analysis_ref"),
@@ -195,6 +207,30 @@ def _reference_files(root, item):
     return {local(root, ref) for ref in [item.get("source_ref")] + extras}
 
 
+def _preceding_model_run(root, plan, objective):
+    """Find an already-run full study when a new capture omits its history."""
+    for path in root.rglob("run.json"):
+        try:
+            record = read(path)
+        except (OSError, ValueError):
+            continue
+        context = record.get("review_context")
+        if (record.get("stage") != "simulation" or record.get("status") != "completed"
+                or not isinstance(context, dict) or not context.get("requirements_ref")):
+            continue
+        try:
+            prior = local(root, context["requirements_ref"])
+            saved = read(prior)
+        except (OSError, ValueError):
+            if context.get("plan_id") == plan["plan_id"]:
+                raise
+            continue
+        if saved.get("final_plan") and (saved.get("plan_id") == plan["plan_id"] or saved.get("scope", {}).get("objective") == objective):
+            require(fingerprint(prior) == context.get("requirements_sha256"), "Earlier formal requirements changed")
+            return path.relative_to(root).as_posix()
+    return None
+
+
 def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     """Capture once and bind its digest in plan.review; never overwrite history."""
     root = Path(project).resolve()
@@ -225,6 +261,14 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
                     scope=state, criteria=criteria, skill_files=skills,
                     datasets=review.get("datasets", []), selection_uses=review.get("selection_uses", []))
     baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
+    if full_model_task(plan) and plan["review_contract"] == CONTRACT:
+        from final_model import check_final_plan
+        baseline["final_plan"] = check_final_plan(root, plan)
+        require(baseline["final_plan"]["status"] != "failed",
+                "Invalid requirement acceptance definitions: " + "; ".join(baseline["final_plan"]["issues"]))
+        sources = {item["source_ref"] for item in plan["requirements"]} | {state["objective"]["source_ref"]}
+        baseline["requirement_sources"] = {ref: fingerprint(local(root, ref)) for ref in sources}
+        baseline["additions"] = [row for row in review.get("scope_changes", []) if str(row.get("change", "")).startswith("add:")]
     space_ref = review.get("parameter_space_ref")
     if space_ref:
         space = json_value(root, space_ref)
@@ -241,6 +285,35 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
                 "Previous review must identify its recorded cost; do not reset missing historical work to zero")
         baseline["previous_analysis"] = dict(ref=review["previous_analysis_ref"], sha256=fingerprint(previous),
                                              consumed=previous_budget["consumed"], unit=previous_budget.get("unit"))
+    if "final_plan" in baseline:
+        if "previous_analysis" not in baseline:
+            preceding = _preceding_model_run(root, plan, state["objective"])
+            require(not preceding, f"Earlier formal simulation {preceding} belongs to this study. Restore its reviewed "
+                    "analysis as previous_analysis_ref; if it has not been analyzed, resume its existing plan first.")
+        if state["objective"]["source_kind"] != "user" and not any(
+                row["source_kind"] == "user" and row.get("required", True) for row in state["requirements"].values()):
+            baseline["final_plan"]["pending"].append("Identify the original user objective or a required item from the user")
+        parent_ref = review.get("previous_requirements_ref")
+        if "previous_analysis" in baseline:
+            old = read(local(root, baseline["previous_analysis"]["ref"]))
+            refs = {row["record"] for row in old.get("runs", [])}
+            refs.update(old.get("completion_review", {}).get("axes", {}).get("execution", {}).get("run_refs", []))
+            captures = set()
+            for ref in refs:
+                context = verify_run(root, ref, require_completed=False).get("review_context", {})
+                if context.get("plan_id") == old.get("plan_id") and context.get("requirements_ref"):
+                    captures.add(context["requirements_ref"])
+            if not parent_ref and len(captures) == 1:
+                parent_ref = captures.pop()
+            require(parent_ref and (not captures or parent_ref in captures),
+                    "Continuation needs the preserved preceding requirements for the reviewed runs")
+        if parent_ref:
+            parent = local(root, parent_ref)
+            require(parent != (root / review["baseline_ref"]).resolve(), "Keep earlier requirements in their original file")
+            baseline["previous_requirements"] = dict(ref=parent_ref, sha256=fingerprint(parent))
+            baseline["final_plan"]["pending"].extend(_original_standards(root, plan, baseline, state))
+        if baseline["final_plan"]["pending"]:
+            baseline["final_plan"]["status"] = "incomplete"
     baseline["dataset_files"] = {p.relative_to(root).as_posix(): fingerprint(p)
                                  for d in review.get("datasets", []) if d.get("available") is True
                                  for p in _reference_files(root, d)}
@@ -275,9 +348,11 @@ def _scope_changes(before, after):
         changes.append("component_calibration")
     if before.get("simulation_budget") != after.get("simulation_budget"):
         changes.append("simulation_budget")
+    if before.get("final_model", {}) != after["final_model"]:
+        changes.append("final_model")
     if "mode" in before and before["mode"] != after["mode"]:
         changes.append("mode")
-    for field in ("structure", "require_reproduction"):
+    for field in ("structure", "require_reproduction", "full_model"):
         if before.get(field) and not after.get(field):
             changes.append(field)
     for field in ("objective", "independent_evidence", "delivery_profile", "delivery_parts", "delivery_scope_reason", "delivery_scope_ref", "previous_analysis_ref"):
@@ -300,6 +375,185 @@ def _scope_changes(before, after):
     if before.get("display_progress") and not after.get("display_progress"):
         changes.append("display_progress")
     return changes
+
+
+def _retains_definition(old, new, key=""):
+    if key == "selectors" and isinstance(old, dict):
+        # A new target may be added. Adding a row filter to an existing target
+        # changes the observations that answer the original question.
+        return isinstance(new, dict) and all(new.get(target) == rule for target, rule in old.items())
+    if isinstance(old, dict):
+        return isinstance(new, dict) and all(k in new and _retains_definition(v, new[k], k) for k, v in old.items())
+    if isinstance(old, list) and (key.endswith(("_ids", "_refs")) or key in {"parts", "required_mechanisms", "required_design_dimensions"}):
+        return isinstance(new, list) and all(v in new for v in old)
+    return old == new
+
+
+def _retains_criterion(old, new):
+    if old is None or old == new:
+        return True
+    if not new or new.get("kind") != old["kind"]:
+        return False
+    if old["kind"] == "interval":
+        return old["bounds"][0] <= new["bounds"][0] and new["bounds"][1] <= old["bounds"][1]
+    a, b = old["relation"], new["relation"]
+    if a[0] != b[0]:
+        return False
+    v, w = old["threshold"], new["threshold"]
+    return (w < v if a[0] == "<" else w > v) or (w == v and (a == b or len(b) == 1))
+
+
+def _retains_acceptance(old, new, evaluation_data, pairs):
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return old == new
+    if not _retains_definition({k: v for k, v in old.items() if k != "comparisons"}, new):
+        return False
+    for binding in old.get("comparisons", []):
+        keys = set(binding) - {"id", "replaces_comparison_ids"}
+        if binding.get("dataset_ids") and set(binding["dataset_ids"]) <= evaluation_data:
+            keys.discard("dataset_ids")  # A fresh cohort is separately checked for role, method and independence.
+        candidates = [row for row in new.get("comparisons", [])
+                      if _retains_definition({k: binding[k] for k in keys}, row)]
+        named = [row for row in candidates if row["id"] == binding["id"]
+                 or isinstance(row.get("replaces_comparison_ids"), list) and binding["id"] in row["replaces_comparison_ids"]]
+        candidates = named or candidates
+        if len(candidates) != 1:
+            return False
+        pairs.append((binding, candidates[0]))
+    return True
+
+
+def _retains_comparison_units(root, pairs, old_datasets, new_datasets):
+    """Preserve distinct comparisons and the independent cohorts they tested."""
+    from round_followup import _observations_overlap
+
+    comparisons, owners, cohorts = {}, {}, {}
+    for original, replacement in pairs:
+        old_id, new_id = original["id"], replacement["id"]
+        if comparisons.setdefault(old_id, new_id) != new_id or owners.setdefault(new_id, old_id) != old_id:
+            return "Original comparisons require distinct corresponding evaluations: " + old_id
+        old_ids = set(original.get("dataset_ids", []))
+        if not old_ids or any(old_datasets.get(k, {}).get("role") != "evaluation" for k in old_ids):
+            continue
+        new_ids = set(replacement.get("dataset_ids", []))
+        if not new_ids <= new_datasets.keys() or len(new_ids) < len(old_ids):
+            return "Original independent datasets were omitted: " + old_id
+        mapping = {k: k for k in old_ids & new_ids}
+        for k in sorted(old_ids - mapping.keys()):
+            named = [n for n in new_ids if isinstance(new_datasets[n].get("replaces_dataset_ids"), list)
+                     and k in new_datasets[n]["replaces_dataset_ids"]]
+            if len(named) == 1:
+                mapping[k] = named[0]
+        remaining_old, remaining_new = old_ids - mapping.keys(), new_ids - set(mapping.values())
+        if len(remaining_old) == len(remaining_new) == 1:
+            mapping[remaining_old.pop()] = remaining_new.pop()
+        if old_ids != mapping.keys() or len(set(mapping.values())) != len(mapping):
+            return "Identify each original independent cohort in its replacement comparison: " + old_id
+        for k, n in mapping.items():
+            if cohorts.setdefault(k, n) != n:
+                return "Original cohort has conflicting replacements: " + k
+    # Distinct IDs may still denote the same subjects or a copy of the same table.
+    def overlap(left, right):
+        if left["id"] == right["id"]:
+            return True
+        if left.get("available") and right.get("available"):
+            return _observations_overlap(root, left, right)
+        return _observation_overlap(root, left, right)
+    units = list(cohorts.items())
+    for i, (old_id, new_id) in enumerate(units):
+        for other, new_other in units[:i]:
+            if old_datasets[old_id] == new_datasets[new_id] and old_datasets[other] == new_datasets[new_other]:
+                continue
+            if overlap(old_datasets[old_id], old_datasets[other]):
+                continue
+            if overlap(new_datasets[new_id], new_datasets[new_other]):
+                return "One evaluation cohort replaces originally separate observations: " + old_id + ", " + other
+    return None
+
+
+def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
+    """Compare every earlier accepted standard, including before a new round capture."""
+    issues, seen = [], set()
+    current = {ref: {t["id"]: t for t in _target_content(root, ref)}
+               for ref in plan["review"].get("criteria_refs", [])}
+    documented = list(plan["review"].get("scope_changes", []))
+    while True:
+        saved = baseline["scope"]
+        for ref, digest in baseline.get("requirement_sources", {}).items():
+            if fingerprint(local(root, ref)) != digest:
+                issues.append("Original requirement source changed: " + ref)
+        documented.extend(baseline.get("additions", []))
+        additions = {"add:requirement:" + key for key in state["requirements"].keys() - saved["requirements"].keys()
+                     if state["requirements"][key].get("required", True)}
+        additions.update("add:criterion:" + ref + "#" + key for ref, rows in current.items()
+                         for key in rows.keys() - {v["id"] for v in baseline.get("criteria", {}).get(ref, [])}
+                         if rows[key]["required"])
+        for change in sorted(additions):
+            explanations = [row for row in documented if row.get("change") == change and row.get("reason")]
+            if explanations:
+                local(root, explanations[0].get("source_ref"))
+            else:
+                issues.append("Document the reason and source for the added requirement or criterion: " + change)
+        if saved["objective"] != state["objective"]:
+            issues.append("Original research objective changed")
+        if saved.get("independent_goal", "require_support") == "require_support" and state["independent_goal"] != "require_support":
+            issues.append("Original independent support requirement was relaxed")
+        if saved.get("independent_evidence") == "biological" and state["independent_evidence"] != "biological":
+            issues.append("Original biological data requirement was relaxed")
+        old_data = {d["id"]: d for d in baseline.get("datasets", [])}
+        independent = {k for k, d in old_data.items() if d.get("role") == "evaluation"}
+        pairs = []
+        for key, req in saved["requirements"].items():
+            if req.get("required", True):
+                now = state["requirements"].get(key, {})
+                if not now.get("required", True) or any(now.get(k) != v for k, v in req.items() if k != "acceptance"):
+                    issues.append("Original requirement removed or changed: " + key)
+                if req.get("acceptance") and not _retains_acceptance(req["acceptance"], now.get("acceptance"), independent, pairs):
+                    issues.append("Original acceptance definition changed: " + key)
+                    if evaluation_gaps is not None and any(set(b.get("dataset_ids", [])) & independent
+                            for b in req["acceptance"].get("comparisons", [])):
+                        evaluation_gaps.append(issues[-1])
+        problem = _retains_comparison_units(root, pairs, old_data, {d["id"]: d for d in plan["review"].get("datasets", [])})
+        if problem:
+            issues.append(problem)
+            if evaluation_gaps is not None and any(set(b.get("dataset_ids", [])) & independent for b, _ in pairs):
+                evaluation_gaps.append(problem)
+        for field in ("required_axes", "delivery_parts", "model_components"):
+            if not set(saved.get(field, [])) <= set(state.get(field, [])):
+                issues.append("Original scope reduced: " + field)
+        for key, question in saved.get("questions", {}).items():
+            if question.get("required") and not _retains_definition(question, state["questions"].get(key)):
+                issues.append("Original required scientific question changed: " + key)
+        for key, check in saved.get("scientific_checks", {}).items():
+            if check.get("required"):
+                now = state["scientific_checks"].get(key, {})
+                # The producing run moves when the model is corrected. Keep the
+                # quantities, selectors, sampling windows and comparison rules.
+                for k, v in check.items():
+                    if k in {"source", "control"} and isinstance(v, dict) and isinstance(now.get(k), dict):
+                        matches = all(now[k].get(f) == val for f, val in v.items() if f not in {"run_ref", "csv_ref"})
+                    else:
+                        matches = now.get(k) == v
+                    if not matches:
+                        issues.append("Original required scientific check changed: " + key)
+                        break
+        for ref, targets in baseline.get("criteria", {}).items():
+            for old in targets:
+                if not old["required"]:
+                    continue
+                target = current.get(ref, {}).get(old["id"], {})
+                # A new predeclared independent cohort may replace an examined one.
+                keys = set(old) - {"criterion", "unavailable_reason"} - ({"source_ref"} if old["data_role"] == "evaluation" else set())
+                if any(target.get(k) != old[k] for k in keys) or not _retains_criterion(old.get("criterion"), target.get("criterion")):
+                    issues.append("Original calibration or prediction standard changed: " + ref + "#" + old["id"])
+        link = baseline.get("previous_requirements")
+        if not link:
+            break
+        file = local(root, link["ref"])
+        require(file not in seen and fingerprint(file) == link["sha256"], "Invalid or changed preceding requirements")
+        seen.add(file)
+        baseline = read(file)
+    return sorted(set(issues))
 
 
 def _check_scope(root, plan, baseline, report, skill):
@@ -342,6 +596,10 @@ def _check_scope(root, plan, baseline, report, skill):
         assessment(root, record, "scope change")
         report["warnings"].append(f"Recorded user scope change requires substantive review: {change}")
     report["scope_changes"] = actual
+    if state["full_model"] and plan["review_contract"] == CONTRACT:
+        evaluation_gaps = []
+        report["original_standard_gaps"] = _original_standards(root, plan, baseline, state, evaluation_gaps=evaluation_gaps)
+        report["original_evaluation_gaps"] = sorted(set(evaluation_gaps))
     skill_root = Path(skill).resolve() if skill else Path(__file__).resolve().parents[1]
     old_files = baseline.get("skill_files", {})
     wanted = review.get("skill_files", [])
@@ -368,9 +626,9 @@ def _observation_overlap(root, left, right):
     return bool(shared and (not a or not b or a & b))
 
 
-def _selection_sources(root, review, baseline, completion, datasets):
+def _selection_sources(root, review, baseline, completion, datasets, *, include_previous=True):
     uses = []
-    previous = baseline.get("previous_analysis")
+    previous = baseline.get("previous_analysis") if include_previous else None
     prior = read(local(root, previous["ref"])).get("completion_review", {}) if previous else {}
     for owner in (baseline, review, prior, *prior.get("iterations", []), completion, *completion.get("iterations", [])):
         records = owner.get("selection_uses", [])
@@ -408,6 +666,9 @@ def _dataset_map(root, review, baseline, analysis):
     history = baseline.get("datasets", []) + review.get("data_role_history", [])
     old = unique(baseline.get("datasets", []), "id", "captured datasets")
     require(set(old) <= set(datasets), "Previously declared data identities were removed; preserve their role history")
+    for key, row in old.items():
+        require(row.get("replaces_dataset_ids", []) == datasets[key].get("replaces_dataset_ids", []),
+                "Cohort correspondence changed after capture: " + key)
     for ref, digest in baseline.get("dataset_files", {}).items():
         require(fingerprint(local(root, ref)) == digest, "Captured reference data changed; preserve the original data and register a new version")
     simulated = set()
@@ -441,7 +702,10 @@ def _dataset_map(root, review, baseline, analysis):
             for prior in history:
                 if _observation_overlap(root, prior, item) and (prior.get("used_for_selection") is True or prior.get("role") == "calibration"):
                     raise ValueError("Previously used selection data cannot be relabelled independent evaluation")
-    return datasets, _selection_sources(root, review, baseline, completion, datasets)
+    # A linked full study resolves previous observations using the registry frozen
+    # in each earlier round. A reused dataset ID may now point to another cohort.
+    legacy_history = not ("final_plan" in baseline and "previous_requirements" in baseline)
+    return datasets, _selection_sources(root, review, baseline, completion, datasets, include_previous=legacy_history)
 
 
 def _compare(root, item, datasets, plan, baseline, selection_sources):
@@ -554,7 +818,11 @@ def _axis(root, axis, value, comparisons, plan, analysis):
                             "Scientific comparison definitions changed after this run; retain original definitions and label new analyses separately")
                     require(all(current_checks[key].get("timing") == "exploratory_after_run" for key in current_checks.keys() - recorded_checks.keys()),
                             "A comparison added after simulation must be identified as exploratory_after_run")
-                if not current_preparation:
+                preserved = False
+                if not current_preparation and full_model_task(plan) and run["stage"] == "simulation":
+                    from final_model import preserved_formal_run
+                    preserved = preserved_formal_run(root, plan, ref, run)
+                if not current_preparation and not preserved:
                     adopted = [x for x in plan["review"].get("reused_runs", []) if x.get("run_ref") == ref]
                     require(len(adopted) == 1, "Current run lacks requirements recorded before execution; document a retrospective reuse review instead of inventing a prior check")
                     adoption = adopted[0]
@@ -898,7 +1166,127 @@ def _iterations(root, completion, comparisons, plan):
                     "Current calibration/evaluation scores refer to a candidate outside the adopted set")
 
 
-def _decision(root, completion, required_pending, datasets, plan, baseline, components, comparisons, runs, verified_negative):
+def _external_pause(root, decision, budget, run_refs):
+    reason = decision.get("stop_reason")
+    require(reason in {"user_decision", "budget_exhausted", "resources_unavailable", "missing_data"},
+            "Pause a full model only for an explicit user stop or an external obstacle; review other feasible corrections")
+    source = local(root, decision.get("source_ref"))
+    text(decision.get("gap"), "specific external gap")
+    text(decision.get("recovery_condition"), "recovery condition")
+    text(decision.get("next_action"), "first action on resumption")
+    attempts = decision.get("attempts")
+    require(isinstance(attempts, list) and (attempts or not run_refs and reason == "user_decision"),
+            "Record methods already attempted before pausing")
+    cited = set()
+    for attempt in attempts:
+        require(isinstance(attempt, dict), "Invalid attempted method")
+        text(attempt.get("method"), "attempted method")
+        cited.add(local(root, attempt.get("evidence_ref")))
+    origin = decision.get("source_kind")
+    if reason != "user_decision":
+        alternatives = decision.get("alternatives")
+        require(isinstance(alternatives, list) and alternatives, "Assess feasible alternatives within the existing authorization")
+        for option in alternatives:
+            require(isinstance(option, dict) and option.get("feasible") is False,
+                    "An authorized feasible action remains or its feasibility has not been assessed")
+            text(option.get("method"), "alternative method or comparison")
+            text(option.get("blocked_by"), "external condition preventing that alternative")
+            cited.add(local(root, option.get("evidence_ref")))
+        require(source in cited, "Link the original external response to the affected attempt or alternative")
+
+    original = source.read_text(encoding="utf-8-sig").strip()
+    try:
+        receipt = json.loads(original)
+    except ValueError:
+        receipt = None
+    manual = "Pause unverified. Check the original source and keep the task unfinished pending human review"
+    if reason in {"resources_unavailable", "missing_data"}:
+        require(origin in {"resource_provider", "data_provider", "access_log"}, manual + ": external status source needed")
+        if decision.get("source_excerpt") is not None:
+            require(text(decision["source_excerpt"], "external status excerpt") in original,
+                    "The quoted external status is absent from its source")
+        # A recorded request can fail even when the project still has an allowance.
+        denied = {401, 403, 502, 503, 504}
+        if reason == "missing_data":
+            denied.update({404, 410})
+        if isinstance(receipt, dict):
+            endpoint = receipt.get("url")
+            identified = isinstance(endpoint, str) and re.fullmatch(r"https?://[^\s/]+(?:/[^\s]*)?", endpoint)
+            if not identified:
+                text(receipt.get("resource"), "external resource identified by the provider")
+                text(receipt.get("request_id"), "original provider request ID")
+            code = receipt.get("status_code")
+            available = receipt.get("available")
+            state = receipt.get("status")
+            outage = state in ("unavailable", "offline", "maintenance", "access_denied", "permission_denied")
+            if reason == "missing_data" and state == "not_found":
+                outage = True
+            require(code is None or type(code) is int, manual + ": invalid HTTP status")
+            refused = code in denied
+            quota_record = not {"remaining", "limit", "quota", "remaining_quota"}.isdisjoint(receipt)
+            require(receipt.get("scope") not in ("batch", "round", "quota", "budget")
+                    and (available is None or available is False)
+                    and (state is None or outage) and (code is None or refused or 200 <= code < 300)
+                    and (refused or outage or available is False and not quota_record),
+                    manual + ": no current external denial or outage independent of a batch or quota")
+        else:
+            # Raw request and response status lines are independent of the language of the message body.
+            exchange = re.fullmatch(r"(?:GET|HEAD|POST) https?://\S+(?: HTTP/[\d.]+)?\r?\n"
+                                    r"HTTP/[\d.]+ (\d{3})(?: [^\r\n]*)?(?:\r?\n[\w-]+: [^\r\n]*)*", original)
+            require(exchange and int(exchange[1]) in denied, manual + ": no identifiable failed external request")
+        return receipt if isinstance(receipt, dict) else {}
+
+    message = original
+    if reason == "user_decision":
+        require(origin == "user", "Pausing requires the explicit current user decision")
+        if isinstance(receipt, dict):
+            turns = receipt.get("messages", [receipt])
+            require(isinstance(turns, list) and all(isinstance(turn, dict) for turn in turns), manual)
+            user = next((turn for turn in reversed(turns) if turn.get("role") == "user"), {})
+            message = text(user.get("content"), "original user message for manual verification")
+    else:
+        require(budget.get("limit") == budget.get("consumed") and origin in {"user", "resource_provider"},
+                "Ending a planned batch does not establish that the authorized external allowance is exhausted")
+        if isinstance(receipt, dict):
+            require(receipt.get("scope") == "total" and type(receipt.get("limit")) is int
+                    and receipt["limit"] == budget["limit"] and receipt.get("unit") == budget.get("unit", "simulator calls")
+                    and ("remaining" not in receipt or type(receipt["remaining"]) is int and receipt["remaining"] == 0),
+                    manual + ": external total, unit and remaining allowance disagree with the recorded cost")
+            return
+
+    excerpt = text(decision.get("source_excerpt"), "recorded user instruction or external allowance excerpt")
+    require(excerpt in message, "The stated stop instruction or external allowance is absent from its source")
+    # Recognize short direct messages conservatively. Matching a substring can turn
+    # "do not stop", a quotation or a future condition into a present instruction.
+    clauses = [s.strip().casefold() for s in re.split(r"[.!。！]+", message) if s.strip()]
+    quote = excerpt.strip().casefold().rstrip(".!。！")
+    english_task = r"(?:study|project|task|work|research|modell?ing(?: task| work)?|simulation)"
+    chinese_task = r"(?:研究|建模(?:任务|工作)?|项目|任务|工作|计算|模拟)"
+    stop = (rf"(?:please )?(?:stop|pause|halt|do not continue|don't continue)(?: (?:this |the |our |all )?"
+            rf"(?:current )?{english_task})?(?: here| now| immediately| for now){{0,2}}"
+            rf"|(?:请|麻烦)?(?:现在|立即|马上|暂时|先)?(?:暂停|停止|终止|中止|不要再?继续)"
+            rf"(?:(?:本次|本项|这项|这个|当前|该|本)?{chinese_task})?(?:吧|一下)?")
+    # A short authorization and a subsequent stop order can be in the same original message.
+    # Other wording and additional context stay available for human interpretation.
+    unit = budget.get("unit", "simulator calls")
+    amount = str(budget["limit"])
+    if budget["limit"] == 1:
+        amount = "(?:1|one)"
+    grant = rf"(?:a total of )?{amount} {re.escape(unit.casefold().removesuffix('s'))}s? (?:is|are) authori[sz]ed(?: in total)?"
+    if unit == "simulator calls":
+        count = "(?:1|一)" if budget["limit"] == 1 else str(budget["limit"])
+        grant += rf"|(?:本次研究|本项目)(?:总共|共|总计)?(?:授权|允许)\s*{count}\s*次(?:模拟|仿真)(?:调用)?"
+    if reason == "user_decision":
+        require(clauses and re.fullmatch(stop, clauses[-1]) and quote == clauses[-1]
+                and all(re.fullmatch(grant, clause) for clause in clauses[:-1]),
+                manual + ": no unambiguous present instruction to stop the task")
+    else:
+        require(clauses and re.fullmatch(grant, clauses[0]) and quote == clauses[0]
+                and all(re.fullmatch(stop, clause) for clause in clauses[1:]),
+                manual + ": confirm the total authorized allowance in its original units")
+
+
+def _decision(root, completion, required_pending, datasets, plan, baseline, components, comparisons, runs, verified_negative, science):
     budget = completion.get("budget")
     require(isinstance(budget, dict), "Missing cumulative budget")
     calibration.SimulationBudget(budget.get("limit"), budget.get("consumed"))
@@ -931,6 +1319,19 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
     decision = completion.get("decision")
     require(isinstance(decision, dict) and decision.get("action") in {"continue", "stop", "complete"}, "Missing continuation/adoption decision")
     text(decision.get("reason"), "decision reason")
+    full = full_model_task(plan) and plan.get("review_contract") == CONTRACT
+    if decision["action"] == "stop":
+        require(decision.get("stop_reason") != "predeclared_stop",
+                "predeclared_stop cannot close an unmet objective; record a concrete external blocker or continue")
+        if full:
+            pause_record = _external_pause(root, decision, budget, run_refs)
+            if decision["stop_reason"] == "budget_exhausted" and counts_calls:
+                if not baseline.get("previous_analysis"):
+                    require(budget["consumed"] == len(known_simulations),
+                            "Unverified earlier calls cannot exhaust the external allowance in the first round")
+                opened = datetime.fromisoformat(baseline["captured_at_utc"])
+                actual = sum(datetime.fromisoformat(r["started_at_utc"]) >= opened for r in known_simulations.values())
+                require(budget["round_consumed"] <= actual, "Claimed exhausted calls lack actual simulation records")
     if required_pending:
         require(decision["action"] != "complete", "Required goals remain unmet; cannot declare overall complete")
         text(decision.get("next_action"), "remaining next action")
@@ -945,7 +1346,33 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
                         target = next(t for t in _target_content(root, ref) if t["id"] == identity)
                         if target.get("criterion") and (root / target["source_ref"].split("#")[0]).resolve() in comparable_sources:
                             unfinished.add(name)
-        if decision["action"] == "continue" and unfinished and "calibration" in required_pending:
+        measured_failure = any(group["status"] == "unmet" for group in components.values())
+        required_science = {c["id"] for c in plan["review"].get("scientific_checks", []) if c.get("required")}
+        failed_science = {f["id"] for f in science.get("findings", []) if f["id"] in required_science and
+                          (f.get("status") == "failed" or f.get("disposition") == "unresolved" or f.get("matches") is False)}
+        failed_evaluation = ("independent_evaluation" in required_pending and
+                             any(c["axis"] == "independent_evaluation" and not c["historical"] and c["status"] == "infeasible"
+                                 for c in comparisons.values()))
+        parameter_batch = not full
+        if full and decision["action"] == "continue" and (measured_failure or failed_science or failed_evaluation):
+            causes = decision.get("attribution")
+            require(isinstance(causes, list) and causes and set(causes) <= {
+                "parameter", "mechanism", "data_comparability", "observation", "control"},
+                "Attribute the unmet calibration to the data, mechanism, parameters, observation method or control")
+            local(root, decision.get("correction_ref"))
+            parameter_batch = set(causes) == {"parameter"} or bool(decision.get("next_batch"))
+            affected = decision.get("affected_comparison_ids", [])
+            affected_science = decision.get("affected_scientific_check_ids", [])
+            science_ids = {c["id"] for c in plan["review"].get("scientific_checks", [])}
+            require(isinstance(affected, list) and isinstance(affected_science, list) and (affected or affected_science)
+                    and set(affected) <= set(comparisons) and set(affected_science) <= science_ids,
+                    "Identify the measured comparisons or scientific checks affected by the correction")
+            if measured_failure or failed_evaluation:
+                failed = {key for key, item in comparisons.items() if not item["historical"] and item["status"] == "infeasible"
+                          and item["axis"] in required_pending}
+                require(failed <= set(affected), "The corrective decision omits an unmet current comparison")
+            require(failed_science <= set(affected_science), "The corrective decision omits an unresolved scientific check")
+        if decision["action"] == "continue" and unfinished and "calibration" in required_pending and parameter_batch:
             require(budget["consumed"] < budget["limit"], "Next calibration batch lacks remaining budget")
             batch = decision.get("next_batch")
             require(isinstance(batch, list) and batch, "Unmet comparable calibration needs a concrete next parameter batch")
@@ -961,7 +1388,6 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
         if decision["action"] == "stop":
             assessment(root, decision, "stop decision")
             reason = decision.get("stop_reason")
-            require(reason != "predeclared_stop", "predeclared_stop cannot close an unmet objective; record a concrete blocker or continue")
             require(reason in {"budget_exhausted", "range_exhausted", "no_justified_batch", "resources_unavailable", "missing_data",
                                "user_decision", "implementation_blocked", "independent_non_support"}, "Unexplained early termination with unmet goals")
             if plan.get("review_contract") == CONTRACT:
@@ -972,7 +1398,7 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
                 if plan.get("review_contract") == CONTRACT:
                     if plan["review"].get("simulation_budget") is None or not counts_calls:
                         local(root, decision.get("source_ref"))
-                    if counts_calls:
+                    if counts_calls and not full:
                         opened = datetime.fromisoformat(baseline["captured_at_utc"])
                         actual = sum(datetime.fromisoformat(r["started_at_utc"]) >= opened for r in known_simulations.values())
                         require(budget.get("round_consumed", budget["consumed"] - budget.get("previous_consumed", 0)) <= actual,
@@ -986,12 +1412,25 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
                 if plan.get("review_contract") == CONTRACT:
                     require(all(not datasets[d]["available"] or not datasets[d]["comparable"] for d in gap_ids),
                             "An available comparable source is listed as a data blocker")
+                    if full:
+                        response = local(root, decision["source_ref"])
+                        for key in gap_ids:
+                            dataset = datasets[key]
+                            refs = [dataset.get("source_ref"), *dataset.get("files", [])]
+                            cited = any(isinstance(ref, str) and (root / ref.split("#")[0]).resolve() == response for ref in refs)
+                            origin = dataset.get("source_id")
+                            matches = origin and origin in (pause_record.get("url"), pause_record.get("resource"))
+                            require(pause_record.get("dataset_id", key) == key
+                                    and (cited or matches or pause_record.get("dataset_id") == key),
+                                    "Link the provider's access response to the specific unavailable dataset: " + key)
                     roles = {role for axis, role in (("calibration", "calibration"), ("independent_evaluation", "evaluation"))
                              if axis in required_pending}
                     require(not roles or any(datasets[d]["role"] in roles for d in gap_ids),
                             "The missing dataset does not address an unmet comparison")
-                require(not unfinished or "calibration" not in required_pending,
-                        "Missing data for another objective cannot stop available comparable calibration")
+                if unfinished and "calibration" in required_pending:
+                    blocked = {o.get("component") for o in decision.get("alternatives", []) if full and o.get("dataset_ids")
+                               and set(o["dataset_ids"]) <= set(gap_ids)}
+                    require(unfinished <= blocked, "Missing data for another objective cannot stop available comparable calibration")
             elif reason == "independent_non_support":
                 ids = set(completion["axes"]["independent_evaluation"].get("comparison_ids", []))
                 dependent = {r["id"] for r in completion["requirements"] if r.get("status") == "unmet"
@@ -1021,6 +1460,57 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
         text(decision.get("next_action"), "next action")
 
 
+def _reconcile_measurements(plan, report):
+    """Keep the displayed axes and answers consistent with the actual sampled observations."""
+    evidence = report["checks"]["final_evidence"]
+    verified = {}
+    planned = {"calibration": set(), "evaluation": set()}
+    roles = {d["id"]: d["role"] for d in plan["review"].get("datasets", [])}
+    for req in plan["requirements"]:
+        if not req.get("required", True):
+            continue
+        outcomes = evidence["requirements"].get(req["id"], {}).get("outcomes", {})
+        for binding in (req.get("acceptance") or {}).get("comparisons", []):
+            identity = binding.get("id")
+            if not identity:
+                continue
+            for dataset in binding.get("dataset_ids", []):
+                if roles.get(dataset) in planned:
+                    planned[roles[dataset]].add(identity)
+            rows = verified.setdefault(identity, {})
+            for target in binding.get("target_ids", []):
+                sampled = outcomes.get(identity + "/" + target) in {"passed", "unmet", "negative_prediction"}
+                rows[target] = rows.get(target, True) and sampled
+    report["verified_measurements"] = verified
+    invalid = set()
+    for axis, role, states in (("independent_evaluation", "evaluation", {"supported", "not_supported"}),
+                               ("calibration", "calibration", {"satisfied"})):
+        value = report["axes"][axis]
+        if value["status"] not in states or role == "calibration" and not evidence.get("run_ref"):
+            continue
+        claimed = set(value.get("comparison_ids", []))
+        missing = planned[role] - claimed
+        missing.update(k for k in claimed if not verified.get(k) or not all(verified[k].values()))
+        if role == "evaluation" and report.get("original_evaluation_gaps"):
+            missing.update(claimed)
+        if missing or not claimed:
+            invalid.update(missing)
+            value.update(declared_status=value["status"], status="not_evaluated",
+                         reason="The frozen comparison has missing or unverified measurements.")
+            if role == "evaluation":
+                value["evaluation_completed"] = False
+    if invalid:
+        scientific = report["axes"]["scientific_answer"]
+        questions = [dict(q) for q in scientific.get("questions", [])]
+        for q in questions:
+            if invalid.intersection(q.get("comparison_ids", [])):
+                q.update(declared_state=q.get("state"), state="unanswered", comparison_complete=False,
+                         reason="The observation required for this answer has not been verified.")
+        if any(q.get("declared_state") for q in questions):
+            status = "partially_answered" if any(q["state"] == "answered" for q in questions) else "not_answered"
+            scientific.update(declared_status=scientific["status"], status=status, questions=questions)
+
+
 def _requirements(root, plan, analysis, completion):
     current = unique(plan["requirements"], "id", "requirements")
     assessed = unique(completion.get("requirements", []), "id", "requirement assessments")
@@ -1028,12 +1518,14 @@ def _requirements(root, plan, analysis, completion):
     result_map = unique(analysis.get("results", []), "id", "analysis results")
     unmet = []
     for identity, item in assessed.items():
-        require(item.get("status") in {"met", "unmet", "pending"}, "Unknown requirement assessment state")
+        necessary = current[identity].get("required", True)
+        require(item.get("status") in {"met", "unmet", "pending"} or not necessary and item.get("status") == "not_applicable",
+                "Unknown requirement assessment state or waived required item")
         assessment(root, item, "requirement " + identity)
-        if item["status"] != "met": unmet.append(identity)
+        if necessary and item["status"] != "met": unmet.append(identity)
         if item["status"] == "met":
             for rid in current[identity].get("result_ids", []):
-                require(rid in result_map and result_map[rid].get("required") is True
+                require(rid in result_map and (not necessary or result_map[rid].get("required") is True)
                         and result_map[rid].get("status") == "complete", "Satisfied requirement lacks its required completed result")
     return unmet
 
@@ -1041,13 +1533,17 @@ def _requirements(root, plan, analysis, completion):
 def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
                  historical=False, response_file=None, sent_response_file=None, _structure=None):
     root = Path(project).resolve()
+    decision = {}
     report = dict(status="failed", checkpoint=checkpoint, issues=[], warnings=[], axes={}, consistent=False,
+                  final_model_ready=False, ready_to_send_final_model=False, stage_report_ready_to_send=False,
                   goal_complete=False, ready_to_deliver=False, ready_to_send=False, checks={}, read_next=list(READING.get(checkpoint, [])),
                   scope_note="Declared coverage and artifact/numeric consistency; not biological proof, authorization proof, or proof that an agent read a rule.")
     try:
         require(checkpoint in READING, "Unknown review checkpoint")
         require(not historical or not (response_file or sent_response_file), "Historical review cannot prepare or certify the current response")
         plan = read(resolve_current_plan(root, plan_path, historical=historical))
+        full = full_model_task(plan)
+        report["full_model_task"] = full
         report["historical"] = historical
         if plan.get("review_contract") is None:
             report.update(status="legacy_not_reviewed")
@@ -1074,6 +1570,17 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         require(fingerprint(capture) == plan["review"].get("baseline_sha256"), "Captured original requirements changed or are not bound to this plan")
         baseline = read(capture)
         _check_scope(root, plan, baseline, report, skill)
+        full_current = full and plan["review_contract"] == CONTRACT
+        plan_gaps = []
+        if full_current:
+            from final_model import check_final_plan
+            final_plan = check_final_plan(root, plan)
+            report["checks"]["final_plan"] = final_plan
+            require(final_plan["status"] != "failed", "Final model requirements: " + "; ".join(final_plan["issues"]))
+            plan_gaps = list(final_plan["pending"]) + report.get("original_standard_gaps", [])
+            if baseline.get("final_plan", {}).get("status") != "passed":
+                plan_gaps.extend(msg for msg in baseline.get("final_plan", {}).get("pending", []) if msg not in plan_gaps)
+                plan_gaps.append("Complete and capture the original acceptance definitions before formal execution")
         if (regulation_scope(plan) or {}).get("mode") == "implementation":
             report["read_next"].append("references/regulation-design.md")
         regulation = check_regulation(root, plan, checkpoint="start")
@@ -1083,7 +1590,8 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             science = _scientific_review(root, plan, None, "start")
             report["checks"]["scientific"] = science
             require(science["status"] != "failed", "Scientific comparison plan: " + "; ".join(science.get("issues", [])))
-            report.update(status="incomplete" if "incomplete" in {regulation["status"], current["status"], science["status"]}
+            report["unmet_requirements"] = plan_gaps
+            report.update(status="incomplete" if plan_gaps or "incomplete" in {regulation["status"], current["status"], science["status"]}
                           or plan["review_contract"] == CONTRACT and plan["review"].get("delivery_profile", "full_model") == "full_model" and reuse["status"] == "legacy_not_reviewed" else "passed",
                           consistent=True, read_next=sorted(set(report["read_next"])))
             return report
@@ -1092,6 +1600,20 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         require(analysis_path.is_relative_to(root), "Analysis outside project")
         if checkpoint in {"transition", "resume"} and not analysis_path.exists():
             report.update(status="incomplete", consistent=True)
+            report["unmet_requirements"] = plan_gaps
+            if full_current and baseline.get("previous_analysis"):
+                from round_followup import check_round_followup
+                previous = read(local(root, baseline["previous_analysis"]["ref"]))
+                decision = previous.get("completion_review", {}).get("decision", {})
+                report["next_action"] = decision.get("next_action")
+                if decision.get("action") == "continue":
+                    followup = check_round_followup(root, plan, {"runs": [], "completion_review": {}}, baseline, {})
+                    report["checks"]["followup"] = followup
+                    report["unmet_requirements"].extend(followup["pending"])
+                    report["issues"].extend(followup["issues"])
+                    if followup["issues"]:
+                        report.update(status="failed", consistent=False)
+                report["work_state"] = "resume_required"
             report["warnings"].append("Analysis has not been produced; execution and scientific completion remain unassessed.")
             report["unmet_axes"] = list(plan["review"]["required_axes"])
             return report
@@ -1103,6 +1625,8 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         require(current["status"] != "failed", "Current model/method mismatch: " + "; ".join(current.get("issues", [])))
         completion = analysis.get("completion_review")
         require(isinstance(completion, dict), "Missing completion_review")
+        require(isinstance(completion.get("decision"), dict), "Missing current continuation or completion decision")
+        decision = completion["decision"]
         axes = completion.get("axes")
         require(isinstance(axes, dict) and set(axes) == set(AXES), "Report all five completion axes separately")
         report["axes"] = {name: dict(value) for name, value in axes.items()}
@@ -1115,6 +1639,9 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         if regulation["status"] == "failed":
             report["issues"].extend("regulation: " + issue for issue in regulation["issues"])
         datasets, selection_sources = _dataset_map(root, plan["review"], baseline, analysis)
+        if full_current:
+            from round_followup import prior_selection_sources, check_round_followup
+            selection_sources.extend(prior_selection_sources(root, plan, baseline, analysis))
         comparisons = {}
         for name, item in unique(completion.get("comparisons", []), "id", "comparisons").items():
             try:
@@ -1142,8 +1669,6 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
                 report["issues"].append(f"{name}: {error}")
                 if name in {"calibration", "independent_evaluation"}:
                     report["axes"][name].update(declared_status=axes[name].get("status"), status="not_evaluated")
-        report["negative_test_completed"] = verified_negative
-        negative_complete = verified_negative and plan["review"].get("independent_goal") == "test_prediction"
         for label, action in (("iterations", lambda: _iterations(root, completion, comparisons, plan)),):
             try: action()
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"{label}: {error}")
@@ -1151,7 +1676,21 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             try: report["checks"]["delivery"] = _delivery(root, completion.get("delivery"), plan, analysis, axes)
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"delivery: {error}")
         delivering = axes["delivery"].get("status") == "complete" or completion.get("decision", {}).get("action") == "complete"
-        additional_pending = []
+        additional_pending = list(plan_gaps)
+        if full_current:
+            from final_model import check_final_evidence
+            for name, review in (
+                ("followup", check_round_followup(root, plan, analysis, baseline, comparisons)),
+                ("final_evidence", check_final_evidence(root, plan, analysis, comparisons, science)),
+            ):
+                report["checks"][name] = review
+                report["issues"].extend(name + ": " + msg for msg in review["issues"])
+                if review["status"] != "passed":
+                    additional_pending.extend(review["pending"] or [name])
+            _reconcile_measurements(plan, report)
+            verified_negative = verified_negative and report["axes"]["independent_evaluation"]["status"] == "not_supported"
+        report["negative_test_completed"] = verified_negative
+        negative_complete = verified_negative and plan["review"].get("independent_goal") == "test_prediction"
         if delivering and plan["review_contract"] == CONTRACT:
             scope = report["scope"]
             if scope["delivery_profile"] == "full_model" and not scope["mode"]:
@@ -1198,9 +1737,14 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         if (regulation_scope(plan) or {}).get("mode") == "implementation" and not regulation.get("complete"):
             report["unmet_requirements"].append("regulation_minimum_study")
             pending.append("regulation_minimum_study")
-        try: _decision(root, completion, pending, datasets, plan, baseline, components, comparisons, analysis.get("runs", []), verified_negative)
+        try: _decision(root, completion, pending, datasets, plan, baseline, components, comparisons,
+                       analysis.get("runs", []), verified_negative, science)
         except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"decision: {error}")
-        report["goal_complete"] = not pending and not report["issues"] and completion["decision"]["action"] == "complete"
+        report["goal_complete"] = (not pending and not report["issues"] and completion["decision"]["action"] == "complete"
+                                   and not historical and (not full or full_current))
+        if full and report["goal_complete"] and checkpoint != "delivery":
+            report["unmet_requirements"].append("current_final_delivery_review")
+            report["goal_complete"] = False
         report["ready_to_deliver"] = axes["delivery"].get("status") == "complete" and not report["issues"]
         report["consistent"] = not report["issues"]
         report["status"] = "failed" if report["issues"] else "passed" if report["goal_complete"] else "incomplete"
@@ -1232,6 +1776,8 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         try:
             require(checkpoint == "delivery" and report.get("ready_to_deliver"),
                     "Check the complete current report, figures and data before checking a response file")
+            require(not report.get("full_model_task") or report["goal_complete"],
+                    "The final model has unresolved requirements; use the stage-report entry for an interim update")
             for reference, role in ((response_file, "prepared"), (sent_response_file, "supplied_sent")):
                 if reference:
                     report["checks"]["response_file" if role == "prepared" else "supplied_sent_response"] = verify_response_file(
@@ -1244,8 +1790,52 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         report["warnings"].append("Report artifacts checked; the file to be sent has not been checked. Use --response-file immediately before sending its unchanged contents.")
     if report["issues"]:
         report.update(status="failed", consistent=False, goal_complete=False, ready_to_deliver=False, ready_to_send=False)
+    report["final_model_ready"] = bool(report.get("full_model_task") and checkpoint == "delivery" and not historical
+                                       and report["goal_complete"] and report["ready_to_deliver"])
+    report["ready_to_send_final_model"] = report["final_model_ready"] and report["ready_to_send"]
+    if report.get("full_model_task") and not historical:
+        report["next_action"] = decision.get("next_action")
+        report["work_state"] = ("final_model" if report["final_model_ready"] else "repair_required" if report["issues"]
+                                else "paused" if decision.get("action") == "stop" else "continue_required"
+                                if "current_final_delivery_review" not in report.get("unmet_requirements", []) else "awaiting_delivery")
     report["read_next"] = sorted(set(report["read_next"]))
     return report
+
+
+def stage_report_text(root, plan, report):
+    require(not report.get("historical") and report.get("full_model_task") and not report["goal_complete"],
+            "A stage report requires a current, unfinished full-model task")
+    gaps = list(dict.fromkeys(report.get("unmet_requirements", []) + report.get("unmet_axes", []) + report["issues"]))
+    if not gaps:
+        gaps = ["最终采用模型的逐项运行与交付尚待核实。"]
+    lines = ["# 建模阶段报告", "", f"模型版本 `{plan['model_version']}`。本轮科研目标尚未全部完成。"]
+    scores = report["checks"].get("comparisons", {})
+    adopted = report["checks"].get("final_evidence", {}).get("run_ref")
+    verified = report.get("verified_measurements", {})
+    rows = [f"- {key} · {r['id']} · {r['state']}" + (f" · {r['value']}" if r.get("value") is not None else "")
+            for key, score in scores.items() if not score["historical"] for r in score["rows"] if r["required"]
+            and (verified.get(key, {}).get(r["id"]) or not adopted and not report["issues"])]
+    if rows:
+        title = "已从采用模型复核的指标" if adopted else "本轮运行的阶段读数"
+        lines += ["", "## " + title, "", *rows]
+    lines += ["", "## 尚待解决", "", *["- " + x for x in gaps]]
+    ref = plan.get("files", {}).get("analysis")
+    if ref and (root / ref).is_file():
+        try:
+            analysis = read(local(root, ref))
+        except (OSError, ValueError):
+            analysis = {}
+        if analysis.get("plan_id") == plan["plan_id"] and analysis.get("model_version") == plan["model_version"]:
+            decision = analysis.get("completion_review", {}).get("decision", {})
+            if isinstance(decision, dict) and decision.get("action") != "complete":
+                attempts = [f"- {entry['method']} (`{entry['evidence_ref']}`)" for entry in decision.get("attempts", [])
+                            if isinstance(entry, dict) and entry.get("method") and entry.get("evidence_ref")]
+                if attempts:
+                    lines += ["", "## 已尝试的方法", "", *attempts]
+                for field, title in (("gap", "当前缺口"), ("recovery_condition", "恢复条件"), ("next_action", "下一项工作")):
+                    if isinstance(decision.get(field), str) and decision[field].strip():
+                        lines += ["", "## " + title, "", decision[field].strip()]
+    return "\n".join(lines) + "\n"
 
 
 def main(argv=None):
@@ -1261,16 +1851,23 @@ def main(argv=None):
     parser.add_argument("--response-output", type=Path, help="Write the checked final response to a new project-local file")
     parser.add_argument("--response-file", help="Recheck the actual project-local Markdown file to be sent")
     parser.add_argument("--sent-response-file", help="Compare supplied actual sent-message text; this does not establish its provenance")
+    stage = parser.add_mutually_exclusive_group()
+    stage.add_argument("--stage-report-output", type=Path, help="Write a new project-local interim report showing verified observations and current gaps")
+    stage.add_argument("--stage-report-file", help="Check the current interim report without certifying a final model")
     parser.add_argument("--historical", action="store_true", help="Read-only review of an explicitly selected historical plan; cannot export current delivery")
     args = parser.parse_args(argv)
     try:
+        staging = args.stage_report_output or args.stage_report_file
+        require(not staging or not (args.capture or args.historical or args.response_output or args.response_file or args.sent_response_file),
+                "Select either an interim report or the final-model response")
         require(not args.historical or not (args.capture or args.response_output or args.response_file or args.sent_response_file),
                 "Historical mode only reviews preserved records")
         result = capture_review(args.project, args.plan, args.skill) if args.capture else check_review(
             args.project, args.plan, args.checkpoint, args.skill, historical=args.historical,
             response_file=args.response_file, sent_response_file=args.sent_response_file)
         if args.response_output:
-            require(not args.capture and args.checkpoint == "delivery" and result.get("ready_to_deliver"),
+            require(not args.capture and args.checkpoint == "delivery" and result.get("ready_to_deliver")
+                    and (not result.get("full_model_task") or result.get("final_model_ready")),
                     "Cannot export a final response before delivery review passes")
             plan = json_value(args.project, args.plan)
             analysis = json_value(args.project, plan["files"]["analysis"])
@@ -1280,6 +1877,18 @@ def main(argv=None):
                 handle.write(analysis["completion_review"]["delivery"]["response_text"].strip() + "\n")
             result = check_review(args.project, args.plan, args.checkpoint, args.skill,
                                   response_file=path.relative_to(args.project.resolve()).as_posix())
+        if staging:
+            root = args.project.resolve()
+            plan = read(resolve_current_plan(root, args.plan))
+            body = stage_report_text(root, plan, result)
+            path = (root / staging).resolve()
+            require(path.is_relative_to(root) and path.suffix.lower() == ".md", "Stage report must be a project-local Markdown file")
+            if args.stage_report_output:
+                with path.open("x", encoding="utf-8") as handle:
+                    handle.write(body)
+            require(local(root, path.as_posix()).read_text(encoding="utf-8-sig") == body,
+                    "Stage report differs from the current incomplete task and verified results")
+            result.update(stage_report_ready_to_send=True, ready_to_send=True, ready_to_send_final_model=False)
         if args.output:
             path = (args.project / args.output).resolve()
             require(path.is_relative_to(args.project.resolve()), "Output outside project")
@@ -1287,7 +1896,8 @@ def main(argv=None):
                 json.dump(result, handle, ensure_ascii=False, indent=2, allow_nan=False)
                 handle.write("\n")
     except (OSError, ValueError, TypeError, KeyError) as error:
-        result = {"status": "failed", "issues": [str(error)]}
+        result = {"status": "failed", "issues": [str(error)], "final_model_ready": False,
+                  "ready_to_send_final_model": False, "stage_report_ready_to_send": False, "ready_to_send": False}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
     return 0 if result["status"] in {"passed", "captured"} else 2 if result["status"] in {"incomplete", "legacy_not_reviewed"} else 1
 

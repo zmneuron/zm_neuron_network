@@ -95,11 +95,21 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 校准与假设检验在第一次运行前分别登记。全模型维持五项判断，`goal_complete` 反映本轮科研目标，`ready_to_deliver`、`ready_to_send` 分别反映交付材料和实际待发送文件。每次检查须读取问题和各项状态。模型、模块、参数、结果或正文检查已经报错时，先定位并修复，再从原入口复核。若当下受阻，可交付标明错误、影响和恢复条件的阶段说明。成功退出、报告排版完整或某次仿真结束均不足以宣布研究完成。
 
+完整建模采用或修改模型时，检查自动启用。其他任务若确实交付一个最终模型，可以声明 `review.final_model_requested=true` 并使用完整交付。每个必需的 `requirements[].acceptance` 在正式运行前写入依据、条件、时段、对照、判据与结果对应关系，见[同一采用模型的逐项核对](final-model.md)。补查遗漏时保留原记录，在 `review.scope_changes` 保存来源和理由。补入必需要求时用 `change=add:requirement:<id>`，补入必需判据时用 `change=add:criterion:<目标文件>#<id>`。新一轮捕获识别上轮运行对应的要求文件；有多份候选文件或尚未正式运行时，通过 `review.previous_requirements_ref` 指定并保留上一轮。每一轮都重查早先的必需标准。事后放宽范围不能作为已达到原标准的依据。
+
+跨轮沿用研究方案时，原先分别检验的比较和独立队列仍要分别核对。通常保留已有的比较和资料编号。若多个比较或队列均改名，且无法从条件和观测单位确定原先的对应关系，在新比较中用 `replaces_comparison_ids`、在新资料中用 `replaces_dataset_ids` 标明前身。一项必需比较须有自己对应的结果，直接比对原定的两批独立观测也须保留两个独立来源或事先划分的统计单位。
+
+只有当前最终交付检查的 `final_model_ready=true` 才表示最终采用版本满足完整建模要求。发送六项正文还须检查实际文件，核对 `ready_to_send_final_model`。用户需要阶段结果时，可用 `review_project.py --project <工程目录> --stage-report-output docs/stage.md` 输出当下已经核实的数据、缺口及后续工作，发送前以 `--stage-report-file docs/stage.md` 复核。此时依据 `stage_report_ready_to_send` 发送该进展说明，科研检查的退出状态仍反映原任务。处于 `continue_required` 或 `repair_required` 时继续执行。
+
 - 在 `review.component_calibration` 为本轮各部分登记 `mode: targets`，并在必需校准目标写明 `component`。仅承担预测、对照等职责的部分可登记 `outside_calibration`，写明 `reason,source_ref`。已有目标缺少合格数据时保留原目标和缺口。程序逐部分从当前运行的逐项比较汇总；多个部分不能共用一个未归属的达标结论。
-- 以检验预测为目的时在 `review.independent_goal` 登记 `test_prediction`。若已约定必须证明支持才达到用途要求，登记 `require_support`；旧计划未声明时沿用后者。前者得到阴性结果仍可完成：预先留出的观测和判据均已核对，所有必需结果均有有效测量，独立评价保留 `not_supported`，注明 `evaluation_completed,adequacy_reason`；对应问题引用实际比较并解释效应范围和精度。设计不足、测量缺失和运行失败须保留为未评价或无法判定。主张效应可忽略，还须在原始单位上与预定的实质差异界限比较。 原目标明确要求正向支持、充分检验却得到阴性结果时，可用 `independent_non_support` 保留已完成的检验和未达到的用途目标。其余未完成工作须另行处理，已看过的观测不再用于检验新候选。
+- 以检验预测为目的时在 `review.independent_goal` 登记 `test_prediction`。若已约定必须证明支持才达到用途要求，登记 `require_support`；旧计划未声明时沿用后者。前者得到阴性结果仍可完成：预先留出的观测和判据均已核对，所有必需结果均有有效测量，独立评价保留 `not_supported`，注明 `evaluation_completed,adequacy_reason`；对应问题引用实际比较并解释效应范围和精度。设计不足、测量缺失和运行失败须保留为未评价或无法判定。主张效应可忽略，还须在原始单位上与预定的实质差异界限比较。 对检验本身可以得出阴性回答。原目标还要求正向支持时，该用途目标继续保留为未达到；重新建模后使用新的独立观测。
 - 在 `review.selection_uses` 登记事前筛选规则，在 `completion_review.selection_uses` 或 `iterations[].selection_uses` 补记实际用过的资料。每条写 `dataset_id,feature,quantity,rule_ref`，`feature` 为 `value/direction/contrast`；只用了部分观测时列出真实 `observation_ids`。相同来源的不同文件可共享稳定的 `source_id`。候选轮将比较列入 `comparison_ids` 即表示其参与决策。逐条核对真实筛选代码、表格、淘汰记录及全部试过的方向，包括没有出现在标准比较文件中的条件。使用后的数据可以报告为开发结果；新种子可检查计算稳定性，生物独立评价需要预先保留且未参与选择的观测。
-- 某部分可比的校准目标未满足，且有可试参数和资源时，`decision.action=continue`，`next_batch` 逐组记录 `component,parameters,rationale_ref`，并在本轮实际运行。下一次检查用 `iterations` 和 `comparisons` 核对哪些配置已运行及为何保留或淘汰。仅列下一批时，状态仍为未完成。
-- 确需暂止时写明 `gap,recovery_condition,next_action` 和实际依据。预算耗尽须与累计消耗相符；缺少或不可比的观测须列出 `dataset_ids`，并检查其他部分是否尚可继续。算力或实现受阻时用 `resources_unavailable/implementation_blocked` 引用实际限制；用户叫停时用 `user_decision` 并注明 `source_kind: user,source_ref`。若用 `range_exhausted`，事前 `review.parameter_space_ref` 指向含 `rationale_ref,config_refs` 的有限候选清单，结论须覆盖其中每个实际完成且已有比较的配置。预定轮数或 `predeclared_stop` 不能关闭仍未满足的目标。合理扩大范围需要新的科学依据。 连续参数或自适应搜索若缺少扩大范围的科学依据，可用 `no_justified_batch` 作阶段性判断，引用实际评分的参数组、约束来源 `source_ref` 和 `range_assessment`，说明哪些新观测能支持下一步。有未试的已登记配置时，仍须处理这些配置。
+- 各适用模块的失配先按数据可比性、机制、参数、观测方法或对照设计定位。在 `decision.attribution,correction_ref,affected_comparison_ids,next_action` 中记录判断。参数问题写入 `next_batch` 并实际运行；机制或观测问题回查文献、公开代码和实测，修正后重跑受影响的条件。复查已达标项目。运行与恢复见[上轮决定与本轮复算](round-followup.md)。
+- 完整建模只在用户明确要求现在停止，或授权范围内的可行工作均已完成、余项确受外部条件阻断时暂停。`decision.action=stop` 保留 `source_ref,gap,recovery_condition,next_action`。`attempts` 记录已试方法及其 `evidence_ref`。外部受阻时，逐项说明备选方法的 `method,feasible:false,blocked_by,evidence_ref`，将原始回复关联到受影响的尝试或备选方法。
+  - `user_decision` 使用 `source_kind=user`，`source_excerpt` 引用用户当前的完整停令。可指向保存的单条消息，或含 `role,content` 的原始消息记录。消息列表按最近一条用户消息判读。核对整句及上下文，区分立即停工、要求继续、否定停止和约定将来满足条件再停。
+  - `budget_exhausted` 核对用户或资源方给出的总授权、计量单位和累计实际消耗。可引用写明额度的原话，也可使用资源方原记录中的 `scope:"total",limit,unit`，如有 `remaining` 必须为零。首轮模拟调用数须有对应的实际运行记录。
+  - `resources_unavailable` 和 `missing_data` 引用资源方、资料提供方或实际访问日志，`source_kind` 分别可填 `resource_provider`、`data_provider`、`access_log`。可直接核对带请求地址的 HTTP 拒绝或服务故障响应，也可核对提供方保存的 `url` 或 `resource,request_id` 及实际状态。例如，计算队列返回 HTTP 503 或明确记录 `available:false` 时，即使仍有模拟额度，也可能需要等待队列恢复。资料缺失还须将回复与相应资料条目关联。一批运行结束、手写的故障解释和仅注明备选方法不可行，都不足以判定暂停。
+  - 自动检查能识别部分中英文直接停令和常见的外部状态记录。其他语言、复杂条件或来源归属不清时，保留原文供人工核实，同时继续可做的工作。尚未核实的 `stop` 会得到 `repair_required`，科研目标保持未完成。
 
 交付复核还需按[文字、表格与图件检查](external-skills/clear-writing.md#输出前如何检查)实际查看当前输出：名称/单位是否一致、术语和条件是否能理解、图内文字是否显示完整、改写是否保留数据与结论强度。图件的查看与修订记录复用 `figure_plan.md`，其他问题写入原复核说明；不新建另一套完成状态。未看的图件保持待检查，已发现且影响理解的文字问题先修正，不能凭软件检查通过宣称文字检查也通过。
 
@@ -118,7 +128,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 - `analysis.completion_review` 保存五项 `axes`、逐要求 `requirements`、实际 `comparisons`、`iterations`、累计 `budget`、继续/停止 `decision` 和 `delivery`。判断均写明 `assessor,reason,evidence_refs`；运行成功、校准满足、独立支持、科学问题已回答、交付完整分别为 `completed/satisfied/supported/answered/complete`，未做、不支持和不适用使用各自状态，不能自动转换。
 - 比较条目关联 `axis,data_role,dataset_ids,targets_ref,measurements_ref,score_ref,config_ref,run_ref,candidate_id`。观测值除单位、条件等原有字段外，`source` 指向实际输出 CSV 的 `csv_ref,column,operation,where`；工具从运行绑定的数据复算后再判定。历史比较显式标为 `historical:true`，不能用于宣称当前模型满足要求。
 - 正文中的关键数值应从已登记的原始记录计算。若正文引用派生结果表，在相应的 `delivery.claims[]` 写入 `raw_calculation`，重新计算并比对表值与正文。均值等使用原始列和条件；配对相关使用 `operation: pearson` 和同一行的 `column,other_column`；组间差用 `operation: difference` 和两个原始选择 `left,right`。更复杂的变换保留原分析代码、输入、逐层输出及复算过程，人工核对统计单位和变换含义。
-- 迭代条目用 `initial/candidate/final` 角色关联实际运行、配置、比较及取舍理由。预算记录累计 `limit/consumed`；**未达标时 `decision.action` 必须是 `continue`**，同时写明下一批多组参数组合、目标指标与剩余动作；只有用户明确改变范围或真实实现阻塞才允许 `stop`，且不得标 `goal_complete`，并保留可执行的后续参数组。有效阴性或无法区分机制，仍需在问题判断中说明实际比较、`comparison_complete` 和 `adequacy_reason`。
+- 迭代条目用 `initial/candidate/final` 关联实际运行、配置、比较和取舍理由。预算记录累计 `limit/consumed`。完整研究有未满足项且仍有可行工作时，登记 `continue` 并执行。参数偏差对应下一批有依据的配置，机制、观测方法或对照偏差对应受影响条件的修正和重跑。只有用户明确叫停或有当前授权内无法解决的外部阻碍才可暂停。充分的阴性检验在科学回答中记录实际比较、`comparison_complete` 和 `adequacy_reason`。
 - `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序保存完整分节正文（含本节图与公式）、关联已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
 
 ```text
@@ -175,7 +185,13 @@ python <skill_dir>/scripts/review_project.py --project <project> --checkpoint de
 
 只有`ready_to_send:true`才说明这次准备发送的文件与当前方法、数据和完整正文一致；直接使用其内容，补充问答已由原组装规则置于六项之后。脚本没有宿主发送权，`host_send_verified`不会因文件通过而变成真。`--sent-response-file`只复核由宿主读取或用户提供的实际消息文本，不自动取得聊天，也不把文件本身视为消息来源证明。`--historical`仅用于只读历史检查，不能导出当前交付。
 
-可运行的小网络及失败情境见[完整执行测试](../evals/test_execution_contract.py)、[分项科学判断](../evals/test_scientific_review.py)、[当前方法](../evals/test_current_project.py)和[发送正文](../evals/test_delivery_response.py)。这些验证软件行为，不证明未来所有科研判断正确。
+要检查首次失配能否触发实际计算，可在技能目录运行下面的程序，指定一个尚不存在的工程目录。它保留首轮阶段报告、两轮配置和原始时序、第二轮交付检查，以及各项不满足时的判定。校准范围和模拟规模均来自演示自己的方案。
+
+```text
+python -B -X utf8 evals/test_optimization_round_case.py --workspace <新目录>
+```
+
+[两轮网络算例](../evals/optimization_round_case.py) 与[对应检验](../evals/test_optimization_round_case.py)通过常规建模入口运行。另见[逐项采用判断](../evals/test_final_model.py)、[跨轮复算](../evals/test_round_followup.py)、[分项科学判断](../evals/test_scientific_review.py)与[发送正文](../evals/test_delivery_response.py)。
 
 ## 清单更新与固定编号
 

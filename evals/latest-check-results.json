@@ -1,13 +1,13 @@
 {
-  "executed_utc": "2026-11-23T13:08:27.303204+00:00",
+  "executed_utc": "2026-11-25T05:30:45.733662+00:00",
   "command": [
     "python",
     "-B",
     "-X",
     "utf8",
-    "<local_path>/test_check_model.py",
+    ".agents\\skills\\zm_neuron_network\\evals\\test_check_model.py",
     "--report",
-    "<local_path>/model_final.json"
+    "<local_path>/latest-check-results.json"
   ],
   "working_directory": "<local_path>/Network_skill",
   "python": "3.13.5",
@@ -15,7 +15,7 @@
   "test_runner_sha256": "3388d05efc58ab8256833636ea4fcf541792c092749ea1c125119384849a4cc7",
   "parameter_template_sha256": "2f8ea8165cc8bde0c1e82d789c38c129c773463e320b290a8c63ee136602076d",
   "dependencies_sha256": {
-    "scripts/check_records.py": "fc73d5525926b98479e08e4af682c70bbb901fda9cdeaaeccb1027a0a7e42937"
+    "scripts/check_records.py": "3dbde7bce0bbfa484e377cce025d18b46575957382c31b557b06d7de8db0e557"
   },
   "scope": "Synthetic checks of parameter mapping, exported network and CLI; not biological or independent agent evaluation",
   "status": "passed",

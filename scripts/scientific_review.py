@@ -187,8 +187,12 @@ def _raw_rows(root, plan, check, role, extra_columns, *, runs, listed_runs, data
     if ref not in runs:
         run = verify_run(root, ref)
         context = run.get("review_context", {})
-        require(run["model_version"] == plan.get("model_version") and context.get("plan_id") == plan.get("plan_id")
-                and context.get("requirements_sha256") == plan["review"].get("baseline_sha256"),
+        prepared = (run["model_version"] == plan.get("model_version") and context.get("plan_id") == plan.get("plan_id")
+                    and context.get("requirements_sha256") == plan["review"].get("baseline_sha256"))
+        if not prepared and run["stage"] == "simulation" and plan.get("review_contract") == "zm-neuron-review/2":
+            from final_model import preserved_formal_run
+            prepared = preserved_formal_run(root, plan, ref, run)
+        require(prepared,
                 f"Run has no matching preparation for the current plan and model: {ref}")
         runs[ref] = run, _items(context.get("scientific_checks", []), "run scientific checks")
     run, registered = runs[ref]

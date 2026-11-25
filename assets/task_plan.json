@@ -66,6 +66,8 @@
       "references/run-compare-optimize.md",
       "references/result-delivery.md",
       "references/project-checks.md",
+      "references/final-model.md",
+      "references/round-followup.md",
       "references/execution-management.md",
       "references/literature-figures.md",
       "references/skill-integrations.md",
@@ -82,6 +84,7 @@
     "skill_changes": [],
     "scientific_checks": [],
     "previous_analysis_ref": null,
+    "previous_requirements_ref": null,
     "reused_runs": []
   },
   "reuse": {

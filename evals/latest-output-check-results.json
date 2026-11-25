@@ -3,20 +3,20 @@
   "tests_run": 43,
   "failures": 0,
   "errors": 0,
-  "time_utc": "2026-11-23T13:08:27.780061+00:00",
+  "time_utc": "2026-11-25T05:30:46.310661+00:00",
   "command": [
     "python",
-    "<local_path>/test_check_outputs.py",
+    ".agents\\skills\\zm_neuron_network\\evals\\test_check_outputs.py",
     "--report",
-    "<local_path>/outputs_final.json"
+    "<local_path>/latest-output-check-results.json"
   ],
   "python": "3.13.5",
   "script_sha256": "e4a1ddeae295d3e891ed5a58f6d5fd761674a8250fe46dd4c7242737e7135667",
   "test_sha256": "a59124bac9153520b730a415518f4003ba0adfd76fa0e0bee81f9c904ca8b259",
   "dependencies_sha256": {
-    "scripts/check_records.py": "fc73d5525926b98479e08e4af682c70bbb901fda9cdeaaeccb1027a0a7e42937",
+    "scripts/check_records.py": "3dbde7bce0bbfa484e377cce025d18b46575957382c31b557b06d7de8db0e557",
     "evals/record_fixture.py": "89c4674de9c0886a977ba42ef1d1878aaa0f4bba33b1540c53ab3893db5fe8e1",
-    "assets/analysis_manifest.json": "36fc3ca9dc0a93d74af9fe3e6660facd5a68100f3ae1e3b886455ae6939a0b2c"
+    "assets/analysis_manifest.json": "b273494faeecc51ead4a4a17639f9df66f14647793c4144e26f2bcc783d1a6d9"
   },
   "scope": "Synthetic output coverage, external/model provenance, figure/design references, CSV values, construction steps and read-only behavior",
   "not_run": [
