@@ -78,10 +78,14 @@ def _check_labels(labels, name):
         text = unicodedata.normalize("NFKC", label)
         text = re.sub(r"\bspikes?(?:\s*/\s*s\b|\s*[·⋅]\s*s[-−]?1)|\bpre-BötC\b", "", text, flags=re.I)
         words = WORD.findall(text)
-        if all(_scientific_token(word) for word in words):
+        prose = [word for word in words if not _scientific_token(word)]
+        if not prose:
             continue
         chinese = "".join(HAN.findall(label))
-        require(chinese and chinese not in {"图", "组", "轴", "表", "示意", "图例", "横轴", "纵轴", "标题"},
+        # A named model (e.g. Hodgkin–Huxley) can appear with its Chinese description.
+        # An ordinary English axis or condition still needs translating on the same label.
+        proper_names = all(word.istitle() and word.casefold() not in ENGLISH_LABEL for word in prose)
+        require(proper_names and chinese and chinese not in {"图", "组", "轴", "表", "示意", "图例", "横轴", "纵轴", "标题"},
                 f"{name} 有待中文说明的图内标注：{label}")
 
 

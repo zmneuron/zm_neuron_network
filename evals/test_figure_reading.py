@@ -55,12 +55,14 @@ class FigureReadingTests(unittest.TestCase):
                     observation=f"打开导出图后可辨认{labels[0]}，坐标下方的小字和面板边框没有重叠。")
 
     def test_svg_chinese_labels_allow_units_math_and_acronyms(self):
-        self.result.write_text(svg(*self.result_labels, "mV", "Hz", "CA1", "GABA", "A/B", "ΔF/F", "spikes/s", "exp(−t/τ)"), encoding="utf-8")
+        self.result.write_text(svg(*self.result_labels, "mV", "Hz", "CA1", "GABA", "A/B", "ΔF/F", "spikes/s",
+                                   "Hodgkin–Huxley 模型", "Fano 因子", "exp(−t/τ)"), encoding="utf-8")
         result = self.check()
         self.assertEqual(result, dict(model_figure_id="model", checked_figures=["comparison", "model"], visual_review_files=[]))
 
     def test_chinese_caption_or_another_label_cannot_cover_english_title_axis_or_legend(self):
-        for label in ("Stimulus condition", "TIME", "Firing rate (Hz)", "Baseline", "Group1", "FiringRate"):
+        for label in ("Stimulus condition", "TIME", "Firing rate (Hz)", "Baseline", "Group1", "FiringRate",
+                      "心率 Firing rate (Hz)", "静息 Baseline", "条件 time since pulse"):
             with self.subTest(label=label):
                 self.result.write_text(svg("中文图名", label), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, label.split()[0]):
