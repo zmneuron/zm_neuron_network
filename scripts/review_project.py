@@ -16,7 +16,7 @@ import re
 from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
 from current_project import resolve_current_plan, check_current_artifacts
-from delivery_response import check_presentation, verify_response_file, _visible as visible_text
+from delivery_response import check_presentation, check_reproduction, verify_response_file, _visible as visible_text
 from scientific_review import check_scientific_review
 from show_progress import render_progress
 import statistics
@@ -104,6 +104,23 @@ def scope_state(plan):
     components = review.get("model_components", ["baseline"])
     require(isinstance(components, list) and len(components) == len(set(components))
             and set(components) <= {"baseline", "adverse", "regulation"}, "Invalid applicable model components")
+    independent_goal = review.get("independent_goal", "require_support")
+    require(independent_goal in {"test_prediction", "require_support"}, "Unknown independent evaluation objective")
+    budget = review.get("simulation_budget")
+    if budget is not None:
+        require(isinstance(budget, dict) and type(budget.get("limit")) is int and budget["limit"] >= 0,
+                "Declare a nonnegative simulation budget")
+        text(budget.get("unit"), "simulation budget unit")
+    component_plan = review.get("component_calibration")
+    if component_plan is not None:
+        require(isinstance(component_plan, dict) and set(component_plan) == set(components),
+                "Declare calibration applicability separately for each in-scope model component")
+        for item in component_plan.values():
+            require(isinstance(item, dict) and item.get("mode") in {"targets", "outside_calibration"},
+                    "Unknown component calibration mode")
+            if item["mode"] == "outside_calibration":
+                text(item.get("reason"), "reason why this component has no calibration objective")
+                text(item.get("source_ref"), "component calibration scope source")
     if (regulation or {}).get("mode") == "implementation":
         question = questions.get(regulation.get("question_id"), {})
         require(question.get("required") is True, "Full regulation implementation needs its required scientific question")
@@ -112,6 +129,9 @@ def scope_state(plan):
     require(isinstance(axes, list) and axes and "delivery" in axes
             and len(set(axes)) == len(axes) and set(axes) <= set(AXES), "Declare nonempty required axes including delivery")
     profile = review.get("delivery_profile", "full_model")
+    structure = plan.get("mode") in {"build", "modify"} or bool({"coverage", "modules"} & plan.get("files", {}).keys())
+    reproduction = review.get("require_reproduction", False)
+    require(type(reproduction) is bool, "Declare reproduction applicability")
     require(profile in {"full_model", "scoped"}, "Unknown delivery profile")
     parts = review.get("delivery_parts", list(PARTS))
     require(isinstance(parts, list) and parts and len(parts) == len(set(parts))
@@ -123,11 +143,13 @@ def scope_state(plan):
         text(review.get("delivery_scope_reason"), "scoped delivery reason")
         text(review.get("delivery_scope_ref"), "scoped delivery source")
     return dict(objective=objective, requirements=requirement_scope, questions=questions,
+                independent_goal=independent_goal, component_calibration=component_plan, simulation_budget=budget,
                 scientific_checks=unique(review.get("scientific_checks", []), "id", "scientific checks"),
                 previous_analysis_ref=review.get("previous_analysis_ref"),
                 regulation=regulation, model_components=components, display_progress=review.get("display_progress", False),
                 required_axes=axes, independent_evidence=review.get("independent_evidence", "biological"),
-                delivery_profile=profile, delivery_parts=parts,
+                delivery_profile=profile, delivery_parts=parts, mode=plan.get("mode"), structure=structure,
+                require_reproduction=reproduction,
                 delivery_scope_reason=review.get("delivery_scope_reason"), delivery_scope_ref=review.get("delivery_scope_ref"))
 
 
@@ -136,6 +158,35 @@ def _target_content(root, reference):
     targets = value.get("targets") if isinstance(value, dict) else value
     calibration.validate_targets(targets)
     return targets
+
+
+def _component_results(root, plan, comparisons):
+    review = plan["review"]
+    components = review.get("model_components", ["baseline"])
+    allocation = review.get("component_calibration", {})
+    groups = {name: {} for name in components}
+    for ref in review.get("criteria_refs", []):
+        for target in _target_content(root, ref):
+            if target["data_role"] != "calibration" or not target["required"]:
+                continue
+            component = target.get("component", components[0] if len(components) == 1 else "baseline")
+            require(component in groups, "Calibration target is outside the declared model components: " + target["id"])
+            if allocation and len(components) > 1:
+                require("component" in target, "Assign every required calibration target to an in-scope component")
+            states = [row["state"] for c in comparisons.values() if not c["historical"] and
+                      c["axis"] == "calibration" and c["targets_ref"] == ref for row in c["rows"] if row["id"] == target["id"]]
+            state = "unmet" if "unmet" in states else "passed" if states and set(states) == {"passed"} else "not_evaluated"
+            groups[component][ref + "#" + target["id"]] = state
+    result = {}
+    for component, targets in groups.items():
+        mode = allocation.get(component, {}).get("mode")
+        if mode == "outside_calibration":
+            local(root, allocation[component]["source_ref"])
+            require(not targets, "A component with required calibration targets cannot be exempted")
+        status = ("outside_calibration" if mode == "outside_calibration" else "unmet" if "unmet" in targets.values()
+                  else "passed" if targets and set(targets.values()) == {"passed"} else "not_evaluated")
+        result[component] = dict(status=status, targets=targets)
+    return result
 
 
 def _reference_files(root, item):
@@ -172,8 +223,16 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     baseline = dict(review_contract=plan["review_contract"], captured_at_utc=datetime.now(timezone.utc).isoformat(),
                     plan_id=plan["plan_id"], initial_model_version=plan["model_version"],
                     scope=state, criteria=criteria, skill_files=skills,
-                    datasets=review.get("datasets", []))
+                    datasets=review.get("datasets", []), selection_uses=review.get("selection_uses", []))
     baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
+    space_ref = review.get("parameter_space_ref")
+    if space_ref:
+        space = json_value(root, space_ref)
+        configs = space.get("config_refs") if isinstance(space, dict) else None
+        require(isinstance(configs, list) and configs, "Declare a finite set of scientifically justified configurations")
+        local(root, space.get("rationale_ref"))
+        baseline["parameter_space"] = dict(ref=space_ref, sha256=fingerprint(local(root, space_ref)),
+            configs={ref: calibration.fingerprint(json_value(root, ref)) for ref in configs})
     if review.get("previous_analysis_ref"):
         previous = local(root, review["previous_analysis_ref"])
         previous_analysis = read(previous)
@@ -210,6 +269,17 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
 
 def _scope_changes(before, after):
     changes = []
+    if before.get("independent_goal", "require_support") != after["independent_goal"]:
+        changes.append("independent_goal")
+    if before.get("component_calibration") != after.get("component_calibration"):
+        changes.append("component_calibration")
+    if before.get("simulation_budget") != after.get("simulation_budget"):
+        changes.append("simulation_budget")
+    if "mode" in before and before["mode"] != after["mode"]:
+        changes.append("mode")
+    for field in ("structure", "require_reproduction"):
+        if before.get(field) and not after.get(field):
+            changes.append(field)
     for field in ("objective", "independent_evidence", "delivery_profile", "delivery_parts", "delivery_scope_reason", "delivery_scope_ref", "previous_analysis_ref"):
         if before.get(field) != after.get(field):
             changes.append(field)
@@ -287,35 +357,94 @@ def _check_scope(root, plan, baseline, report, skill):
     report["scope"] = state
 
 
-def _dataset_map(root, review, baseline):
+def _observation_overlap(root, left, right):
+    """Compare the origin and declared observational units, independently of the run seed."""
+    shared = left.get("id") == right.get("id") or (
+        left.get("source_id") and left["source_id"] == right.get("source_id"))
+    if left.get("source_ref") and right.get("source_ref"):
+        shared = shared or (root / left["source_ref"].split("#")[0]).resolve() == (
+            root / right["source_ref"].split("#")[0]).resolve()
+    a, b = set(left.get("observation_ids", [])), set(right.get("observation_ids", []))
+    return bool(shared and (not a or not b or a & b))
+
+
+def _selection_sources(root, review, baseline, completion, datasets):
+    uses = []
+    previous = baseline.get("previous_analysis")
+    prior = read(local(root, previous["ref"])).get("completion_review", {}) if previous else {}
+    for owner in (baseline, review, prior, *prior.get("iterations", []), completion, *completion.get("iterations", [])):
+        records = owner.get("selection_uses", [])
+        require(isinstance(records, list), "Selection uses must be a list")
+        uses.extend(records)
+    sources = []
+    for use in uses:
+        require(isinstance(use, dict) and use.get("dataset_id") in datasets, "Selection use lacks a registered observation source")
+        require(use.get("feature") in {"value", "direction", "contrast"}, "Identify the value, direction or contrast used for selection")
+        text(use.get("quantity"), "quantity used to select candidates")
+        local(root, use.get("rule_ref"))
+        source = dict(datasets[use["dataset_id"]])
+        if "observation_ids" in use:
+            units = use["observation_ids"]
+            require(isinstance(units, list) and units and all(isinstance(s, str) and s.strip() for s in units)
+                    and (not source.get("observation_ids") or set(units) <= set(source["observation_ids"])),
+                    "Selection use identifies unknown or empty observation units")
+            source["observation_ids"] = units
+        sources.append(source)
+    for records in (prior, completion):
+        comparisons = unique(records.get("comparisons", []), "id", "comparisons")
+        for iteration in records.get("iterations", []):
+            if iteration.get("role") == "candidate":
+                for identity in iteration.get("comparison_ids", []):
+                    item = comparisons.get(identity, {})
+                    for dataset_id in item.get("dataset_ids", []):
+                        require(dataset_id in datasets, "Preserve the observation source used for earlier candidate selection")
+                        sources.append(datasets[dataset_id])
+    return sources
+
+
+def _dataset_map(root, review, baseline, analysis):
+    completion = analysis["completion_review"]
     datasets = unique(review.get("datasets", []), "id", "review datasets")
     history = baseline.get("datasets", []) + review.get("data_role_history", [])
     old = unique(baseline.get("datasets", []), "id", "captured datasets")
     require(set(old) <= set(datasets), "Previously declared data identities were removed; preserve their role history")
     for ref, digest in baseline.get("dataset_files", {}).items():
         require(fingerprint(local(root, ref)) == digest, "Captured reference data changed; preserve the original data and register a new version")
+    simulated = set()
+    if any(d.get("kind") == "biological" and d.get("role") == "evaluation" and d.get("available") for d in datasets.values()):
+        simulated.update(local(root, d["path"]) for d in analysis.get("datasets", [])
+                         if d.get("origin") == "model" and d.get("path"))
+        refs = {x["record"] for x in analysis.get("runs", [])}
+        refs.update(completion["axes"]["execution"].get("run_refs", []))
+        refs.update(x["run_ref"] for x in completion.get("comparisons", []))
+        for ref in refs:
+            record = verify_run(root, ref, require_completed=False)
+            if record["stage"] == "simulation":
+                simulated.update(local(root, p) for p in record.get("output_sha256", {}))
     for item in datasets.values():
         require(item.get("kind") in {"biological", "synthetic", "model_output"}, "Unknown reference evidence kind")
         require(item.get("role") in {"calibration", "evaluation", "reference"}, "Unknown dataset role")
         require(type(item.get("available")) is bool and type(item.get("comparable")) is bool
                 and type(item.get("used_for_selection")) is bool, "Declare dataset availability, comparability and selection use")
         text(item.get("conditions"), "dataset conditions")
+        if "observation_ids" in item:
+            ids = item["observation_ids"]
+            require(isinstance(ids, list) and all(isinstance(s, str) and s.strip() for s in ids)
+                    and len(ids) == len(set(ids)), "Declare distinct observation IDs")
         if item["available"]:
-            _reference_files(root, item)
+            paths = _reference_files(root, item)
+            if item["kind"] == "biological" and item["role"] == "evaluation":
+                require(not paths.intersection(simulated), "Simulation repeats cannot supply independent biological observations")
         else:
             text(item.get("unavailable_reason"), "unavailable data reason")
         if item["role"] == "evaluation":
             for prior in history:
-                same_observations = prior.get("id") == item["id"]
-                if prior.get("source_ref") == item.get("source_ref"):
-                    a, b = set(prior.get("observation_ids", [])), set(item.get("observation_ids", []))
-                    same_observations |= not a or not b or bool(a & b)
-                if same_observations and (prior.get("used_for_selection") is True or prior.get("role") == "calibration"):
+                if _observation_overlap(root, prior, item) and (prior.get("used_for_selection") is True or prior.get("role") == "calibration"):
                     raise ValueError("Previously used selection data cannot be relabelled independent evaluation")
-    return datasets
+    return datasets, _selection_sources(root, review, baseline, completion, datasets)
 
 
-def _compare(root, item, datasets, plan, baseline):
+def _compare(root, item, datasets, plan, baseline, selection_sources):
     axis, role = item.get("axis"), item.get("data_role")
     require((axis, role) in {("calibration", "calibration"), ("independent_evaluation", "evaluation"), ("reference", "reference")}, "Comparison axis and data role disagree")
     ids = item.get("dataset_ids")
@@ -344,12 +473,14 @@ def _compare(root, item, datasets, plan, baseline):
         require(required_kind in {"biological", "synthetic", "either"}, "Unknown independent evidence requirement")
         require(required_kind == "either" or all(x["kind"] == required_kind for x in selected), "Independent evidence does not match required biological/synthetic scope")
         for ev in selected:
+            if not item.get("historical"):
+                require(not any(_observation_overlap(root, ev, source) for source in selection_sources),
+                        "Independent evaluation reuses a value, direction or contrast used for candidate selection")
             for other in independence_context:
                 if other["id"] == ev["id"] or not (other["used_for_selection"] or other["role"] == "calibration"):
                     continue
-                if other.get("source_ref") == ev.get("source_ref"):
-                    a, b = set(ev.get("observation_ids", [])), set(other.get("observation_ids", []))
-                    require(bool(a) and bool(b) and not (a & b), "Calibration/evaluation observations overlap or lack a documented split")
+                require(not _observation_overlap(root, ev, other),
+                        "Calibration/evaluation observations overlap or lack a documented split")
     run = verify_run(root, item.get("run_ref"), require_completed=False,
                      check_current_code=item.get("historical") is not True)
     require(run["model_version"] == plan["model_version"] or item.get("historical") is True, "Comparison uses another model version")
@@ -359,6 +490,15 @@ def _compare(root, item, datasets, plan, baseline):
     targets = _target_content(root, item.get("targets_ref"))
     require(item["targets_ref"] in plan["review"].get("criteria_refs", []), "Comparison criteria were not declared before review capture")
     reference_paths = {path for dataset in selected for path in _reference_files(root, dataset)}
+    if axis == "independent_evaluation" and "independent_goal" in plan["review"] and not item.get("historical"):
+        frozen = baseline.get("criteria", {}).get(item["targets_ref"], [])
+        require(all(t in frozen for t in targets if t["data_role"] == role and t["required"]),
+                "The primary prediction test was added or changed after the initial criteria capture")
+        original = {d["id"]: d for d in baseline.get("datasets", [])}
+        require(all(d["id"] in original and original[d["id"]].get("role") == "evaluation"
+                    and not original[d["id"]].get("used_for_selection")
+                    and all(original[d["id"]].get(k) == d.get(k) for k in ("source_ref", "source_id", "observation_ids", "kind"))
+                    for d in selected), "Independent test observations or holdout units were not reserved at the start")
     for target in targets:
         if target["data_role"] == role:
             require(local(root, target.get("source_ref")) in reference_paths,
@@ -374,6 +514,7 @@ def _compare(root, item, datasets, plan, baseline):
                 "Feature extraction does not reference the compared simulation")
         records.append(analyzed)
     recorded_outputs = {ref for record in records for ref in record.get("output_sha256", {})}
+    inputs = {local(root, ref) for ref in recorded_outputs} | reference_paths
     for observation in measurements.values():
         if observation.get("status") != "observed":
             continue
@@ -382,7 +523,7 @@ def _compare(root, item, datasets, plan, baseline):
                 "Observed feature lacks a CSV source bound to its actual run")
         value = observation.get("value")
         require(calibration.finite(value), "Nonfinite observed feature")
-        _claim(root, dict(source, value=value, format=".15g", text=format(value, ".15g"), unit=""))
+        _claim(root, dict(source, value=value, format=".15g", text=format(value, ".15g"), unit=""), inputs)
     computed = calibration.score_targets(targets, measurements, candidate_id=item.get("candidate_id"),
                                          config=config, data_role=role, run_status=run["status"])
     require(read(local(root, item.get("score_ref"))) == computed, "Stored comparison differs from recomputed per-target results")
@@ -429,8 +570,11 @@ def _axis(root, axis, value, comparisons, plan, analysis):
         require(all(i in comparisons for i in linked), f"Unknown comparison in {axis}")
         chosen = [comparisons[i] for i in linked]
         require(all(x["axis"] == axis and not x["historical"] for x in chosen), "Current conclusion uses a historical or wrong-role comparison")
+        negative_test = (axis == "independent_evaluation" and value["status"] == "not_supported"
+                         and (plan["review"].get("independent_goal") == "test_prediction" or value.get("evaluation_completed") is True))
         if success:
             require(chosen and all(x["status"] == "passed" for x in chosen), f"{axis} claimed success despite unmet or unmeasured targets")
+        if success or negative_test:
             role = "calibration" if axis == "calibration" else "evaluation"
             expected = {(ref, t["id"]) for ref in plan["review"].get("criteria_refs", [])
                         for t in _target_content(root, ref) if t["required"] and t["data_role"] == role}
@@ -438,10 +582,26 @@ def _axis(root, axis, value, comparisons, plan, analysis):
             require(expected and expected <= covered, f"{axis} omits a predeclared required target set")
             require(set(linked) == {key for key, x in comparisons.items() if x["axis"] == axis and not x["historical"]},
                     f"{axis} hides an available current comparison")
+        if negative_test:
+            require(value.get("evaluation_completed") is True, "Negative evaluation needs a completed predeclared test")
+            text(value.get("adequacy_reason"), "negative evaluation design and precision assessment")
+            require(all(x["status"] in {"infeasible", "passed"} and all(
+                row["state"] in {"passed", "unmet"} and calibration.finite(row["value"])
+                for row in x["rows"] if row["required"]) for x in chosen),
+                "Missing measurements or invalid runs cannot establish a completed negative test")
+            answers = analysis["completion_review"]["axes"]["scientific_answer"].get("questions", [])
+            required_questions = {q["id"] for q in plan["review"]["questions"] if q["required"]}
+            answered = {key for q in answers if q.get("id") in required_questions and q.get("state") == "answered"
+                        and q.get("comparison_complete") is True for key in q.get("comparison_ids", [])}
+            require(set(linked) <= answered, "Negative evaluation is not addressed by the answer to its scientific question")
         if axis == "calibration" and value["status"] == "not_satisfied":
             require(any(x["status"] in {"infeasible", "invalid_run"} for x in chosen), "Calibration failure lacks a failed comparison")
+        if value["status"] == "not_evaluated":
+            require(not any(c["axis"] == axis and not c["historical"] and c["status"] in {"passed", "infeasible"}
+                            for c in comparisons.values()), "A measured current comparison cannot be reported as unevaluated")
         if axis == "independent_evaluation" and value["status"] == "not_supported":
-            require(any(x["status"] in {"infeasible", "invalid_run"} for x in chosen), "Independent non-support lacks a failed comparison")
+            require(any(x["status"] == "infeasible" and any(r["required"] and r["state"] == "unmet" for r in x["rows"])
+                        for x in chosen), "Independent non-support lacks a measured failed comparison")
         if axis == "independent_evaluation" and value["status"] == "inconclusive":
             require(value.get("evaluation_completed") is True, "Inconclusive evaluation must identify an actually completed comparison")
             require(any(d.get("role") == "evaluation" and d.get("available") and not d.get("used_for_selection")
@@ -483,7 +643,7 @@ def _axis(root, axis, value, comparisons, plan, analysis):
                 require(answer["state"] in {"answered", "inconclusive"}, "Scientific answer declared complete while a required question remains unresolved")
 
 
-def _claim(root, claim, allowed=None):
+def _csv_statistic(root, claim, allowed):
     path = local(root, claim.get("csv_ref"))
     require(allowed is None or path in allowed, "Quantitative claim CSV is not bound to a completed run or declared reference data")
     with path.open(encoding="utf-8-sig", newline="") as handle:
@@ -502,10 +662,33 @@ def _claim(root, claim, allowed=None):
         elif operation == "sum": actual = sum(values)
         elif operation == "median": actual = statistics.median(values)
         elif operation == "zero_fraction": actual = sum(v == 0 for v in values) / len(values)
+        elif operation == "pearson":
+            other = [float(r[claim["other_column"]]) for r in selected]
+            require(len(values) >= 2 and all(math.isfinite(v) for v in other) and min(other) < max(other)
+                    and min(values) < max(values), "Correlation needs paired, finite, varying observations")
+            actual = statistics.correlation(values, other)
         elif operation == "first":
             require(len(values) == 1, "First-value claim needs a unique row")
             actual = values[0]
         else: raise ValueError("Unsupported claim operation")
+    return actual
+
+
+def _claim(root, claim, allowed=None, raw_paths=None):
+    actual = _csv_statistic(root, claim, allowed)
+    raw = claim.get("raw_calculation")
+    if raw is not None:
+        require(isinstance(raw, dict), "Invalid raw calculation")
+        permitted = raw_paths if raw_paths is not None else allowed
+        if raw.get("operation") == "difference":
+            derived = _csv_statistic(root, raw["left"], permitted) - _csv_statistic(root, raw["right"], permitted)
+        else:
+            derived = _csv_statistic(root, raw, permitted)
+        require(math.isclose(derived, actual, rel_tol=0, abs_tol=1e-9),
+                "Reported statistic disagrees with recomputation from its underlying observations")
+    elif raw_paths is not None:
+        require(local(root, claim.get("csv_ref")) in raw_paths,
+                "A derived result table needs a raw calculation for its reported quantitative claim")
     require(calibration.finite(claim.get("value")) and math.isclose(actual, claim["value"], rel_tol=0, abs_tol=1e-9), "Quantitative claim disagrees with actual CSV data")
     rendered = format(actual, claim.get("format", ".6g"))
     if claim.get("unit"):
@@ -600,7 +783,13 @@ def _delivery(root, delivery, plan, analysis, axes):
         record = verify_run(root, ref, require_completed=False)
         if record["status"] == "completed":
             allowed.update(local(root, path) for path in record.get("output_sha256", {}))
-    rendered = {key: _claim(root, value, allowed) for key, value in claims.items()}
+    raw = {local(root, d["path"]) for d in analysis.get("datasets", []) if d.get("kind") == "raw"} & allowed
+    raw.update(local(root, ref) for d in plan["review"].get("datasets", []) if d.get("available")
+               for ref in [d.get("source_ref"), *d.get("files", [])] if local(root, ref).suffix.lower() == ".csv")
+    needs_raw = plan.get("review_contract") == CONTRACT and (plan["review"].get("require_reproduction") or
+                plan.get("mode") in {"build", "modify"} or bool({"modules", "coverage"} & plan.get("files", {}).keys()))
+    rendered = {key: _claim(root, value, allowed, raw if needs_raw or "raw_calculation" in value else None)
+                for key, value in claims.items()}
     questions = {q["id"] for q in plan["review"]["questions"] if q["required"]}
     figures = unique(analysis.get("figures", []), "id", "figures")
     positions = [0, 0]
@@ -674,6 +863,8 @@ def _delivery(root, delivery, plan, analysis, axes):
 def _iterations(root, completion, comparisons, plan):
     rows = completion.get("iterations", [])
     require(isinstance(rows, list), "Invalid iteration records")
+    if completion.get("optimization"):
+        require(rows and comparisons, "Optimization summary lacks actual iterations and scored comparisons")
     if rows:
         require(any(r.get("role") == "initial" for r in rows), "Optimization history lacks initial model")
     for row in rows:
@@ -687,11 +878,27 @@ def _iterations(root, completion, comparisons, plan):
                 "Iteration links a comparison from another run")
         if row["role"] == "final":
             require(run["model_version"] == plan["model_version"], "Final iteration belongs to another model")
+        if row["role"] == "candidate" and plan.get("review_contract") == CONTRACT:
+            require(row.get("comparison_ids") or row.get("selection_uses") or run["status"] != "completed",
+                    "Record the observations or scored comparisons used to keep/reject this candidate")
     if completion.get("decision", {}).get("action") in {"stop", "complete"} and any(r.get("role") == "candidate" for r in rows):
-        require(any(r.get("role") == "final" for r in rows), "Optimization lacks final keep/adopt decision")
+        finals = [r for r in rows if r["role"] == "final"]
+        require(finals, "Optimization lacks final keep/adopt decision")
+        if plan.get("review_contract") == CONTRACT:
+            adopted = set()
+            for row in finals:
+                scores = [comparisons[i]["candidate_id"] for i in row.get("comparison_ids", [])]
+                identity = row.get("candidate_id")
+                if identity:
+                    require(not scores or set(scores) == {identity}, "Adopted candidate ID disagrees with the scored run")
+                require(identity or scores, "Identify the final candidate or link its scored run")
+                adopted.update(scores or [identity])
+            require(all(c["candidate_id"] in adopted for c in comparisons.values()
+                        if not c["historical"] and c["data_role"] in {"calibration", "evaluation"}),
+                    "Current calibration/evaluation scores refer to a candidate outside the adopted set")
 
 
-def _decision(root, completion, required_pending, datasets, plan=None, baseline=None):
+def _decision(root, completion, required_pending, datasets, plan, baseline, components, comparisons, runs, verified_negative):
     budget = completion.get("budget")
     require(isinstance(budget, dict), "Missing cumulative budget")
     calibration.SimulationBudget(budget.get("limit"), budget.get("consumed"))
@@ -701,6 +908,10 @@ def _decision(root, completion, required_pending, datasets, plan=None, baseline=
         require(budget["consumed"] == budget["previous_consumed"] + budget["round_consumed"],
                 "Cumulative cost was reset or does not equal previous plus current-round work")
         text(budget.get("unit"), "budget unit")
+        allowance = plan["review"].get("simulation_budget")
+        if allowance is not None:
+            require(all(budget[k] == allowance[k] for k in ("limit", "unit")),
+                    "Runtime budget disagrees with the declared allowance")
         previous = (baseline or {}).get("previous_analysis")
         if previous:
             require(budget["previous_consumed"] == previous["consumed"], "Continuation omits the prior recorded cost")
@@ -710,25 +921,102 @@ def _decision(root, completion, required_pending, datasets, plan=None, baseline=
     run_refs = {r for axis in completion["axes"].values() for r in axis.get("run_refs", [])}
     run_refs.update(c["run_ref"] for c in completion.get("comparisons", []))
     run_refs.update(r["run_ref"] for r in completion.get("iterations", []))
-    known_simulations = {r["run_id"] for ref in run_refs
+    run_refs.update(r["record"] for r in runs)
+    run_refs.update(budget.get("run_refs", []))
+    known_simulations = {r["run_id"]: r for ref in run_refs
                          if (r := verify_run(root, ref, require_completed=False))["stage"] == "simulation"}
-    require(budget["consumed"] >= len(known_simulations), "Cumulative budget omits recorded simulation calls")
+    counts_calls = budget.get("unit", "simulator calls") == "simulator calls"
+    if counts_calls:
+        require(budget["consumed"] >= len(known_simulations), "Cumulative budget omits recorded simulation calls")
     decision = completion.get("decision")
     require(isinstance(decision, dict) and decision.get("action") in {"continue", "stop", "complete"}, "Missing continuation/adoption decision")
     text(decision.get("reason"), "decision reason")
     if required_pending:
         require(decision["action"] != "complete", "Required goals remain unmet; cannot declare overall complete")
         text(decision.get("next_action"), "remaining next action")
+        unfinished = {name for name, group in components.items() if group["status"] == "unmet"}
+        if "calibration" in required_pending:
+            comparable_sources = {p for d in datasets.values() if d["available"] and d["comparable"]
+                                  and d["role"] == "calibration" for p in _reference_files(root, d)}
+            for name, group in components.items():
+                for key, state in group["targets"].items():
+                    if state == "not_evaluated":
+                        ref, identity = key.rsplit("#", 1)
+                        target = next(t for t in _target_content(root, ref) if t["id"] == identity)
+                        if target.get("criterion") and (root / target["source_ref"].split("#")[0]).resolve() in comparable_sources:
+                            unfinished.add(name)
+        if decision["action"] == "continue" and unfinished and "calibration" in required_pending:
+            require(budget["consumed"] < budget["limit"], "Next calibration batch lacks remaining budget")
+            batch = decision.get("next_batch")
+            require(isinstance(batch, list) and batch, "Unmet comparable calibration needs a concrete next parameter batch")
+            planned = set()
+            for row in batch:
+                require(isinstance(row, dict) and row.get("component") in unfinished, "Next batch lacks an affected component")
+                require(isinstance(row.get("parameters"), dict) and row["parameters"], "Next batch lacks parameter values")
+                local(root, row.get("rationale_ref"))
+                key = (row["component"], calibration.fingerprint(row["parameters"]))
+                require(key not in planned, "Duplicate parameter combination in next batch")
+                planned.add(key)
+            require(unfinished <= {name for name, _ in planned}, "Next batch omits an affected component")
         if decision["action"] == "stop":
             assessment(root, decision, "stop decision")
             reason = decision.get("stop_reason")
-            require(reason in {"budget_exhausted", "missing_data", "predeclared_stop", "user_decision", "implementation_blocked"}, "Unexplained early termination with unmet goals")
+            require(reason != "predeclared_stop", "predeclared_stop cannot close an unmet objective; record a concrete blocker or continue")
+            require(reason in {"budget_exhausted", "range_exhausted", "no_justified_batch", "resources_unavailable", "missing_data",
+                               "user_decision", "implementation_blocked", "independent_non_support"}, "Unexplained early termination with unmet goals")
+            if plan.get("review_contract") == CONTRACT:
+                text(decision.get("gap"), "specific gap preventing further work")
+                text(decision.get("recovery_condition"), "condition for resuming this work")
             if reason == "budget_exhausted":
                 require(budget["consumed"] == budget["limit"], "Budget remains but exhaustion was claimed")
+                if plan.get("review_contract") == CONTRACT:
+                    if plan["review"].get("simulation_budget") is None or not counts_calls:
+                        local(root, decision.get("source_ref"))
+                    if counts_calls:
+                        opened = datetime.fromisoformat(baseline["captured_at_utc"])
+                        actual = sum(datetime.fromisoformat(r["started_at_utc"]) >= opened for r in known_simulations.values())
+                        require(budget.get("round_consumed", budget["consumed"] - budget.get("previous_consumed", 0)) <= actual,
+                                "Claimed exhausted calls lack actual simulation records")
             elif reason == "missing_data":
-                require(any(not x["available"] for x in datasets.values()), "Missing-data stop has no unavailable dataset")
-            elif reason in {"predeclared_stop", "user_decision"}:
+                gap_ids = decision.get("dataset_ids", list(datasets) if plan.get("review_contract") == LEGACY_CONTRACT else [])
+                require(isinstance(gap_ids, list) and gap_ids and set(gap_ids) <= set(datasets),
+                        "Identify the specific missing or incomparable observations")
+                require(any(not datasets[d]["available"] or not datasets[d]["comparable"] for d in gap_ids),
+                        "Missing-data stop has no unavailable or incomparable dataset")
+                if plan.get("review_contract") == CONTRACT:
+                    require(all(not datasets[d]["available"] or not datasets[d]["comparable"] for d in gap_ids),
+                            "An available comparable source is listed as a data blocker")
+                    roles = {role for axis, role in (("calibration", "calibration"), ("independent_evaluation", "evaluation"))
+                             if axis in required_pending}
+                    require(not roles or any(datasets[d]["role"] in roles for d in gap_ids),
+                            "The missing dataset does not address an unmet comparison")
+                require(not unfinished or "calibration" not in required_pending,
+                        "Missing data for another objective cannot stop available comparable calibration")
+            elif reason == "independent_non_support":
+                ids = set(completion["axes"]["independent_evaluation"].get("comparison_ids", []))
+                dependent = {r["id"] for r in completion["requirements"] if r.get("status") == "unmet"
+                             and ids.intersection(r.get("comparison_ids", []))}
+                require(verified_negative and "independent_goal" in plan["review"]
+                        and set(required_pending) <= dependent | {"independent_evaluation"},
+                        "Independent non-support cannot close unfinished calibration or other untested requirements")
+            elif reason in {"range_exhausted", "no_justified_batch"}:
+                space = baseline.get("parameter_space", {})
+                tested = {score["config_fingerprint"] for row in completion.get("iterations", [])
+                          for key in row.get("comparison_ids", []) if (score := comparisons.get(key))
+                          and score["data_role"] == "calibration" and score["status"] in {"infeasible", "passed"}
+                          and all(r["state"] in {"passed", "unmet"} for r in score["rows"] if r["required"])}
+                if reason == "range_exhausted" or space:
+                    require(space and space["ref"] == plan["review"].get("parameter_space_ref")
+                            and space["sha256"] == fingerprint(local(root, space["ref"])), "No preserved predeclared parameter range")
+                    require(set(space["configs"].values()) <= tested, "Declared parameter range contains untested configurations")
+                if reason == "no_justified_batch":
+                    local(root, decision.get("source_ref"))
+                    text(decision.get("range_assessment"), "scientific reason no further range or representation can be justified")
+                    require(tested, "No scored parameter configuration supports the stated range assessment")
+            else:
                 local(root, decision.get("source_ref"))
+                if reason == "user_decision":
+                    require(decision.get("source_kind") == "user", "Early stop requires the actual user decision")
     elif decision["action"] == "continue":
         text(decision.get("next_action"), "next action")
 
@@ -751,7 +1039,7 @@ def _requirements(root, plan, analysis, completion):
 
 
 def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
-                 historical=False, response_file=None, sent_response_file=None):
+                 historical=False, response_file=None, sent_response_file=None, _structure=None):
     root = Path(project).resolve()
     report = dict(status="failed", checkpoint=checkpoint, issues=[], warnings=[], axes={}, consistent=False,
                   goal_complete=False, ready_to_deliver=False, ready_to_send=False, checks={}, read_next=list(READING.get(checkpoint, [])),
@@ -826,32 +1114,79 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         report["checks"]["regulation"] = regulation
         if regulation["status"] == "failed":
             report["issues"].extend("regulation: " + issue for issue in regulation["issues"])
-        datasets = _dataset_map(root, plan["review"], baseline)
+        datasets, selection_sources = _dataset_map(root, plan["review"], baseline, analysis)
         comparisons = {}
         for name, item in unique(completion.get("comparisons", []), "id", "comparisons").items():
             try:
-                comparisons[name] = _compare(root, item, datasets, plan, baseline)
+                comparisons[name] = _compare(root, item, datasets, plan, baseline, selection_sources)
             except (OSError, ValueError, TypeError, KeyError) as error:
                 report["issues"].append(f"comparison {name}: {error}")
         report["checks"]["comparisons"] = comparisons
+        components = _component_results(root, plan, comparisons)
+        report["checks"]["component_calibration"] = components
+        verified_negative = False
         for name in AXES:
             try:
                 _axis(root, name, axes[name], comparisons, plan, analysis)
+                if name == "independent_evaluation":
+                    if axes[name]["status"] == "not_supported" and axes[name].get("evaluation_completed") is True:
+                        ids = set(axes[name].get("comparison_ids", []))
+                        questions = {q["id"] for q in axes["scientific_answer"].get("questions", [])
+                                     if ids.intersection(q.get("comparison_ids", []))}
+                        required = {x["id"] for x in plan["review"].get("scientific_checks", [])
+                                    if x.get("required") and x["question_id"] in questions}
+                        verified_negative = not questions.intersection(science.get("unresolved_question_ids", [])) and not any(
+                            f["id"] in required and f.get("kind") == "comparison_design" and f.get("matches") is False
+                            for f in science.get("findings", []))
             except (OSError, ValueError, TypeError, KeyError) as error:
                 report["issues"].append(f"{name}: {error}")
+                if name in {"calibration", "independent_evaluation"}:
+                    report["axes"][name].update(declared_status=axes[name].get("status"), status="not_evaluated")
+        report["negative_test_completed"] = verified_negative
+        negative_complete = verified_negative and plan["review"].get("independent_goal") == "test_prediction"
         for label, action in (("iterations", lambda: _iterations(root, completion, comparisons, plan)),):
             try: action()
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"{label}: {error}")
         if axes["delivery"].get("status") == "complete":
             try: report["checks"]["delivery"] = _delivery(root, completion.get("delivery"), plan, analysis, axes)
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"delivery: {error}")
-        pending = [name for name in plan["review"]["required_axes"] if axes[name].get("status") != AXES[name][0]]
+        delivering = axes["delivery"].get("status") == "complete" or completion.get("decision", {}).get("action") == "complete"
+        additional_pending = []
+        if delivering and plan["review_contract"] == CONTRACT:
+            scope = report["scope"]
+            if scope["delivery_profile"] == "full_model" and not scope["mode"]:
+                report["issues"].append("A full current model review needs its task mode to determine the applicable implementation checks")
+            if scope["structure"]:
+                from check_project import check_structure
+                structure = _structure if _structure is not None else check_structure(
+                    root, plan_path, "delivery" if checkpoint == "delivery" else "implemented", historical=historical)
+                report["checks"]["implementation"] = dict(status=structure["status"], issues=list(structure["issues"]))
+                if structure["status"] == "failed":
+                    report["issues"].extend("implementation: " + msg for msg in structure["issues"])
+                elif structure["status"] != "passed":
+                    additional_pending.append("implementation_checks")
+            content = completion.get("delivery")
+            reproduction = check_reproduction(root, content, plan, analysis)
+            report["checks"]["reproduction"] = reproduction
+            if reproduction["status"] == "failed":
+                report["issues"].extend("reproduction: " + msg for msg in reproduction["issues"])
+            elif (scope["require_reproduction"] or scope["structure"] and scope["delivery_profile"] == "full_model"
+                  or content and "reproduction" in content) and reproduction["status"] != "passed":
+                additional_pending.append("reproduction")
+        pending = [name for name in plan["review"]["required_axes"] if report["axes"][name].get("status") != AXES[name][0]
+                   and not (name == "independent_evaluation" and negative_complete)]
+        if ("calibration" in plan["review"]["required_axes"] and plan["review_contract"] == CONTRACT
+                and any(c["status"] in {"unmet", "not_evaluated"} for c in components.values())
+                and "calibration" not in pending):
+            report["issues"].append("calibration: Declared success omits calibration of an in-scope component; document its targets or scope")
+            pending.append("calibration")
         report["unmet_axes"] = pending
         try:
             report["unmet_requirements"] = _requirements(root, plan, analysis, completion)
         except (OSError, ValueError, TypeError, KeyError) as error:
             report["issues"].append(f"requirements: {error}")
             report["unmet_requirements"] = [x["id"] for x in plan["requirements"]]
+        report["unmet_requirements"].extend(additional_pending)
         pending = pending + report["unmet_requirements"]
         if current["status"] == "incomplete":
             report["unmet_requirements"].append("current_model_consistency")
@@ -863,12 +1198,12 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         if (regulation_scope(plan) or {}).get("mode") == "implementation" and not regulation.get("complete"):
             report["unmet_requirements"].append("regulation_minimum_study")
             pending.append("regulation_minimum_study")
-        try: _decision(root, completion, pending, datasets, plan, baseline)
+        try: _decision(root, completion, pending, datasets, plan, baseline, components, comparisons, analysis.get("runs", []), verified_negative)
         except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"decision: {error}")
-        report["goal_complete"] = not pending and not report["issues"]
+        report["goal_complete"] = not pending and not report["issues"] and completion["decision"]["action"] == "complete"
         report["ready_to_deliver"] = axes["delivery"].get("status") == "complete" and not report["issues"]
         report["consistent"] = not report["issues"]
-        report["status"] = "failed" if report["issues"] else "incomplete" if pending else "passed"
+        report["status"] = "failed" if report["issues"] else "passed" if report["goal_complete"] else "incomplete"
         report["progress"] = render_progress(root, plan, analysis, report)
         if plan["review"].get("display_progress") and checkpoint == "delivery" and axes["delivery"].get("status") == "complete":
             part = next((p for p in completion.get("delivery", {}).get("parts", []) if p.get("kind") == "biological_comparison"), None)

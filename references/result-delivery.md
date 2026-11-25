@@ -18,6 +18,10 @@
 
 用当前 `review.followup_questions` 暂存需在交付后回答的问题（`id,text`），在 `delivery.followup_answers` 保存同 ID 的答案；已及时解决的状态问题不重复入队。需要新增研究才能回答的事项如实说明尚未研究及下一步，不能挪用旧结果回答新问题。队列只辅助接续，不改变原科学问题与预算。
 
+**用户指出命令、图表或结论有错时，先回到他实际看到的那一版。** 对照原句、所给命令及其工作目录、实际读取的配置、采用运行和生成图表的数据。核实后直接说清哪一处错了、哪些数值或判断受影响。如果用户报告的现象与当前工程不同，给出对应版本及可核对的差异。原因尚未确定时，分别说明已经查明的事实与正在核对的部分。
+
+按影响范围修正。说明中的命令漏了正式配置，而保存的运行确实使用了正式配置时，修改相应复现说明，重新核对命令与已保存运行。计算实际采用了错误的配置、原始数据、公式或统计窗口时，保留原版本，重算受影响的步骤，同步更正报告、图注和答复。向用户给出原值、修正值及其对结论的影响。授权内能完成的核对和修正由实施者完成。缺原始记录、资源或必需决定时，在阶段报告里写清哪些结果可用、哪项判断需暂缓以及恢复条件。
+
 `delivery.parts` 中的 `report_excerpt/response_excerpt` 保存每项的**完整交付内容，含本项图片、公式与必要说明**，不能只摘一句“已做”。用 `compose_response(delivery, plan)` 依序组装实际 `response_text`。执行 `review_project.py --project <工程> --checkpoint delivery --response-output <新的项目内文本路径>`，从实际数据重新复核并导出正文，确认`ready_to_send`后直接采用文件内容；不再另写一份缩略结尾。已有文件或任何改写使用`--response-file <项目内文件>`重新核对，缺图、少状态表、公式错序或数值改变均不能以“报告已检查”抵消。`ready_to_deliver`只说明保存材料可交付，`ready_to_send`才说明本次发送文件与当前检查一致；两者都不证明宿主实际发送。宿主能读取真实最终消息时，可保存其文本并用`--sent-response-file`复核；不能把准备稿标成已发送。字段及边界见[当前模型与实际发送](project-checks.md#当前模型与实际发送的检查)。
 
 ### 六项内容与实际来源
@@ -255,5 +259,49 @@ python <skill_dir>/scripts/check_outputs.py --project <project> --analysis analy
 `--output` 可指定项目内已有目录下尚不存在的报告文件，不覆盖已有内容。正式工程依赖该工具时保存所用脚本到 `tests/`，不依赖个人 Skill 路径。详细字段见[输出记录格式](output-manifest.md)，工具行为用[合成测试](../evals/test_check_outputs.py)检查。
 
 交付完成需要同时满足：本轮必需结果齐全、主要数据与图能复算、方法与实际运行相符、已做检查及科学限制准确。必需模型模块、实测数据或预算仍缺时说明具体状态，不因生成了报告和图件就称所有研究目标均已完成。
+
+### 模块与复现命令的交付核对
+
+`check_project.check_structure(project, plan_path="docs/task_plan.json", phase="implemented", checklist=None, *, historical=False)` 独立读取项目文件，返回 `status`、`issues` 和分项 `checks`。在 `phase="delivery"` 和 `"implemented"` 下，每个启用模块都要有已核对的源码、结果及通过的实际检查，适用的清单事项也要完成。完整建模计划缺少必需文件或其中任一项失败时，联合交付检查返回失败，其原因可直接反馈给用户。`review_project.check_review` 可以直接调用该入口。由 `check_project` 发起时，传入本次得到的 `_structure` 副本，共用同一次检查结果。
+
+把对读者给出的复现命令登记在原 `analysis.json` 的 `completion_review.delivery.reproduction.commands`。每条给出采用的 `run_ref`、载有该条命令的项目内文档 `command_ref`、其完整单行原文 `command` 及配置选择方式 `config`。在项目根目录以外启动时填写实际的项目内 `cwd`。有最终采用记录时，以 `iterations` 中的 `final` 为准，其余情况根据已登记的执行运行核对。另一个分析阶段的命令可填写 `analysis_run_ref`，沿实际父运行记录核对其使用的模型。检查器读取文档和记录，比对完整参数、工作目录、运行时的源码和合并后的配置，全程不执行文档中的命令。
+
+下例中，模型命令使用项目自己的配置选项，分析命令从位置参数读取统计时窗。项目只填写实际采用的形式。参数位置从 0 计数，包括可执行程序和解释器选项。
+
+```json
+{
+  "commands": [
+    {
+      "run_ref": "results/adopted/run.json",
+      "command_ref": "docs/reproduce.md",
+      "command": "solver run --settings model/full.json",
+      "config": {"mode": "argument", "index": 3, "ref": "model/full.json"},
+      "equation_code_refs": ["model/cell.py"]
+    },
+    {
+      "run_ref": "results/adopted/run.json",
+      "analysis_run_ref": "analysis/adopted/run.json",
+      "command_ref": "docs/reproduce.md",
+      "command": "rates --from-ms 100",
+      "config": {"mode": "values", "arguments": {"/window_start_ms": 2}},
+      "figure_ids": ["network", "rates"],
+      "claim_ids": ["mean_rate"],
+      "equation_code_refs": ["analysis/rates.py"]
+    }
+  ]
+}
+```
+
+| 项目实际怎样选配置 | 核对依据 |
+|---|---|
+| 命令显式选文件 | `mode="argument"` 按 `index` 取配置路径。对 `--settings=model/full.json` 一类写法可填实际 `prefix`（此例为 `--settings=`）。从已核实的工作目录解析路径，与 `ref` 对照，并比较配置内容与运行时保存的完整配置。 |
+| 命令省略配置，程序采用默认文件 | `mode="default"` 给出配置 `ref` 和本次运行确实使用的选择依据 `source_ref`。结构化选择文件用 JSON 指针 `pointer` 读取实际默认路径。源码中固定选择的情况可给出该行 `excerpt` 和字面路径 `value`，同时核对运行保存的输入文件。存在配置开关时可给 `option`，核对该次命令确实省略了它。 |
+| 直接传入数值、使用原生文件或合并覆盖 | `mode="values"` 的 `arguments` 将项目选择核对的配置字段与实参位置对应。显式或默认文件经后端合并时可在该文件绑定中填写 `resolution="recorded_input"`，核对同次调用已记录的具体输入文件及内容，再读取最终配置。后端如何解释原生格式仍由项目核实。 |
+
+对模型构建和修改，至少覆盖实际采用的模型命令。完整模型交付以现有公式的 `code_ref`、各题 `question_groups` 的数值与图号、交付图和必需结果图反查所需范围。对命令明确关联的图，从原有 `datasets.run_ids/input_data_ids` 查到采用运行的原始输出，再对照分析实际读取的文件、绘图源码及生成图件。逐题数值沿 `claims.csv_ref` 和已声明的 `raw_calculation` 对到本题图件的数据，原交付检查负责复算数值。公式对应的实现要与运行保存的代码一致。同一数据、公式或图件可被多题引用。纯示意图按原方法与图件呈现规则检查。命令与文件对应检查通过后，实际重绘结果和导出图的显示仍需按本页原要求核对。
+
+`delivery_response.check_reproduction(root, delivery, plan, analysis)` 返回 `status`、`issues` 和实际核对的 `commands`。完整模型旧记录没有该声明时返回 `legacy_not_reviewed`。未声明复现的局部任务返回 `not_applicable`。能核对的部分可照常登记，暂缺部分在 `reproduction.pending_reason` 写明，并在保存报告及拟发送正文中给出相同的可见说明，此时结果为 `incomplete`。已声明命令与运行冲突时仍返回 `failed`。涉及启动器别名、动态环境、脚本分支或迁移后的路径时，只对能够落实到实际调用与输入的部分作判断。
+
+联合交付的 `ready_to_deliver` 表示当前文字可以如实说明成果，`goal_complete` 表示本轮必需目标均已满足。可交付的阶段报告保留 `incomplete`。当前交付的命令行退出码分别为 0（通过）、2（尚未完成）和 1（失败）。失败时先处理报告中指明的模块、运行、配置或结果关系，再重新检查准备交付的正文。
 
 发送最终答复前，逐项核对上述六项是否在实际图文中落实，并从同一版模型、解析配置及分析表核对摘要数值、方法图、公式、逐题结论及真实数据对比图；明确迭代中实际使用的数据和最终评价是否独立，不能将未验证写成验证通过；单神经元和网络参照须明确，差异及性能措辞须有支持，末句局限不得掩盖正文缺口。只完成仿真而图、公式或解释未完成时，继续完成已委托的交付工作；确有无法完成的部分则准确说明状态。文件检查器不评价这些科研判断，不新增按标题或关键词出现就判定合格的检查。

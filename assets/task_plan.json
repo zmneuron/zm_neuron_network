@@ -38,10 +38,15 @@
       "delivery"
     ],
     "independent_evidence": "biological",
+    "independent_goal": "test_prediction",
+    "component_calibration": {
+      "baseline": {"mode": "targets"}
+    },
     "regulation": {
       "mode": "not_requested"
     },
     "delivery_profile": "full_model",
+    "require_reproduction": true,
     "display_progress": true,
     "viewer": {
       "auto_open": true
@@ -69,6 +74,9 @@
       "references/open-source-reuse.md"
     ],
     "criteria_refs": [],
+    "parameter_space_ref": null,
+    "simulation_budget": null,
+    "selection_uses": [],
     "datasets": [],
     "scope_changes": [],
     "skill_changes": [],

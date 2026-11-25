@@ -3,19 +3,22 @@ from __future__ import annotations
 
 import copy
 import csv
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from check_records import begin_run, finish_run
+import review_project
 from scientific_review import check_scientific_review
 
 
 def definition(identity, kind, **extras):
     value = dict(id=identity, question_id="Q1", kind=kind, required=True,
                  basis_ref="docs/method.md", description="Synthetic comparison declared before evaluation.")
-    if kind != "method_assumption":
+    if kind in {"reference_change", "numerical_effect"}:
         value.update(unit="test units", tolerance=0.1, tolerance_basis="Software-test threshold, not a physiological limit.")
     return dict(value, **extras)
 
@@ -26,6 +29,22 @@ def selector(identity, column="value"):
 
 def estimate(identity):
     return dict(estimate=selector(identity), lower=selector(identity, "lower"), upper=selector(identity, "upper"))
+
+
+def raw_source(column, run="formal", **where):
+    return dict(run_ref=f"results/{run}/run.json", csv_ref=f"results/{run}/raw.csv", column=column, where=where)
+
+
+def activity(identity="activity", **changes):
+    fields = dict(mechanism_id="feedback", claim="sustained", time_unit="ticks", time_column="time",
+                  windows=[dict(id="early", start=2, stop=4), dict(id="late", start=5, stop=7)], max_gap=1,
+                  direction="below", threshold=-1, unit="synthetic response", source=raw_source("signal"))
+    return definition(identity, "mechanism_activity", **dict(fields, **changes))
+
+
+def design(identity, rule, column, expected, *, where=None, **fields):
+    return definition(identity, "comparison_design", dimension_id=identity, rule=rule, expected=expected,
+                      source=raw_source(column, **(where or {})), **fields)
 
 
 def result_row(identity, **extras):
@@ -86,6 +105,44 @@ class ScientificReviewTests(unittest.TestCase):
             implemented_method="A small effective network with prescribed external events.",
             choice_reason="A focused software demonstration needs no morphology.",
             consequence="It does not distinguish detailed dendritic mechanisms."))
+
+    def declare(self, planned, disposition="accepted"):
+        observation = result_row(planned["id"], disposition=disposition)
+        self.add(planned, observation)
+        return observation
+
+    def record_table(self, header, rows, run="formal", *, complete=True):
+        """Use the normal pre-run capture and output registration only in this test's temporary directory."""
+        plan_file = self.root / "docs/task_plan.json"
+        if not plan_file.exists():
+            basis = dict(source_kind="user", source_ref="docs/method.md")
+            self.plan.update(plan_id="synthetic-study", model_version="fixture", current_model=dict(name="Synthetic recorder"),
+                             requirements=[dict(id="R1", description="Check the synthetic observations.", **basis)])
+            self.plan["review"].update(objective=dict(text="Compare generated records.", **basis),
+                                       required_axes=["execution", "scientific_answer", "delivery"],
+                                       baseline_ref="docs/preparation.json", skill_files=["references/scientific-constraints.md"])
+            plan_file.write_text(json.dumps(self.plan), encoding="utf-8")
+            capture = review_project.capture_review(self.root)
+            self.plan["review"]["baseline_sha256"] = capture["sha256"]
+            (self.root / "test_source.py").write_bytes(Path(__file__).read_bytes())
+        directory = f"results/{run}"
+        record = begin_run(self.root, directory, config=dict(initial_signal=-8), stage="synthetic-recording",
+                           model_version="fixture", command=list(sys.orig_argv), environment=dict(python=sys.version),
+                           code_refs=["test_source.py"])
+        output = f"{directory}/raw.csv"
+        with (self.root / output).open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(header)
+            writer.writerows(rows)
+        if complete:
+            finish_run(self.root, record, [output])
+        self.analysis.setdefault("runs", []).append(dict(record=record))
+        return record
+
+    def assert_issue(self, fragment):
+        checked = self.check()
+        self.assertEqual(checked["status"], "failed", checked)
+        self.assertIn(fragment, " ".join(checked["issues"]))
 
     def test_mean_improvement_does_not_hide_worsened_tail(self):
         self.ref("mean", "mean")
@@ -231,6 +288,295 @@ class ScientificReviewTests(unittest.TestCase):
         p = self.root / "results/summary.csv"
         p.write_text(p.read_text(encoding="utf-8").replace("mean_after,4,", "mean_after,nan,"), encoding="utf-8")
         self.assertEqual(self.check()["status"], "failed")
+
+    def test_question_requires_each_named_mechanism_and_design_dimension(self):
+        self.method()
+        question = self.plan["review"]["questions"][0]
+        question.update(required_mechanisms=["feedback"], required_design_dimensions=["pipeline", "repeat"])
+        self.plan["review"]["questions"].append(dict(id="Q2", required=False))
+        def start():
+            return check_scientific_review(self.root, self.plan, checkpoint="start")
+
+        self.assertIn("mechanism_activity", str(start()["issues"]))
+        mechanism = activity(required=False)
+        self.add(mechanism)
+        self.assertIn("feedback", str(start()["issues"]))
+        mechanism.update(required=True, question_id="Q2")
+        self.assertIn("feedback", str(start()["issues"]))
+        mechanism["question_id"] = "Q1"
+        self.add(design("pipeline", "levels", "steps", ["ordered"]))
+        self.assertIn("repeat", str(start()["issues"]))
+        repeat = design("repeat", "distinct_count", "repeat_id", 3)
+        self.add(repeat)
+        self.assertEqual(start()["status"], "passed", start())
+        self.assertEqual(self.check()["unresolved_question_ids"], ["Q1"])
+        repeat["dimension_id"] = "other"
+        self.assertIn("repeat", str(start()["issues"]))
+        question["required_design_dimensions"] = "pipeline"
+        self.assertEqual(start()["status"], "failed")
+
+    def test_invalid_preregistered_rules_fail_before_outputs_exist(self):
+        for spec in (activity(windows=[]), activity(windows=[dict(id="bad", start=2, stop=2)]),
+                     activity(max_gap=0), activity(threshold=True), activity(source=raw_source("signal", time=2)),
+                     activity(timing="exploratory_after_run"), design("arm", "levels", "arm", ["a", "a"]),
+                     design("count", "distinct_count", "id", False), design("range", "observed_range", "x", [4, 1]),
+                     design("split", "disjoint_units", "subject", ["train", "test"], where={"split": "test"}, split_column="split")):
+            with self.subTest(spec=spec):
+                self.plan["review"]["scientific_checks"] = [spec]
+                self.assertEqual(check_scientific_review(self.root, self.plan, checkpoint="start")["status"], "failed")
+
+    def test_initial_inhibition_decays_before_formal_windows(self):
+        row = self.declare(activity())
+        self.record_table(["time", "signal"], [(t, -8 * 0.25 ** t) for t in range(8)])
+        self.assert_issue("lacks support in formal windows: early, late")
+        row["disposition"] = "unresolved"
+        checked = self.check()
+        self.assertEqual(checked["status"], "incomplete", checked)
+        self.assertEqual(checked["unresolved_question_ids"], ["Q1"])
+        early, late = checked["findings"][0]["windows"]
+        self.assertEqual((early["minimum"], late["minimum"]), (-0.5, -0.0078125))
+        self.assertTrue(all(w["covered"] and w["meeting_criterion"] == 0 for w in (early, late)))
+        self.analysis["completion_review"]["axes"]["scientific_answer"]["questions"][0]["state"] = "answered"
+        self.assert_issue("cannot complete question")
+
+    def test_short_pulse_in_one_window_cannot_be_pooled_into_sustained_action(self):
+        row = self.declare(activity())
+        self.declare(activity("transient", claim="occurrence"))
+        self.record_table(["time", "signal"], [(t, -80 if t <= 4 or t == 6 else 0) for t in range(8)])
+        self.assert_issue("lacks support in formal windows: late")
+        row["disposition"] = "unresolved"
+        sustained, transient = self.check()["findings"]
+        self.assertEqual([w["supported"] for w in sustained["windows"]], [True, False])
+        self.assertEqual([w["meeting_criterion"] for w in sustained["windows"]], [3, 1])
+        self.assertTrue(all(w["supported"] for w in transient["windows"]))
+
+    def test_targeted_control_is_paired_by_time_and_bound_to_both_formal_runs(self):
+        self.declare(activity(control=raw_source("signal", run="control"),
+                              control_change="Disable feedback in the otherwise matched synthetic instance."))
+        self.record_table(["time", "signal"], [(t, t) for t in range(8)])
+        self.record_table(["time", "signal"], [(t, t + 2) for t in reversed(range(8))], run="control")
+        checked = review_project._scientific_review(self.root, self.plan, self.analysis, "delivery")
+        self.assertEqual(checked["status"], "passed", checked)
+        self.assertEqual(checked["data_refs"], ["results/control/raw.csv", "results/formal/raw.csv"])
+        finding = checked["findings"][0]
+        self.assertEqual(finding["source"]["run_ref"], "results/formal/run.json")
+        self.assertNotEqual(finding["source"]["run_id"], finding["control"]["run_id"])
+        for window in finding["windows"]:
+            self.assertEqual((window["minimum"], window["maximum"]), (-2, -2))
+            self.assertTrue(window["supported"])
+        self.analysis["runs"].pop()
+        self.assert_issue("run is not listed")
+
+    def test_completed_indistinguishable_control_can_be_reported_as_inconclusive(self):
+        row = self.declare(activity(source=raw_source("signal", arm="intact"), control=raw_source("signal", arm="off"),
+                                    control_change="Remove the feedback term at matched times."), "inconclusive")
+        self.record_table(["time", "arm", "signal"], [(t, arm, t) for arm in ("intact", "off") for t in range(8)])
+        answer = self.analysis["completion_review"]["axes"]["scientific_answer"]
+        answer.update(status="answered", questions=[dict(id="Q1", state="inconclusive")])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        self.assertIn("inconclusive_mechanism", checked["findings"][0]["alerts"])
+        self.assertTrue(all(w["covered"] and not w["supported"] for w in checked["findings"][0]["windows"]))
+        self.assertIn(row["report_excerpt"], [x["text"] for x in checked["explanation_excerpts"]])
+        answer["questions"][0]["state"] = "answered"
+        self.assert_issue("inconclusive mechanism")
+
+    def test_single_sample_missing_interior_or_unpaired_control_remains_unresolved(self):
+        for arm in ("initial", "gap", "unpaired"):
+            spec = activity(arm, source=raw_source("signal", arm=arm), windows=[dict(id="stat", start=2, stop=4)])
+            if arm == "unpaired":
+                spec.update(control=raw_source("signal", arm="control"), control_change="Matched synthetic control.")
+            self.declare(spec, "unresolved")
+        times = dict(initial=[2], gap=[2, 4], unpaired=[2, 3, 4], control=[2, 3, 3.5, 4])
+        self.record_table(["time", "arm", "signal"],
+                          [(t, arm, 0 if arm == "control" else -9) for arm, ticks in times.items() for t in ticks])
+        checked = self.check()
+        self.assertEqual(checked["status"], "incomplete", checked)
+        initial, gap, unpaired = [f["windows"][0] for f in checked["findings"]]
+        self.assertEqual(initial["samples"], 1)
+        self.assertEqual(gap["max_observed_gap"], 2)
+        self.assertFalse(unpaired["aligned"])
+        self.assertFalse(any(w["covered"] or w["supported"] for w in (initial, gap, unpaired)))
+        self.analysis["completion_review"]["scientific_checks"][0]["disposition"] = "inconclusive"
+        self.assert_issue("Incomplete window observations")
+
+    def test_self_control_and_duplicate_instance_times_are_rejected(self):
+        self.declare(activity("self", source=raw_source("signal", arm="a"), control=raw_source("signal", arm="a"),
+                              control_change="Claims a change but refers to the same observations."))
+        self.declare(activity("pooled"))
+        self.record_table(["time", "arm", "signal"], [(t, arm, -2) for arm in ("a", "b") for t in range(8)])
+        checked = self.check()
+        self.assertEqual(checked["status"], "failed")
+        self.assertIn("distinct observations", str(checked["issues"]))
+        self.assertIn("Ambiguous mechanism samples", str(checked["issues"]))
+
+    def test_raw_output_must_belong_to_the_declared_completed_run(self):
+        for identity, ref in (("config", "results/formal/resolved_config.json"), ("reference", "results/summary.csv"),
+                              ("borrowed", "results/other/raw.csv")):
+            self.declare(activity(identity, source=dict(raw_source("signal"), csv_ref=ref)))
+        self.declare(activity("partial", source=raw_source("signal", run="partial")))
+        for run in ("formal", "other", "partial"):
+            self.record_table(["time", "signal"], [(t, -2) for t in range(8)], run, complete=run != "partial")
+        checked = self.check()
+        self.assertEqual(checked["status"], "failed")
+        self.assertEqual(sum("Expected a recorded output" in issue for issue in checked["issues"]), 3)
+        self.assertIn("Unfinished parent/run", str(checked["issues"]))
+
+    def test_posthoc_window_or_search_change_and_edited_raw_file_are_rejected(self):
+        mechanism = activity()
+        protocol = design("range", "observed_range", "signal", [-2, -2])
+        self.declare(mechanism)
+        self.declare(protocol)
+        self.record_table(["time", "signal"], [(t, -2) for t in range(8)])
+        self.assertEqual(self.check()["status"], "passed")
+        mechanism["windows"][0]["start"] = 1
+        protocol["expected"] = [-3, -2]
+        checked = self.check()
+        self.assertEqual(sum("not registered with this definition" in issue for issue in checked["issues"]), 2)
+        with (self.root / "results/formal/raw.csv").open("a", encoding="utf-8") as stream:
+            stream.write("8,0\n")
+        self.assert_issue("Changed artifact")
+
+    def test_an_existing_output_does_not_preregister_a_later_comparison(self):
+        self.method()
+        self.record_table(["steps"], [("center",)])
+        self.declare(design("pipeline", "levels", "steps", ["center"]))
+        self.assert_issue("not registered with this definition")
+
+    def test_an_instance_observation_can_establish_occurrence_at_that_time(self):
+        self.declare(activity(claim="occurrence", source=raw_source("signal", instance="one"),
+                              windows=[dict(id="stat", start=2, stop=4)]))
+        self.record_table(["instance", "time", "signal"], [("one", 3, -2), ("two", 3, 4)])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        window = checked["findings"][0]["windows"][0]
+        self.assertFalse(window["covered"])
+        self.assertTrue(window["supported"])
+
+    def test_sustained_criterion_uses_declared_fractional_grid_and_direction(self):
+        self.declare(activity(windows=[dict(id="stat", start=0.1, stop=0.4)], max_gap=0.1, direction="above", threshold=2))
+        self.record_table(["time", "signal"], [("0", -8), ("0.1", 3), ("0.2", 4), ("0.3", 3), ("0.4", 5)])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        window = checked["findings"][0]["windows"][0]
+        self.assertEqual((window["max_observed_gap"], window["meeting_criterion"]), (0.1, 4))
+
+    def test_unmatched_input_ids_cannot_create_a_control_contrast(self):
+        self.declare(activity(control=raw_source("disabled"), control_change="Same input with feedback removed.",
+                              pair_by=["input_id"], source=raw_source("signal", run="intact")))
+        for run, value, column, input_id in (("intact", -2, "signal", "one"), ("formal", 0, "disabled", "two")):
+            self.record_table(["time", column, "input_id"], [(t, value, input_id) for t in range(8)], run)
+        self.assert_issue("lacks support in formal windows: early, late")
+
+    def test_search_scope_and_distinct_repeats_are_recomputed_in_each_arm(self):
+        for arm, repeats in (("observed", 2), ("random", 3)):
+            self.declare(design(arm + "_range", "observed_range", "candidate", [1, 4], where=dict(arm=arm)))
+            self.declare(design(arm + "_grid", "levels", "candidate", ["1", "2", "4"], where=dict(arm=arm)))
+            for candidate in (1, 2, 4):
+                self.declare(design(f"{arm}_{candidate}_repeats", "distinct_count", "seed", repeats,
+                                    where=dict(arm=arm, candidate=candidate)))
+        self.declare(design("permitted", "allowed_range", "candidate", [0, 5]))
+        self.declare(design("split", "disjoint_units", "subject", ["fit", "test"], split_column="use"))
+        self.record_table(["arm", "candidate", "seed", "use", "subject"], [
+            (arm, candidate, seed, use, subject) for arm, repeats in (("observed", 2), ("random", 3))
+            for candidate in (1, 2, 4) for seed in range(repeats) for use, subject in (("fit", "s1"), ("test", "s2"))])
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        self.assertTrue(all(item["matches"] for item in checked["findings"]))
+        findings = {item["id"]: item for item in checked["findings"]}
+        self.assertEqual(findings["random_2_repeats"]["actual"], 3)
+        self.assertEqual(findings["random_2_repeats"]["rows"], 6)
+        self.assertEqual(findings["split"]["actual"], dict(unit_counts={"fit": 1, "test": 1}, overlapping_units=[]))
+
+    def test_a_declared_fairness_dimension_binds_both_search_arms(self):
+        self.plan["review"]["questions"][0]["required_design_dimensions"] = ["grid"]
+        spec = design("grid", "levels", "candidate", ["x", "y", "z"], where={"arm": "observed"},
+                      control=raw_source("candidate", arm="random"))
+        row = self.declare(spec)
+        self.record_table(["arm", "candidate"], [(arm, k) for arm, grid in (("observed", "xyz"), ("random", "xz")) for k in grid])
+        rejected = self.check()
+        self.assertEqual(rejected["status"], "failed")
+        finding = rejected["findings"][0]
+        self.assertEqual((finding["actual"], finding["control_actual"]), (["x", "y", "z"], ["x", "z"]))
+        row.update(disposition="conditional", support_scope="The comparison covers only the shared candidates x and z.")
+        answer = self.analysis["completion_review"]["axes"]["scientific_answer"]["questions"][0]
+        answer.update(state="answered", conclusion="Both arms searched the full grid.")
+        self.assert_issue("omits the support scope")
+        answer["conclusion"] = row["support_scope"]
+        limited = self.check()
+        self.assertEqual(limited["status"], "passed", limited)
+        self.assertFalse(limited["findings"][0]["matches"])
+        self.assertIn(row["support_scope"], [x["text"] for x in limited["explanation_excerpts"]])
+
+    def test_shared_subject_and_smaller_random_search_each_limit_the_claim(self):
+        specs = [design("pipeline", "levels", "steps", ["filter>scale"]),
+                 design("subjects", "disjoint_units", "subject", ["fit", "test"], split_column="use"),
+                 design("observed_range", "observed_range", "lag", [1, 4], where=dict(arm="observed")),
+                 design("random_range", "observed_range", "lag", [1, 4], where=dict(arm="random")),
+                 design("random_repeats", "distinct_count", "seed", 3, where=dict(arm="random"))]
+        rows = {spec["id"]: self.declare(spec) for spec in specs}
+        self.record_table(["trial", "subject", "use", "steps", "arm", "lag", "seed"], [
+            ("t1", "s1", "fit", "filter>scale", "observed", 1, "a"),
+            ("t2", "s2", "test", "filter>scale", "observed", 4, "a"),
+            ("t3", "s1", "test", "scale>filter", "random", 2, "x"),
+            ("t4", "s3", "fit", "filter>scale", "random", 3, "y"),
+            ("t5", "s3", "fit", "filter>scale", "random", 3, "y")])
+        checked = self.check()
+        discrepancies = {"pipeline", "subjects", "random_range", "random_repeats"}
+        self.assertEqual({s.split(":")[0] for s in checked["issues"]}, discrepancies)
+        for identity in discrepancies:
+            rows[identity].update(disposition="conditional", support_scope=f"Restrict the interpretation of {identity}.")
+        checked = self.check()
+        self.assertEqual(checked["status"], "passed", checked)
+        findings = {item["id"]: item for item in checked["findings"]}
+        self.assertTrue(findings["observed_range"]["matches"])
+        self.assertEqual(findings["subjects"]["actual"]["overlapping_units"], ["s1"])
+        self.assertEqual(findings["random_range"]["actual"], [2, 3])
+        self.assertEqual(findings["random_repeats"]["actual"], 2)
+        self.assertEqual({x["id"] for x in checked["explanation_excerpts"]}, discrepancies)
+        self.analysis["completion_review"]["decision"]["scientific_check_ids"].remove("subjects")
+        self.assert_issue("omits a scientific discrepancy")
+        self.analysis["completion_review"]["decision"]["scientific_check_ids"].append("subjects")
+        rows["random_range"].pop("next_action")
+        self.assert_issue("next action")
+
+    def test_executed_preprocessing_order_reaches_both_report_and_response(self):
+        self.plan["review"].update(delivery_profile="scoped", delivery_parts=["limitation"],
+                                   delivery_scope_reason="Only the executed comparison is under review.",
+                                   delivery_scope_ref="docs/method.md")
+        row = self.declare(design("preprocessing", "ordered_steps", "step", ["center", "clip"], order_column="order"))
+        self.record_table(["order", "step"], [(2, "center"), (1, "clip")])
+        self.assert_issue("Executed ordered_steps differs")
+        row.update(disposition="conditional", report_excerpt="The recorder clipped values before centering.",
+                   support_scope="The comparison applies only to that processing order.")
+        self.assertEqual(self.check()["findings"][0]["actual"], ["clip", "center"])
+        report = "docs/results.md"
+        self.analysis["report"] = report
+        axes = self.analysis["completion_review"]["axes"]
+        full_text = row["report_excerpt"] + " " + row["support_scope"]
+        for report_text, response_text in ((full_text, full_text), (full_text, row["support_scope"]),
+                                           (row["report_excerpt"], full_text)):
+            part = dict(kind="limitation", report_excerpt=report_text, response_excerpt=response_text)
+            delivery = dict(report_ref=report, response_text=response_text, parts=[part])
+            (self.root / report).write_text(report_text, encoding="utf-8")
+            if report_text == response_text == full_text:
+                result = review_project._delivery(self.root, delivery, self.plan, self.analysis, axes)
+                self.assertTrue(result["ordered_response_verified"])
+            else:
+                with self.assertRaisesRegex(ValueError, "explanation missing"):
+                    review_project._delivery(self.root, delivery, self.plan, self.analysis, axes)
+
+    def test_absent_random_arm_cannot_count_as_a_completed_comparison(self):
+        row = self.declare(design("random_repeats", "distinct_count", "seed", 2, where={"arm": "random"}))
+        self.record_table(["arm", "seed", "reported_repeat_count"], [("observed", "a", 2), ("observed", "b", 2)])
+        self.assert_issue("Executed distinct_count differs")
+        row["disposition"] = "conditional"
+        self.assert_issue("missing comparison")
+        row["disposition"] = "unresolved"
+        checked = self.check()
+        self.assertEqual(checked["status"], "incomplete", checked)
+        self.assertEqual(checked["findings"][0]["actual"], 0)
+        self.assertEqual(checked["unresolved_question_ids"], ["Q1"])
 
 
 if __name__ == "__main__":

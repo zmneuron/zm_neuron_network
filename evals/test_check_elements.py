@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 SKILL = Path(__file__).resolve().parents[1]
@@ -20,6 +21,8 @@ SCRIPT = SKILL / "scripts/check_elements.py"
 sys.path.insert(0, str(SCRIPT.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 from record_fixture import write_check
+import check_project
+import workflow_case
 CHECKLIST = SKILL / "references/construction-elements-checklist.md"
 spec = importlib.util.spec_from_file_location("element_checker", SCRIPT)
 checker = importlib.util.module_from_spec(spec)
@@ -168,6 +171,80 @@ class ElementChecks(unittest.TestCase):
     def test_unchecked_module_is_incomplete(self):
         self.registry["modules"][0]["status"] = "implemented"
         self.fails("implementation has not been checked")
+
+    def test_delivery_checks_the_same_module_and_applicable_items_as_implemented(self):
+        self.assertTrue(self.run_check("delivery")["passed"])
+        self.registry["modules"][0].update(status="implemented", result_refs=[], check_refs=[])
+        self.row("05.01").update(status="documented", check_refs="")
+        implemented = self.run_check("implemented")
+        delivery = self.run_check("delivery")
+        self.assertFalse(delivery["passed"])
+        self.assertEqual(delivery["errors"], implemented["errors"])
+        self.assertIn("module build: implementation has not been checked", delivery["errors"])
+        self.assertIn("05.01: applicable item remains incomplete", delivery["errors"])
+        self.assertTrue(self.run_check("plan")["passed"])
+        self.assertFalse(self.run_check("misspelled_phase")["passed"])
+
+    def test_delivery_requires_actual_coverage_of_module_source_and_results(self):
+        (self.root / "model/second.py").write_text("# additional implementation\n", encoding="utf-8")
+        self.registry["modules"][0]["code_refs"].append("model/second.py")
+        self.assertIn("omit declared source or result", str(self.run_check("delivery")["errors"]))
+        self.registry["modules"][0]["code_refs"].pop()
+        record = self.root / "results/check.json"
+        value = json.loads(record.read_text(encoding="utf-8"))
+        value["metrics"][0]["actual"] = False
+        record.write_text(json.dumps(value), encoding="utf-8")
+        self.assertIn("Recorded metric failed", str(self.run_check("delivery")["errors"]))
+
+    def test_independent_structure_entry_and_combined_failure(self):
+        project = self.root / "study"
+        workflow_case.create(project)
+        workflow_case.execute(project, "r1")
+        plan = workflow_case.describe(project, "r1")
+        with mock.patch.object(check_project.review_project, "check_review", side_effect=AssertionError("recursive review")):
+            result = check_project.check_structure(project, phase="delivery")
+            self.assertEqual(result["status"], "passed", result)
+        module_path = project / plan["files"]["modules"]
+        modules = json.loads(module_path.read_text(encoding="utf-8"))
+        modules["modules"][0]["check_refs"] = []
+        module_path.write_text(json.dumps(modules), encoding="utf-8")
+        # Even an independently complete scientific assessment cannot certify
+        # a missing implementation check. Its copy of the structure is acyclic.
+        assessment = dict(status="passed", goal_complete=True, ready_to_deliver=True, issues=[])
+        with mock.patch.object(check_project.review_project, "check_review", return_value=assessment) as reviewer:
+            result = check_project.check_project(project, phase="delivery")
+            given = reviewer.call_args.kwargs["_structure"]
+            self.assertEqual(given["status"], "failed")
+            self.assertNotIn("completion_review", given["checks"])
+        self.assertFalse(result["goal_complete"] or result["ready_to_deliver"])
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("check_refs: references are required", str(result["issues"]))
+        json.dumps(result)
+        plan["review_contract"] = "zm-neuron-review/2"
+        workflow_case.dump(project, "docs/task_plan.json", plan)
+        module_path.unlink()
+        result = check_project.check_structure(project, phase="delivery")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn(plan["files"]["modules"], str(result["issues"]))
+
+    def test_reportable_partial_result_is_not_an_overall_pass(self):
+        project = self.root / "study"
+        workflow_case.create(project)
+        workflow_case.execute(project, "r1")
+        workflow_case.describe(project, "r1")
+        assessment = dict(status="incomplete", goal_complete=False, ready_to_deliver=True, issues=[],
+                          checks={"reproduction": {"status": "passed"}})
+        with mock.patch.object(check_project.review_project, "check_review", return_value=assessment):
+            result = check_project.check_project(project, phase="delivery")
+            self.assertEqual(result["status"], "incomplete")
+            self.assertTrue(result["ready_to_deliver"])
+            self.assertFalse(result["goal_complete"])
+            with mock.patch("builtins.print"):
+                self.assertEqual(check_project.main(["--project", str(project), "--phase", "delivery"]), 2)
+            assessment.update(status="failed", issues=["a failed comparison"])
+            result = check_project.check_project(project, phase="delivery")
+            self.assertEqual(result["status"], "failed")
+            self.assertFalse(result["goal_complete"] or result["ready_to_deliver"])
 
     def test_failed_record_cannot_be_called_checked(self):
         path = self.root / "results/check.json"

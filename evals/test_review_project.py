@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -131,6 +133,163 @@ class CompletionReviewChecks(unittest.TestCase):
         self.change("analysis/output/calibration_measurements.json", lambda d: d["measurements"].pop("silent"))
         self.recompute_score()
         self.failed("claimed success despite unmet or unmeasured targets")
+
+    def test_unmet_calibration_with_resources_requires_next_parameter_batch(self):
+        self.other(modern=True, distribution_failure=True, parameter_space=True, budget_limit=3)
+        def next_batch(c):
+            c["budget"]["limit"] = 3
+            c["decision"].update(action="continue", next_action="Run two justified drive settings for the silent fraction.",
+                                 next_batch=[dict(component="baseline", parameters={"drive_mV": v},
+                                                  rationale_ref="docs/model_spec.md") for v in (24, 26)])
+        self.analysis(next_batch)
+        report = self.check("transition")
+        self.assertEqual(report["status"], "incomplete", report["issues"])
+        self.assertTrue(report["ready_to_deliver"])
+        self.assertFalse(report["goal_complete"])
+        self.assertEqual(report["checks"]["component_calibration"]["baseline"]["status"], "unmet")
+        self.analysis(lambda c: c["decision"].pop("next_batch"))
+        self.failed("concrete next parameter batch", "transition")
+        self.analysis(lambda c: c["decision"].update(action="stop", stop_reason="predeclared_stop", source_ref="docs/model_spec.md",
+            gap="A required calibration target is unmet.", recovery_condition="Run the outstanding configuration."))
+        self.failed("predeclared_stop cannot close", "transition")
+        self.analysis(lambda c: c["decision"].update(stop_reason="range_exhausted"))
+        self.failed("untested configurations", "transition")
+
+    def test_screened_direction_with_fresh_seeds_is_not_independent(self):
+        self.other(modern=True, evaluation="pass", independent_goal="test_prediction", budget_limit=2)
+        config = dict(fixture.read(self.root, "model/config.json"), seed=17, initial_jitter_mV=0.01)
+        fixture.dump(self.root, "model/repeat.json", config)
+        subprocess.run([sys.executable, "-B", "model/run.py", "results/repeat", "model/repeat.json"],
+                       cwd=self.root, capture_output=True, check=True)
+        source = "results/repeat/rates.csv"
+        with (self.root / source).open() as handle:
+            rates = [float(row["rate_hz"]) for row in csv.DictReader(handle)]
+        ref = "analysis/output/evaluation_measurements.json"
+        values = fixture.read(self.root, ref)["measurements"]
+        values["eval_mean"]["value"] = sum(rates) / len(rates)
+        values["eval_mean"]["source"]["csv_ref"] = source
+        fixture.dump(self.root, ref, values)
+        targets = fixture.read(self.root, "data/targets.json")["targets"]
+        fixture.dump(self.root, "analysis/output/evaluation_score.json", calibration.score_targets(
+            targets, values, candidate_id="candidate1", config=config, data_role="evaluation"))
+        self.analysis(lambda c: (c["comparisons"][1].update(run_ref="results/repeat/run.json",
+            config_ref="results/repeat/resolved_config.json"), c["budget"].update(consumed=2, round_consumed=2)))
+        before = self.check("transition")
+        self.assertEqual(before["status"], "passed", before["issues"])
+        self.analysis(lambda c: c["iterations"][0].update(selection_uses=[dict(
+            dataset_id="evaluation", feature="direction", quantity="sign of the change in firing rate",
+            rule_ref="docs/model_spec.md")]))
+        result = self.failed("value, direction or contrast used for candidate selection", "transition")
+        self.assertEqual(result["axes"]["independent_evaluation"]["status"], "not_evaluated")
+        self.assertEqual(result["axes"]["independent_evaluation"]["declared_status"], "supported")
+        self.assertIn("independent_evaluation", result["unmet_axes"])
+
+    def test_run_the_next_batch_then_stop_with_the_tested_range_preserved(self):
+        self.other(modern=True, distribution_failure=True, budget_limit=3, parameter_space=True)
+        manifest = fixture.read(self.root, "analysis/output/analysis.json")
+        c = manifest["completion_review"]
+        targets = fixture.read(self.root, "data/targets.json")["targets"]
+        for i, proposed in enumerate(c["decision"]["next_batch"], 1):
+            ref, folder, name = f"data/config_{i}.json", f"results/batch_{i}", f"batch_{i}"
+            config = fixture.read(self.root, ref)
+            self.assertEqual(config["drive_mV"], proposed["parameters"]["drive_mV"])
+            subprocess.run([sys.executable, "-B", "model/run.py", folder, ref], cwd=self.root,
+                           capture_output=True, check=True)
+            with (self.root / folder / "rates.csv").open() as handle:
+                rates = [float(row["rate_hz"]) for row in csv.DictReader(handle)]
+            values = fixture.read(self.root, "analysis/output/calibration_measurements.json")["measurements"]
+            for key, value in (("mean", sum(rates) / len(rates)), ("silent", rates.count(0) / len(rates))):
+                values[key]["value"] = value
+                values[key]["source"]["csv_ref"] = folder + "/rates.csv"
+            result = calibration.score_targets(targets, values, candidate_id=name, config=config, data_role="calibration")
+            self.assertEqual(result["status"], "infeasible")
+            fixture.dump(self.root, folder + "/measurements.json", values)
+            fixture.dump(self.root, folder + "/score.json", result)
+            comparison = dict(c["comparisons"][0], historical=True, id=name, candidate_id=name,
+                              config_ref=folder + "/resolved_config.json", run_ref=folder + "/run.json",
+                              measurements_ref=folder + "/measurements.json", score_ref=folder + "/score.json")
+            c["comparisons"].append(comparison)
+            c["iterations"].append(dict(role="candidate", comparison_ids=[name], config_ref=comparison["config_ref"],
+                run_ref=comparison["run_ref"], decision="reject", reason="The required silent fraction remains unmet."))
+        c["iterations"].append(dict(c["iterations"][0], role="final", decision="retain initial"))
+        c["budget"].update(round_consumed=3, consumed=3)
+        c["decision"] = dict(action="stop", stop_reason="range_exhausted", gap="No tested drive meets both criteria.",
+            scientific_check_ids=c["decision"]["scientific_check_ids"],
+            recovery_condition="Obtain evidence for changing the drive range or model representation.",
+            next_action="Review other constraints on the silent fraction.", **fixture.judge())
+        fixture.dump(self.root, "analysis/output/analysis.json", manifest)
+        result = self.check("transition")
+        self.assertEqual(result["status"], "incomplete", result["issues"])
+        self.assertTrue(result["ready_to_deliver"])
+        self.assertEqual(set(result["checks"]["comparisons"]), {"calibration", "batch_1", "batch_2"})
+
+    def test_candidate_comparison_automatically_counts_as_selection(self):
+        self.other(modern=True, evaluation="pass", independent_goal="test_prediction")
+        self.analysis(lambda c: c["iterations"].append(dict(c["iterations"][0], role="candidate",
+            decision="reject", comparison_ids=["evaluation"])))
+        self.failed("value, direction or contrast used for candidate selection", "transition")
+
+    def test_baseline_calibration_does_not_fill_an_applicable_adverse_module(self):
+        self.other(modern=True)
+        self.change("docs/task_plan.json", lambda p: p["review"].update(model_components=["baseline", "adverse"]))
+        result = self.failed("omits calibration of an in-scope component", "transition")
+        groups = result["checks"]["component_calibration"]
+        self.assertEqual(groups["baseline"]["status"], "passed")
+        self.assertEqual(groups["adverse"]["status"], "not_evaluated")
+
+    def test_completed_negative_independent_prediction_can_finish(self):
+        self.other(modern=True, evaluation="fail", independent_goal="test_prediction")
+        result = self.check()
+        self.assertEqual(result["status"], "passed", result["issues"])
+        self.assertTrue(result["goal_complete"] and result["ready_to_deliver"])
+        self.assertEqual(result["axes"]["independent_evaluation"]["status"], "not_supported")
+        self.assertIn("已完成独立检验，假设未获支持", result["progress"]["table_markdown"])
+        self.analysis(lambda c: c["axes"]["scientific_answer"]["questions"][0].update(comparison_ids=["calibration"]))
+        self.failed("not addressed by the answer", "transition")
+
+    def test_explicit_support_goal_remains_unmet_after_an_adequate_negative_test(self):
+        self.other(modern=True, evaluation="fail", independent_goal="require_support", budget_limit=4)
+        result = self.check()
+        self.assertEqual(result["status"], "incomplete", result["issues"])
+        self.assertTrue(result["negative_test_completed"] and result["ready_to_deliver"])
+        self.assertEqual(result["unmet_axes"], ["independent_evaluation"])
+        self.assertFalse(result["goal_complete"])
+
+    def test_negative_with_missing_observations_cannot_finish(self):
+        self.other(modern=True, evaluation="fail", independent_goal="test_prediction")
+        self.change("analysis/output/evaluation_measurements.json", lambda d: d["measurements"]["eval_mean"].update(status="missing"))
+        self.recompute_score("evaluation")
+        self.failed("Missing measurements or invalid runs", "transition")
+
+    def test_declared_biological_reference_cannot_point_at_simulated_rates(self):
+        self.other(modern=True, evaluation="pass")
+        self.change("docs/task_plan.json", lambda p: p["review"]["datasets"][1].update(
+            source_ref="results/run/rates.csv", kind="biological"))
+        self.failed("Simulation repeats cannot supply independent biological observations")
+
+    def test_derived_headline_must_match_its_underlying_data(self):
+        self.other(modern=True)
+        rates = "results/run/rates.csv"
+        self.analysis(lambda c: c["delivery"]["claims"][0].update(raw_calculation=dict(
+            operation="difference", left=dict(csv_ref=rates, column="rate_hz", operation="mean"),
+            right=dict(csv_ref=rates, column="rate_hz", operation="mean"))))
+        self.failed("disagrees with recomputation from its underlying observations")
+
+    def test_direct_delivery_cannot_bypass_implementation_checks(self):
+        self.other(modern=True)
+        initial = fixture.read(self.root, "docs/review_start.json")
+        def require_build(p):
+            p["mode"] = "build"
+            p["review"]["scope_changes"].append(dict(change="mode", source_kind="user", source_ref="docs/model_spec.md",
+                from_fingerprint=calibration.fingerprint(initial["scope"]), **fixture.judge()))
+        self.change("docs/task_plan.json", require_build)
+        result = self.check()
+        self.assertEqual(result["checks"]["implementation"]["status"], "failed")
+        self.assertFalse(result["ready_to_send"] or result["goal_complete"])
+
+    def test_optimization_summary_requires_its_scored_runs(self):
+        self.analysis(lambda c: c.update(iterations=[], optimization=dict(summary="Candidates compared and a final configuration adopted.")))
+        self.failed("Optimization summary lacks actual iterations and scored comparisons")
 
     def test_positive_axis_cannot_ignore_another_predeclared_target_file(self):
         # Preserve an explicit user-reviewed criterion expansion, then verify

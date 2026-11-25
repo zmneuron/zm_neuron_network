@@ -164,8 +164,7 @@ class ExecutionContractChecks(unittest.TestCase):
         completion["axes"]["independent_evaluation"].update(
             status="inconclusive", evaluation_completed=True,
             reason="The constructed comparison was calculated; biological support cannot be inferred.")
-        completion["decision"].update(action="stop", stop_reason="predeclared_stop", source_ref="docs/model_spec.md",
-                                      next_action="Retain the software result without a biological claim.")
+        completion["decision"].update(action="continue", next_action="Obtain observations that address the remaining uncertainty.")
         fixture.dump(root, "analysis/output/analysis.json", analysis)
         result = review_project.check_review(root, checkpoint="transition", skill=self.skill)
         self.assertEqual(result["status"], "incomplete", result)

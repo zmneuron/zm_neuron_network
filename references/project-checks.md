@@ -93,7 +93,13 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 | 科学问题已回答 | 原问题是否得到有判别能力的比较与合理解释；**主要拟合指标未满足文献与真实数据要求时不属于有效阴性，须继续优化**；有效阴性或未能区分可以是答案，缺比较/数据则仍未完成 |
 | 交付完整 | 六项适用内容是否由同版实际产物组成，报告和最终答复都包含核心说明、量化结果及图件，而不只有附件链接 |
 
-**报告可诚实交付，不等于原科学目标全部达到，更不等于可以结束优化。** 主要指标未满足文献与真实数据要求时，完成复核的 `decision.action` 必须为 `continue`，并登记下一批要实际运行的多组参数组合；`predeclared_stop`、预算批次用尽、结果阴性、可诚实交付都不是结束优化的依据。 例如外部比较已做完但不支持模型，交付仍应呈现实际差异；缺少所需真实数据或比较能力时不能把独立评价/科学问题标为满足。匹配比较核对其条件是否改变了原问题；主要差异核对适用的数值检查；只有主张作用可忽略时，才核对排除重要差异的依据。查看[具体比较](run-compare-optimize.md#主要效应的数值检查与阴性判断)；在现有问题判断的 `adequacy_reason` 和 `evidence_refs` 记录理由与结果，不新增一套状态。新模拟协议没有独立实测不能标记生物验证支持。必需目标未达时，记录可执行的下一步及继续/停止依据；剩余授权和预算足以完成必要工作时继续实施。程序只验证记录、数值与关系，来源真实性、目标覆盖、授权与科学论证仍由主 agent 及适用的[独立复核](delegation.md)查看原材料判断。
+校准与假设检验在第一次运行前分别登记。全模型维持五项判断，`goal_complete` 反映本轮科研目标，`ready_to_deliver`、`ready_to_send` 分别反映交付材料和实际待发送文件。每次检查须读取问题和各项状态。模型、模块、参数、结果或正文检查已经报错时，先定位并修复，再从原入口复核。若当下受阻，可交付标明错误、影响和恢复条件的阶段说明。成功退出、报告排版完整或某次仿真结束均不足以宣布研究完成。
+
+- 在 `review.component_calibration` 为本轮各部分登记 `mode: targets`，并在必需校准目标写明 `component`。仅承担预测、对照等职责的部分可登记 `outside_calibration`，写明 `reason,source_ref`。已有目标缺少合格数据时保留原目标和缺口。程序逐部分从当前运行的逐项比较汇总；多个部分不能共用一个未归属的达标结论。
+- 以检验预测为目的时在 `review.independent_goal` 登记 `test_prediction`。若已约定必须证明支持才达到用途要求，登记 `require_support`；旧计划未声明时沿用后者。前者得到阴性结果仍可完成：预先留出的观测和判据均已核对，所有必需结果均有有效测量，独立评价保留 `not_supported`，注明 `evaluation_completed,adequacy_reason`；对应问题引用实际比较并解释效应范围和精度。设计不足、测量缺失和运行失败须保留为未评价或无法判定。主张效应可忽略，还须在原始单位上与预定的实质差异界限比较。 原目标明确要求正向支持、充分检验却得到阴性结果时，可用 `independent_non_support` 保留已完成的检验和未达到的用途目标。其余未完成工作须另行处理，已看过的观测不再用于检验新候选。
+- 在 `review.selection_uses` 登记事前筛选规则，在 `completion_review.selection_uses` 或 `iterations[].selection_uses` 补记实际用过的资料。每条写 `dataset_id,feature,quantity,rule_ref`，`feature` 为 `value/direction/contrast`；只用了部分观测时列出真实 `observation_ids`。相同来源的不同文件可共享稳定的 `source_id`。候选轮将比较列入 `comparison_ids` 即表示其参与决策。逐条核对真实筛选代码、表格、淘汰记录及全部试过的方向，包括没有出现在标准比较文件中的条件。使用后的数据可以报告为开发结果；新种子可检查计算稳定性，生物独立评价需要预先保留且未参与选择的观测。
+- 某部分可比的校准目标未满足，且有可试参数和资源时，`decision.action=continue`，`next_batch` 逐组记录 `component,parameters,rationale_ref`，并在本轮实际运行。下一次检查用 `iterations` 和 `comparisons` 核对哪些配置已运行及为何保留或淘汰。仅列下一批时，状态仍为未完成。
+- 确需暂止时写明 `gap,recovery_condition,next_action` 和实际依据。预算耗尽须与累计消耗相符；缺少或不可比的观测须列出 `dataset_ids`，并检查其他部分是否尚可继续。算力或实现受阻时用 `resources_unavailable/implementation_blocked` 引用实际限制；用户叫停时用 `user_decision` 并注明 `source_kind: user,source_ref`。若用 `range_exhausted`，事前 `review.parameter_space_ref` 指向含 `rationale_ref,config_refs` 的有限候选清单，结论须覆盖其中每个实际完成且已有比较的配置。预定轮数或 `predeclared_stop` 不能关闭仍未满足的目标。合理扩大范围需要新的科学依据。 连续参数或自适应搜索若缺少扩大范围的科学依据，可用 `no_justified_batch` 作阶段性判断，引用实际评分的参数组、约束来源 `source_ref` 和 `range_assessment`，说明哪些新观测能支持下一步。有未试的已登记配置时，仍须处理这些配置。
 
 交付复核还需按[文字、表格与图件检查](external-skills/clear-writing.md#输出前如何检查)实际查看当前输出：名称/单位是否一致、术语和条件是否能理解、图内文字是否显示完整、改写是否保留数据与结论强度。图件的查看与修订记录复用 `figure_plan.md`，其他问题写入原复核说明；不新建另一套完成状态。未看的图件保持待检查，已发现且影响理解的文字问题先修正，不能凭软件检查通过宣称文字检查也通过。
 
@@ -111,6 +117,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 - 完整模型采用 `delivery_profile: full_model`。原任务只要调研、教学或部分分析时用 `scoped`，在 `delivery_parts` 按原顺序选适用部分，并以 `delivery_scope_reason/ref` 说明原范围。不能事后借此删除原任务必需结果。`independent_evidence: synthetic` 只用于明确的软件试验，真实生物评价默认 `biological`。
 - `analysis.completion_review` 保存五项 `axes`、逐要求 `requirements`、实际 `comparisons`、`iterations`、累计 `budget`、继续/停止 `decision` 和 `delivery`。判断均写明 `assessor,reason,evidence_refs`；运行成功、校准满足、独立支持、科学问题已回答、交付完整分别为 `completed/satisfied/supported/answered/complete`，未做、不支持和不适用使用各自状态，不能自动转换。
 - 比较条目关联 `axis,data_role,dataset_ids,targets_ref,measurements_ref,score_ref,config_ref,run_ref,candidate_id`。观测值除单位、条件等原有字段外，`source` 指向实际输出 CSV 的 `csv_ref,column,operation,where`；工具从运行绑定的数据复算后再判定。历史比较显式标为 `historical:true`，不能用于宣称当前模型满足要求。
+- 正文中的关键数值应从已登记的原始记录计算。若正文引用派生结果表，在相应的 `delivery.claims[]` 写入 `raw_calculation`，重新计算并比对表值与正文。均值等使用原始列和条件；配对相关使用 `operation: pearson` 和同一行的 `column,other_column`；组间差用 `operation: difference` 和两个原始选择 `left,right`。更复杂的变换保留原分析代码、输入、逐层输出及复算过程，人工核对统计单位和变换含义。
 - 迭代条目用 `initial/candidate/final` 角色关联实际运行、配置、比较及取舍理由。预算记录累计 `limit/consumed`；**未达标时 `decision.action` 必须是 `continue`**，同时写明下一批多组参数组合、目标指标与剩余动作；只有用户明确改变范围或真实实现阻塞才允许 `stop`，且不得标 `goal_complete`，并保留可执行的后续参数组。有效阴性或无法区分机制，仍需在问题判断中说明实际比较、`comparison_complete` 和 `adequacy_reason`。
 - `delivery` 引用实际 `report_ref` 并保存准备发送的 `response_text`。`parts` 以 `abstract,methods,equations,questions,biological_comparison,limitation` 顺序保存完整分节正文（含本节图与公式）、关联已有图件、量化 `claims` 和问题图组。数值只能来自已登记完成运行的输出（派生表需实际分析运行），或所声明的参考文件；任意 CSV 与文字自洽不算有效。图件明确 `depiction: schematic/actual_model/data_result`，最终答复使用可显示的绝对本地图片路径。公式关联 `methods_ref` 指向的构建方法正文、实际公式、符号单位、参数文件、源码及对应代码段；不能只列六个标题。发送前确认实际答复与已检查内容相同。
 
@@ -145,6 +152,10 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase delivery
 | `reference_change` | `id,question_id,kind,required,basis_ref,description,unit,tolerance,tolerance_basis` | `before,after,reference`引用实际CSV选择；参考可为数值或`lower/upper`区间。分别重算初始及最终距离；误差增大须说明取舍或尚未解决，不能用均值改善抵消。分布和时程先用适合问题的分析生成指标及图，不能以此标量接口取代完整比较。 |
 | `numerical_effect` | 同上；按每个主要条件差单列，精度依据来自问题；必要时加`direction_floor` | `before/after`为配对效应及可用区间，记录`pairing_ref/pairing_reason`说明实际网络和输入对应。超出精度、重要变号或区间明显变化分别处置；一组稳定不能替代另一组。小幅过零本身不证明有作用或无作用。 |
 | `method_assumption` | `id,question_id,kind,required,basis_ref,description` | `original_method,implemented_method,choice_reason,consequence`说明最近邻方法、关键输入/突触/观测假设及选择后果。按实际资料写已采用、条件性采用或尚未解决，不强制统一受体、三维表示或输入配平。 |
+| `mechanism_activity` | 问题列出 `required_mechanisms`。各机制登记 `mechanism_id`、运行来源、正式时窗、观测量、作用方向与判据。 | 从该次运行输出读取量值，逐窗区分短暂出现与持续作用。必要时在共同时间点核对只改变该机制的匹配对照。 |
+| `comparison_design` | 问题列出 `required_design_dimensions`。按适用维度登记 `dimension_id`、预定处理或统计单位、范围、水平或重复数。 | 从实际比较使用的逐行数据核对各组。偏离方案时说明偏差及其限制；原问题仍无法判断时保留未完成。 |
+
+这两类检查的取数方法和判读见[科学约束](scientific-constraints.md)。明确本轮可用的模拟预算时，把 `limit,unit` 写入事前 `review.simulation_budget`；用尽的调用需与实际运行记录相符。完整建模交付还核对 `delivery.reproduction.commands` 中发表的命令、默认或显式配置和采用版本，沿用[结果交付](result-delivery.md)中的说明。实现检查与复现材料的缺口须进入当前判断。
 
 CSV选择使用已有的`csv_ref,column,where,operation`；数值效应需要区间时用`{estimate,lower,upper}`三个选择。文件必须属于登记的真实运行/分析输出或参考资料，不能随手造一张表自证正确。新增分析注明探索性质；运行后增加的检查使用`timing: exploratory_after_run`，保留原定义，不改容差制造通过。
 

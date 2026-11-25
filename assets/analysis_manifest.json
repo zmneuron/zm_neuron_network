@@ -48,6 +48,7 @@
     "requirements": [],
     "comparisons": [],
     "iterations": [],
+    "selection_uses": [],
     "budget": {
       "limit": 0,
       "consumed": 0,
@@ -60,10 +61,14 @@
       "reason": "",
       "next_action": "",
       "stop_reason": "",
+      "gap": "",
+      "recovery_condition": "",
+      "next_batch": [],
       "scientific_check_ids": []
     },
     "delivery": {
       "report_ref": "docs/results.md",
+      "reproduction": {"commands": []},
       "response_text": "",
       "parts": [],
       "claims": [],

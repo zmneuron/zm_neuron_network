@@ -27,19 +27,25 @@ CELL = '''class Cell:
         return False
 '''
 
-RUN = '''import csv, json, platform, sys
+RUN = '''import csv, json, platform, random, sys
 from pathlib import Path
 from cells import Cell
 from run_records import begin_run, finish_run
 
 root = Path.cwd()
-config = json.loads((root/'model/config.json').read_text())
-record = begin_run(root, 'results/run', config=config, stage='simulation', model_version='m1',
+output_ref = sys.argv[1] if len(sys.argv) > 1 else 'results/run'
+config_ref = sys.argv[2] if len(sys.argv) > 2 else 'model/config.json'
+config = json.loads((root/config_ref).read_text())
+record = begin_run(root, output_ref, config=config, stage='simulation', model_version='m1',
                    code_refs=['model/run.py','model/cells.py','model/run_records.py'],
                    command=sys.orig_argv, environment={'python':platform.python_version()},
                    input_refs=[])
-saved = json.loads((root/'results/run/resolved_config.json').read_text())
+saved = json.loads((root/output_ref/'resolved_config.json').read_text())
 cells = [Cell() for _ in range(saved['n'])]
+if 'seed' in saved:
+    rng = random.Random(saved['seed'])
+    for cell in cells:
+        cell.v = rng.uniform(0.0, saved['initial_jitter_mV'])
 edges = [(i,(i+1)%saved['n'], 0.1 if i<6 else -0.05) for i in range(saved['n'])]
 spikes, traces, pending = [], [], []
 for tick in range(round(saved['duration_ms']/saved['dt_ms'])):
@@ -51,7 +57,7 @@ for tick in range(round(saved['duration_ms']/saved['dt_ms'])):
         if tick % 10 == 0: traces.append([index,(tick+1)*saved['dt_ms'],cell.v])
     pending = [(target,weight) for source,target,weight in edges if source in fired]
 counts = [sum(s[0]==i for s in spikes) for i in range(saved['n'])]
-output = root/'results/run'
+output = root/output_ref
 for name,header,rows in [
     ('spikes.csv',['cell','time_ms'],spikes),
     ('voltage.csv',['cell','time_ms','v_mV'],traces),
@@ -59,7 +65,7 @@ for name,header,rows in [
     ('edges.csv',['source','target','weight_mV'],edges)]:
     with (output/name).open('w',newline='') as handle:
         writer=csv.writer(handle);writer.writerow(header);writer.writerows(rows)
-finish_run(root, record, ['results/run/'+x for x in ['spikes.csv','voltage.csv','rates.csv','edges.csv']])
+finish_run(root, record, [output_ref+'/'+x for x in ['spikes.csv','voltage.csv','rates.csv','edges.csv']])
 print(json.dumps({'spikes':len(spikes),'mean_rate_hz':sum(counts)/len(counts)/(saved['duration_ms']/1000)}))
 '''
 
@@ -86,7 +92,8 @@ def _target(identity, metric, bounds, role):
                 criterion=dict(kind="interval", bounds=bounds))
 
 
-def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None, display_progress=False, modern=False):
+def create(root, *, skill=None, distribution_failure=False, evaluation=None, reuse=False, regulation=None,
+           display_progress=False, modern=False, independent_goal=None, parameter_space=False, budget_limit=1):
     """Execute once in a new directory; retain truthful negative comparison states."""
     root = Path(root).resolve()
     require_new = not root.exists() or not any(root.iterdir())
@@ -136,6 +143,15 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                             required_axes=["execution", "calibration", "scientific_answer", "delivery"] + (["independent_evaluation"] if evaluation else []),
                             independent_evidence="synthetic", skill_files=["SKILL.md", "references/calibration.md"],
                             criteria_refs=["data/targets.json"], datasets=datasets, scope_changes=[], skill_changes=[]))
+    if independent_goal:
+        plan["review"]["independent_goal"] = independent_goal
+        plan["review"]["questions"][0]["text"] = "Does the calibrated ring predict the mean rate in the reserved synthetic observations?"
+    if parameter_space:
+        dump(root, "data/config_1.json", dict(config, drive_mV=24))
+        dump(root, "data/config_2.json", dict(config, drive_mV=26))
+        dump(root, "data/space.json", dict(config_refs=["model/config.json", "data/config_1.json", "data/config_2.json"],
+                                         rationale_ref="docs/model_spec.md"))
+        plan["review"]["parameter_space_ref"] = "data/space.json"
     if regulation is not None:
         plan["review"]["regulation"] = regulation
         if regulation.get("mode") == "implementation":
@@ -148,6 +164,8 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
             comparison_ref="docs/model_spec.md")], adoptions=[])
     if modern:
         plan["review"]["display_progress"] = True
+        plan["mode"] = "audit"
+        plan["review"]["simulation_budget"] = dict(limit=budget_limit, unit="simulator calls")
         display_progress = True
         plan["review_contract"] = review_project.CONTRACT
         plan["spec_ref"] = "docs/model_spec.md"
@@ -203,6 +221,11 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
     for i, value in enumerate(rates): plot += f'<rect x="{25+i*80}" y="{160-value*2}" width="25" height="{value*2}" fill="steelblue"/>'
     for i, value in enumerate([0,0,0,0,60,60,60,60] if distribution_failure else [30]*8):
         plot += f'<rect x="{53+i*80}" y="{160-value*2}" width="20" height="{value*2}" fill="orange"/>'
+    if independent_goal:
+        with (root / "data/evaluation.csv").open() as handle:
+            reserved = [float(row["rate_hz"]) for row in csv.DictReader(handle)]
+        for i, value in enumerate(reserved):
+            plot += f'<rect x="{74+i*80}" y="{160-value*2}" width="12" height="{value*2}" fill="green"/>'
     (root / "analysis/output/comparison.svg").write_text(plot + "</svg>", encoding="utf-8")
     claims = [dict(id="mean", csv_ref="results/run/rates.csv", column="rate_hz", operation="mean", value=mean, unit="Hz", text=f"{mean:.6g} Hz"),
               dict(id="silent", csv_ref="results/run/rates.csv", column="rate_hz", operation="zero_fraction", value=silent, unit="1", text=f"{silent:.6g} 1")]
@@ -219,6 +242,15 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
     ]
     if modern:
         excerpts[4] += " This synthetic network checks software behavior; biological validity is not established."
+    if independent_goal:
+        observed = sum(reserved) / len(reserved)
+        claims.append(dict(id="reserved", csv_ref="data/evaluation.csv", column="rate_hz", operation="mean",
+                           value=observed, unit="Hz", text=f"{observed:.6g} Hz"))
+        finding = "did not satisfy" if evaluation == "fail" else "satisfied"
+        conclusion = (f"The frozen model mean of {mean:.6g} Hz {finding} the predeclared prediction criterion "
+                      f"for the reserved synthetic observations (mean {observed:.6g} Hz; green bars).")
+        for index in (3, 4):
+            excerpts[index] += " " + conclusion
     parts = []
     for kind, excerpt in zip(review_project.PARTS, excerpts):
         parts.append(dict(kind=kind, report_excerpt=excerpt, response_excerpt=excerpt, **judge()))
@@ -231,6 +263,10 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
                                           interpretation="Evaluate both constraints; a mean match does not establish a distribution match.",
                                           support_scope="This is a synthetic software comparison, not a biological mechanism claim.")])
     parts[4].update(claim_ids=["mean"], figure_ids=["comparison"])
+    if independent_goal:
+        for index in (3, 4):
+            parts[index]["claim_ids"].append("reserved")
+        parts[3]["question_groups"][0]["claim_ids"].append("reserved")
     paragraphs, response_paragraphs = [], []
     for index, excerpt in enumerate(excerpts):
         report_section, response_section = [excerpt], [excerpt]
@@ -254,15 +290,30 @@ def create(root, *, skill=None, distribution_failure=False, evaluation=None, reu
             comparison_complete=True, adequacy_reason="All eight cells were recorded over the declared interval and both predefined test statistics were calculated.",
             comparison_ids=["calibration"], **judge())], **judge()),
         delivery=dict(status="complete", **judge()))
-    pending = distribution_failure or evaluation == "fail"
+    if independent_goal:
+        axes["independent_evaluation"].update(evaluation_completed=True,
+            adequacy_reason="All eight reserved synthetic rates and every model unit in the fixed interval were measured.")
+        axes["scientific_answer"]["questions"][0].update(conclusion=conclusion, comparison_ids=["calibration", "evaluation"])
+    pending = distribution_failure or (evaluation == "fail" and independent_goal != "test_prediction")
     completion = dict(axes=axes, comparisons=comparisons,
                       requirements=[dict(id="R1", status="met", **judge())],
                       iterations=[dict(role="initial", run_ref="results/run/run.json", config_ref="results/run/resolved_config.json", comparison_ids=["calibration"], decision="keep", reason="Only the first software-test run has been performed; no optimization is claimed.")],
-                      budget=dict(limit=1, consumed=1),
+                      budget=dict(limit=budget_limit, consumed=1),
                       decision=dict(action="stop" if pending else "complete",
                                     next_action="A new authorized round would need a stated target and budget." if pending else "No further work in this software-only test.",
                                     stop_reason="budget_exhausted" if pending else "criteria_met", **judge("Actual comparison and the declared software-test budget determine this outcome.")),
                       delivery=dict(report_ref="docs/results.md", response_text="\n\n".join(response_paragraphs)+"\n", parts=parts, claims=claims))
+    if pending:
+        completion["decision"].update(gap="The declared simulation allowance was fully consumed with an unmet criterion.",
+                                      recovery_condition="A documented extension of the simulator allowance would permit another run.")
+    if independent_goal == "require_support" and evaluation == "fail" and not distribution_failure:
+        completion["decision"].update(stop_reason="independent_non_support", gap="The adequately tested prediction was not supported.",
+            recovery_condition="A revised hypothesis would require new reserved observations.",
+            next_action="Report the failed prediction and retain the reserved data as already examined.")
+    if distribution_failure and budget_limit > 1:
+        completion["decision"] = dict(action="continue", next_action="Run the remaining justified drive settings.",
+            next_batch=[dict(component="baseline", parameters={"drive_mV": v}, rationale_ref="docs/model_spec.md")
+                        for v in (24, 26)][:budget_limit - 1], **judge("The silent fraction failed the calibration criterion."))
     if modern:
         completion["budget"].update(previous_consumed=0, round_consumed=1, unit="simulator calls")
         completion["scientific_checks"] = [dict(id="effective_model", status="complete", disposition="conditional",

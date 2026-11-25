@@ -22,6 +22,7 @@ CONTRACT = (
 )
 HANDLING = {"explicit", "simplified", "fixed", "external", "not_applicable"}
 STATUS = {"planned", "documented", "implemented", "checked", "not_applicable"}
+PHASES = ("plan", "implemented", "delivery")
 
 
 def present(value):
@@ -100,8 +101,10 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
         "source_checklist_compared": source_checklist is not None,
     }
     try:
-        catalog = read_catalog(checklist)
+        if phase not in PHASES:
+            raise ValueError(f"Unknown element check phase: {phase}")
         policy = read_policy(checklist)
+        catalog = {item["id"]: item["requirement"] for item in policy["items"]}
         report["catalog_version"] = policy["catalog_version"]
         report["checklist_sha256"] = hashlib.sha256(checklist.read_bytes()).hexdigest()
         report["expected_items"] = len(catalog)
@@ -134,7 +137,16 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
         if not isinstance(modules, list) or not modules:
             raise ValueError("modules: at least one active module is required")
         seen_modules = set()
-        implemented = phase == "implemented"
+        implemented = phase in {"implemented", "delivery"}
+        # Many checklist items share one run. Read and verify its check record
+        # once in this invocation, never across two reviews of the project.
+        records = {}
+
+        def checked_record(ref):
+            if ref not in records:
+                records[ref] = verify_check(project, ref)
+            return records[ref]
+
         for module in modules:
             if not isinstance(module, dict):
                 raise ValueError("each module must be an object")
@@ -156,7 +168,8 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
             if implemented and state == "checked":
                 covered_code, covered_data = set(), set()
                 for ref in module.get("check_refs", []):
-                    record = verify_check(project, ref, module_id=mid)
+                    record = checked_record(ref)
+                    review.require(mid in record["module_ids"], f"Check does not cover module {mid}: {ref}")
                     covered_code.update((review.project / p).resolve() for p in record["code_sha256"])
                     covered_data.update((review.project / p).resolve() for p in record["data_sha256"])
                 review.require(code <= covered_code and results <= covered_data,
@@ -202,7 +215,7 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
             review.refs(parts(row["check_refs"]), f"{item} check_refs", True, implemented and not inactive)
             if implemented and not inactive:
                 for ref in parts(row["check_refs"]):
-                    verify_check(project, ref)
+                    checked_record(ref)
         review.require(seen == set(catalog), "coverage: items are missing or unknown: " + ", ".join(sorted(seen ^ set(catalog))))
         review.require(seen_modules.issubset(linked), "modules are unlinked to checklist: " + ", ".join(sorted(seen_modules - linked)))
         report.update({"covered_items": len(seen & set(catalog)), "modules": len(seen_modules), "model_scope": scope})
@@ -217,7 +230,7 @@ def main(argv=None):
     parser.add_argument("--project", required=True, type=Path)
     parser.add_argument("--coverage", default="docs/element_coverage.csv")
     parser.add_argument("--modules", default="model/module_contracts.json")
-    parser.add_argument("--phase", choices=("plan", "implemented"), required=True)
+    parser.add_argument("--phase", choices=PHASES, required=True)
     parser.add_argument("--checklist", type=Path, default=Path(__file__).resolve().parents[1] / "references/construction-elements-checklist.md")
     parser.add_argument("--source-checklist", type=Path)
     parser.add_argument("--output", help="New project-relative JSON file; parent must already exist")

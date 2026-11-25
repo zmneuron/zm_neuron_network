@@ -36,6 +36,7 @@ LABELS = {
     "verified": "✅ 已完成并检查", "pending": "□ 未完成", "unverified": "□ 尚未确认",
     "running": "⏳ 进行中（最近核实的记录）", "blocked": "⏸ 等待条件", "failed": "✗ 未通过 / 失败",
     "not_applicable": "— 未纳入本轮", "not_satisfied": "✗ 尚未满足", "not_supported": "✗ 未获支持",
+    "tested_negative": "已完成独立检验，假设未获支持",
     "not_evaluated": "□ 尚未评价", "inconclusive": "□ 已评价，尚不能判断是否支持", "not_answered": "□ 尚未回答", "partially_answered": "□ 部分回答",
 }
 
@@ -257,6 +258,9 @@ def render_progress(root, plan, analysis, review=None):
         if identity == "independent_evaluation":
             kind = options.get("independent_evidence", "biological")
             title += "（合成软件参考）" if kind == "synthetic" else "（真实生物数据）" if kind == "biological" else "（按声明来源）"
+            if (state == "not_supported" and current and isinstance(review, dict)
+                    and review.get("consistent") and review.get("negative_test_completed")):
+                state = "tested_negative"
         axis_rows.append(dict(id=identity, kind="axis", title=title, state=state, checked=checked,
                               method="读取本轮独立判断及对应运行/比较", result=reason, figure_ids=[]))
 
