@@ -7,12 +7,16 @@ its provenance must be established by the host or the person providing it.
 """
 from __future__ import annotations
 
+import csv
+from difflib import SequenceMatcher
 import hashlib
 import json
+import math
 from pathlib import Path, PureWindowsPath
 import re
 import shlex
 from subprocess import list2cmdline
+import unicodedata
 from urllib.parse import unquote
 from xml.etree import ElementTree
 
@@ -46,6 +50,38 @@ def _visible(value):
     value = re.sub(r"(?m)^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$", "", value)
     value = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", value)
     return re.sub(r"<[^>]*>", "", value)
+
+
+def _study_presentation(plan):
+    review = plan.get("review", {})
+    return review.get("delivery_profile", "full_model") == "full_model" and (
+        plan.get("schema_version") == 2 or "study_design" in review)
+
+
+def _folded(value):
+    return re.sub(r"[\W_]", "", unicodedata.normalize("NFKC", value).casefold())
+
+
+def _names_term(term, passage):
+    """Find a registered scientific name even when its surrounding prose changes."""
+    from figure_reading import UNITS
+
+    needle, body = _folded(term), _folded(passage)
+    if needle and needle in body:
+        return True
+    # A scientific abbreviation explicitly supplied with the name is also an identifier.
+    aliases = re.findall(r"[（(]([A-Za-z][A-Za-z0-9_-]{1,})[)）]", term)
+    if any(re.search(r"(?<![a-z0-9_])" + re.escape(alias) + r"(?![a-z0-9_])", passage, re.I)
+           for alias in aliases if alias not in UNITS):
+        return True
+    filler = r"采用|使用|构建|计算|所选|选用|本研究|模型|网络|单元|包含|含有|以及|构成|组成|[由及与的]"
+    needle, body = re.sub(filler, "", needle), re.sub(filler, "", body)
+    if len(needle) < 3:
+        return bool(needle) and needle in body
+    matches = [m for m in SequenceMatcher(None, needle, body, autojunk=False).get_matching_blocks() if m.size >= 2]
+    # Keep the substance of the name, including its last distinguishing term (e.g. firing rate vs. latency).
+    return (sum(m.size for m in matches) >= 0.75 * len(needle) and
+            any(m.a + m.size == len(needle) for m in matches))
 
 
 def _unique(items, label):
@@ -127,16 +163,18 @@ def _image_labels(path):
     return " ".join(text for text in marks if text) if marks else None
 
 
-def _embedded_figures(root, report_path, parts, figures):
+def _embedded_figures(root, report_path, parts, figures, *, study=False):
     legends = {}
-    captions = {}
+    descriptions = {}
+    embedded = {}
     report = report_path.read_text(encoding="utf-8-sig")
     for part in parts:
         ids = part.get("figure_ids", [])
-        if not ids:
+        if not ids and not study:
             continue
         require(part["report_excerpt"] in report, "图件段落未出现在所交付的报告中：" + part["kind"])
         expected = {fid: {local(root, ref) for ref in figures[fid].get("files", [])} for fid in ids}
+        registered = set().union(*expected.values())
         for field, is_report in (("report_excerpt", True), ("response_excerpt", False)):
             shown = set()
             for link, alt in _image_links(part[field]):
@@ -147,22 +185,29 @@ def _embedded_figures(root, report_path, parts, figures):
                             "报告内嵌图须使用相对于报告的路径：" + link)
                     path = report_path.parent / path
                 elif not path.is_absolute():
+                    require(not study, "答复中的内嵌图须使用实际成图的绝对路径：" + link)
                     continue
                 path = local(root, str(path))
+                require(not study or path in registered, "正文内嵌的成图未列入该段的图件记录：" + link)
                 if path not in legends:
                     legends[path] = _image_labels(path)
                 require(legends[path] is not None, "嵌入的文件不是可读图像：" + link)
                 shown.add(path)
-                if is_report:
-                    for fid, files in expected.items():
-                        if path in files:
-                            captions.setdefault(fid, set()).update((alt, legends[path]))
-                            caption = figures[fid].get("caption", "")
-                            if caption and caption in _visible(part[field]):
-                                captions[fid].add(caption)
+                for fid, files in expected.items():
+                    if path in files:
+                        labels = descriptions.setdefault((part["kind"], field, fid), set())
+                        labels.update((alt, legends[path]))
+                        caption = figures[fid].get("caption", "")
+                        if caption and caption in _visible(part[field]):
+                            labels.add(caption)
             for fid, files in expected.items():
                 require(bool(shown & files), "图件未在正文中实际内嵌（" + field + "）：" + fid)
-    return {fid: " ".join(parts) for fid, parts in captions.items()}
+                embedded.setdefault(fid, set()).update(shown & files)
+    captions = {}
+    for (_, field, fid), labels in descriptions.items():
+        if field == "report_excerpt":
+            captions.setdefault(fid, set()).update(labels)
+    return {fid: " ".join(labels) for fid, labels in captions.items()}, embedded, descriptions
 
 
 def _figure_kinds(figure):
@@ -229,26 +274,94 @@ def _model_figure_data(root, actual, figures, analysis, run_records, history):
     return plotted, lineage
 
 
-def _question_figures(root, parts, delivery, analysis, plotted):
+def _observed_columns(source):
+    if source.get("operation") == "count":
+        return frozenset()
+    keys = ("column", "other_column") if source.get("operation") == "pearson" else ("column",)
+    return frozenset(source[k] for k in keys)
+
+
+def _question_source(root, source, used, plotted, selections, qid):
+    """When the cited figures select rows in one table, verify that the claim uses the displayed observations."""
+    ref = source["csv_ref"]
+    paths = [selections[fid] for fid in used if ref in plotted[fid][1]]
+    by_figure = [[s for s, _ in items.values() if s["csv_ref"] == ref] for items in paths]
+    if not by_figure or not all(by_figure):
+        return  # A cited figure covers this table without a condition-specific row selection.
+    columns = _observed_columns(source)
+    filters = [s.get("where", {}) for sources in by_figure for s in sources
+               if columns <= _observed_columns(s)]
+    target = source.get("where", {})
+    def matches(row, where):
+        return all(str(row.get(k)) == str(v) for k, v in where.items())
+    if any(matches(target, where) for where in filters):
+        return  # The plotted selection includes all rows used by this claim.
+    with local(root, ref).open(encoding="utf-8-sig", newline="") as stream:
+        selected = (r for r in csv.DictReader(stream) if matches(r, target))
+        require(filters and all(any(matches(row, where) for where in filters) for row in selected),
+                "科学问题引用的图未展示该题定量结论所用的原始行列：" + qid)
+
+
+def _question_text(group, answer, choice, parts, used, descriptions):
+    qid = group["question_id"]
+    interpretation = _text(group.get("interpretation"), "科学问题的直接回答 " + qid)
+    statements = [_folded(t) for t in (interpretation, answer.get("conclusion")) if isinstance(t, str) and t.strip()]
+    questions = parts["questions"]
+    for field in ("report_excerpt", "response_excerpt"):
+        paragraphs = [_visible(p) for p in re.split(r"\n\s*\n", questions[field])]
+        answered = [p for p in paragraphs if any(s in _folded(p) for s in statements)]
+        require(answered, "科学问题的直接回答须出现在报告和答复的结果段：" + qid)
+        if choice is not None:
+            # Only this question's answer and figures provide its local context; the methods may be shared.
+            methods = [_visible(p) for p in re.split(r"\n\s*\n", parts["methods"][field])]
+            methods.extend(s for fid in parts["methods"].get("figure_ids", [])
+                           for s in descriptions.get(("methods", field, fid), ()))
+            labels = [s for fid in used for s in descriptions.get(("questions", field, fid), ())]
+            if len(questions.get("question_groups", [])) == 1:
+                answered = paragraphs
+            for key, title in (("selected", "采用模型"), ("observable", "判别读数")):
+                term = _text(choice.get(key), qid + " " + title)
+                require(any(_names_term(term, p) for p in (*methods, *answered, *labels)),
+                        f"{qid} 的{title}在{field}的方法或该题图文中无法定位：{term}")
+
+
+def _question_figures(root, parts, delivery, analysis, plotted, *, required_questions=None, selections=None,
+                      choices=None, descriptions=None):
     completion = analysis.get("completion_review", {})
     results = {r["id"]: r for r in analysis.get("results", []) if r.get("status") == "complete" and not r.get("historical")}
     answers = {q["id"]: q for q in completion.get("axes", {}).get("scientific_answer", {}).get("questions", [])}
     claims = _unique(delivery.get("claims", []), "claim")
     model_files = {d.get("path") for d in analysis.get("datasets", []) if d.get("origin", "model") == "model" and not d.get("historical")}
-    for group in parts.get("questions", {}).get("question_groups", []):
+    questions = parts.get("questions", {})
+    groups = questions.get("question_groups", [])
+    if required_questions is not None:
+        missing = required_questions - {g.get("question_id") for g in groups}
+        require(not missing, "下列科学问题缺少正文中的实算结果图：" + "、".join(sorted(missing)))
+    for group in groups:
         qid = group["question_id"]
         used = set(group.get("figure_ids", [])) & plotted.keys()
+        if required_questions is not None:
+            used &= set(questions.get("figure_ids", []))
+            require(used, "科学问题须在结果段引用回答该题的实算数据图：" + qid)
+            _question_text(group, answers.get(qid, {}), choices.get(qid), parts, used, descriptions)
         require(used, "科学问题只引用了示意图或没有本轮实算数据的图：" + qid)
         for rid in answers.get(qid, {}).get("result_ids", []):
             result = results.get(rid, {})
-            if result.get("figure_required"):
+            if result.get("figure_required") or required_questions is not None and result.get("figure_ids"):
                 require(used.intersection(result.get("figure_ids", [])), "科学问题缺少对应结果的实算图：" + qid + "/" + rid)
         paths = set().union(*(plotted[f][1] for f in used))
+        supported = set()
         for cid in group.get("claim_ids", []):
             if cid in claims:
                 inputs = {p.relative_to(root).as_posix() for p in _claim_inputs(root, claims[cid])}
                 reported = inputs & model_files
                 require(reported <= paths, "科学问题的图未使用该问题所报告的模型数据：" + qid + "/" + cid)
+                if selections:
+                    for source in _claim_sources(claims[cid]):
+                        _question_source(root, source, used, plotted, selections, qid)
+                supported.update(reported)
+        if required_questions is not None:
+            require(supported, "科学问题的结果图缺少与该题定量结论对应的实算数据：" + qid)
 
 
 def _completed_conditions(root, review, analysis, run_records, history):
@@ -287,15 +400,17 @@ def _completed_conditions(root, review, analysis, run_records, history):
     for ref in current - other_conditions:
         for label in anchors:
             add_condition(label, ref)
-    measurements = {}
+    measurements, observed = {}, {}
     for comp in completion.get("comparisons", []):
         ref = comp.get("run_ref")
         if ref not in current or comp.get("historical") or not comp.get("measurements_ref"):
             continue
         measured = read(local(root, comp["measurements_ref"])).get("measurements", {})
-        for row in measured.values():
+        for mid, row in measured.items():
             if row.get("status") == "observed" and row.get("source", {}).get("csv_ref"):
                 measurements.setdefault(ref, []).append(row)
+                if comp.get("id"):
+                    observed[(comp["id"], mid)] = ref, row
     for ref, rows in measurements.items():
         names = {row.get("condition") for row in rows if row.get("condition")}
         by_metric = {}
@@ -331,7 +446,14 @@ def _completed_conditions(root, review, analysis, run_records, history):
     equivalents = {ref for ref in current if variants.get(ref) and all(
         v.get("role") == "seed" for v in variants[ref].values())}
     adopted = equivalents | {selected} if selected in current else set()
-    return conditions, adopted
+    return conditions, adopted, observed
+
+
+def _visible_condition(fid, condition, figures, captions):
+    labels = figures[fid].get("condition_labels", {})
+    require(isinstance(labels, dict), "图件 condition_labels 须对应条件与显示名：" + fid)
+    label = _text(labels.get(condition, condition), "condition label")
+    return re.search(r"(?<![a-z0-9_])" + re.escape(label) + r"(?![a-z0-9_])", captions.get(fid, ""), re.IGNORECASE)
 
 
 def _check_condition_plots(conditions, plotted, figures, data_figures, captions):
@@ -345,12 +467,8 @@ def _check_condition_plots(conditions, plotted, figures, data_figures, captions)
         if len(supported) <= 1:
             covered.update(supported)
             continue
-        labels = figures[fid].get("condition_labels", {})
-        require(isinstance(labels, dict), "图件 condition_labels 须对应条件与显示名：" + fid)
         for condition in supported:
-            label = _text(labels.get(condition, condition), "condition label")
-            if re.search(r"(?<![a-z0-9_])" + re.escape(label) + r"(?![a-z0-9_])",
-                         captions.get(fid, ""), re.IGNORECASE):
+            if _visible_condition(fid, condition, figures, captions):
                 covered.add(condition)
     missing = sorted(conditions.keys() - covered)
     require(not missing, "报告缺少可辨认且有实际输出的条件图：" + "、".join(missing))
@@ -410,7 +528,111 @@ def _unfinished_conditions(plan, analysis, observed, parts):
     return sorted(missing)
 
 
-def _result_figures(root, delivery, plan, analysis, figures, captions):
+def _regulation_role_runs(review, completion):
+    design = review.get("regulation", {})
+    record = completion.get("regulation", {})
+    if design.get("mode") != "implementation" and record.get("status") != "complete":
+        return {}
+    require(record.get("status") == "complete", "完整交付缺少已完成的调控条件及其实际结果")
+    selected = record.get("freeze", {}).get("candidate_id")
+    choice = next((item for item in record.get("candidates", []) if item.get("id") == selected), None)
+    require(selected and choice is not None, "调控结果图未找到冻结后选定的实际候选")
+    refs = {}
+    for role, key, anchor in (("baseline", "B", "baseline_run_ref"), ("adverse", "D0", "adverse_run_ref")):
+        refs[role] = {row[key]["run_ref"] for row in record.get("contexts", []) if row.get(key, {}).get("run_ref")}
+        if design.get(anchor):
+            refs[role].add(design[anchor])
+    refs["regulation"] = {row["run_ref"] for row in (*choice.get("runs", []), *record.get("confirmation", []))
+                          if row.get("run_ref")}
+    require(all(refs.values()), "调控比较缺少基础、未调控扰动或所选方案的实际运行")
+    return refs
+
+
+def _figure_measurements(root, figure, observed, plotted):
+    """Find the actual rows/columns used when different conditions share a recorded table."""
+    selections = figure.get("condition_measurements", {})
+    require(isinstance(selections, dict), "图件的 condition_measurements 须按条件列出已有观测")
+    if not selections:
+        return {}
+    from review_project import _csv_statistic
+
+    result = {}
+    for name, link in selections.items():
+        require(isinstance(link, dict), "图件的条件观测缺少比较与指标：" + name)
+        observation = observed.get((link.get("comparison_id"), link.get("measurement_id")))
+        require(observation is not None, "图件引用了未实际测得的条件读数：" + name)
+        run, row = observation
+        source = row["source"]
+        require(row.get("condition") == name and run in plotted[0] and source["csv_ref"] in plotted[1],
+                "图件的条件、实际运行或取数文件与登记的观测不一致：" + name)
+        path = local(root, source["csv_ref"])
+        value = _csv_statistic(root, source, {path})
+        require(isinstance(row.get("value"), (int, float)) and math.isclose(value, row["value"], rel_tol=1e-9, abs_tol=1e-9),
+                "图件的条件读数未能从登记的原始行列复算：" + name)
+        where = {k: str(v) for k, v in source.get("where", {}).items()}
+        # Equivalent predicates on the same rows are one observation, even if their labels differ.
+        rows = hashlib.sha256()
+        with path.open(encoding="utf-8-sig", newline="") as stream:
+            for index, fields in enumerate(csv.DictReader(stream)):
+                if all(fields.get(key) == val for key, val in where.items()):
+                    rows.update(index.to_bytes(8, "big"))
+        result[name] = source, (path, _observed_columns(source), rows.digest())
+    return result
+
+
+def _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw):
+    roles = delivery.get("figure_roles")
+    names = ("baseline", "adverse", "regulation")
+    keys = ("model_figure", *names)
+    require(isinstance(roles, dict) and all(isinstance(roles.get(k), str) and roles[k] in embedded for k in keys),
+            "完整交付须分别登记并在两份正文中嵌入模型图、基础模型图、负面影响图和调控结果图")
+    require(len({roles[k] for k in keys}) == len(keys), "模型图及三个条件的实算结果须分别使用独立图件")
+    methods = next(p for p in delivery["parts"] if p["kind"] == "methods")
+    model = roles["model_figure"]
+    require(model in methods.get("figure_ids", []) and _figure_kinds(figures[model]) & {"schematic", "actual_model"},
+            "指定的模型全貌图须在方法段展示所构建的模型")
+    previous = set()
+    for key in keys:
+        fingerprints = {fingerprint(path) for path in embedded[roles[key]]}
+        require(not previous & fingerprints, "模型图和各条件结果图不能重复使用同一张成图：" + key)
+        previous.update(fingerprints)
+    declared = review["study_design"].get("conditions", {})
+    require(set(review.get("model_components", [])) == set(names) and isinstance(declared, dict)
+            and all(isinstance(declared.get(k), str) and declared[k].strip() for k in names)
+            and len({declared[k] for k in names}) == len(names), "完整研究须注明基础、负面影响、调控各自对应的实际条件")
+    formal = _regulation_role_runs(review, analysis.get("completion_review", {}))
+    datasets = {d["id"]: d for d in analysis.get("datasets", [])}
+    expected = {}
+    for role in names:
+        dids = {d for s in analysis.get("construction_steps", []) if s.get("component") == role and s.get("status") == "complete"
+                for d in s.get("data_ids", []) if lineage[d][0]}
+        runs, files = conditions.get(declared[role], (set(), set()))
+        refs = formal.get(role) or runs or set().union(*(lineage[d][0] for d in dids))
+        expected[role] = refs, files | {datasets[d]["path"] for d in dids if refs & lineage[d][0]}
+    signatures = set()
+    for role in names:
+        fid, condition = roles[role], declared[role]
+        require(fid in plotted and "data_result" in _figure_kinds(figures[fid]),
+                "各条件的独立结果须为使用本轮模拟数据的实算图：" + role)
+        runs, paths = plotted[fid]
+        required_runs, required_files = expected[role]
+        require(runs & required_runs and (not required_files or paths & required_files),
+                "该结果图缺少对应条件实际取得的数据：" + role + " / " + condition)
+        selectors = selections[fid]
+        require(not selectors or condition in selectors, "该图分条件取数没有包含所展示的条件：" + role + " / " + condition)
+        other_runs = set().union(*(v[0] for k, v in expected.items() if k != role))
+        other_files = set().union(*(v[1] for k, v in expected.items() if k != role))
+        require((runs & (required_runs - other_runs)) or (paths & (required_files - other_files)) or condition in selectors,
+                "共用运行或表格时须以分条件的实算输出或原始行列区分结果图：" + role + " / " + condition)
+        signature = frozenset(paths & raw), frozenset(key for _, key in selectors.values())
+        require(signature not in signatures, "三个条件的独立结果图重复使用同一组数据和取数位置：" + role)
+        signatures.add(signature)
+        require(_visible_condition(fid, condition, figures, captions),
+                "该实算图或其报告图注须明确标出对应的条件：" + role + " / " + condition)
+    return {k: roles[k] for k in keys}
+
+
+def _result_figures(root, delivery, plan, analysis, figures, captions, embedded, descriptions):
     """Relate visible figures to completed model outputs; one panel can serve several purposes."""
     parts = {p["kind"]: p for p in delivery["parts"]}
     methods = parts.get("methods", {}).get("figure_ids", [])
@@ -427,14 +649,28 @@ def _result_figures(root, delivery, plan, analysis, figures, captions):
     history.difference_update(r["run_ref"] for r in comparisons if not r.get("historical"))
     history.difference_update(completion.get("axes", {}).get("execution", {}).get("run_refs", []))
     plotted, lineage = _model_figure_data(root, actual, figures, analysis, run_records, history)
-    _question_figures(root, parts, delivery, analysis, plotted)
-    conditions, adopted = _completed_conditions(root, plan["review"], analysis, run_records, history)
+    review = plan["review"]
+    conditions, adopted, observed = _completed_conditions(root, review, analysis, run_records, history)
     if adopted:
         require(any(refs & adopted for refs, _ in plotted.values()), "报告缺少最终采用模型的数据图")
     data_figures = {fid for fid in plotted if "data_result" in _figure_kinds(figures[fid])}
+    study = _study_presentation(plan)
+    by_question = {f: plotted[f] for f in data_figures} if study else plotted
+    required = {q["id"] for q in review.get("questions", []) if q.get("required", True)} if study else None
+    selections = {f: _figure_measurements(root, figures[f], observed, plotted[f]) for f in data_figures} if study else {}
+    choices = {c["question_id"]: c for c in review["study_design"].get("model_choices", [])} if study else {}
+    _question_figures(root, parts, delivery, analysis, by_question, required_questions=required, selections=selections,
+                      choices=choices, descriptions=descriptions)
+    extra = {}
+    if study:
+        raw = {path for ref, record in run_records.items() if ref not in history and record.get("stage") == "simulation"
+               for path in record.get("output_sha256", {})}
+        roles = _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw)
+        from figure_reading import check_figure_reading
+        extra.update(figure_roles=roles, figure_reading=check_figure_reading(root, delivery, figures, embedded, roles["model_figure"]))
     _check_condition_plots(conditions, plotted, figures, data_figures, captions)
     incomplete = _component_figures(parts, plan["review"], analysis, lineage, plotted, data_figures)
-    return {"actual_figures": sorted(plotted), "conditions": sorted(conditions), "incomplete_components": incomplete,
+    return {**extra, "actual_figures": sorted(plotted), "conditions": sorted(conditions), "incomplete_components": incomplete,
             "incomplete_conditions": _unfinished_conditions(plan, analysis, conditions, parts)}
 
 
@@ -447,6 +683,12 @@ def check_presentation(delivery, plan, analysis, *, root=None):
     The complete labels must appear beside that figure in both delivered texts.
     Declaring a panel correctly still requires someone to inspect the real plot.
     """
+    study = _study_presentation(plan)
+    if study:
+        require(plan.get("review_contract") == CONTRACT, "完整研究交付须使用当前的研究复核约定")
+        require(isinstance(plan.get("review", {}).get("study_design"), dict),
+                "完整研究的交付缺少已登记的选模与条件 review.study_design")
+        require(root is not None, "完整研究的图件检查须读取实际报告、成图和运行记录")
     if plan.get("review_contract") != CONTRACT:
         return {"status": "not_applicable", "reason": "Historical presentation contract; no new check was inferred."}
     if plan.get("review", {}).get("delivery_profile", "full_model") != "full_model":
@@ -495,8 +737,9 @@ def check_presentation(delivery, plan, analysis, *, root=None):
     coverage = {}
     if root is not None:
         project = Path(root).resolve()
-        captions = _embedded_figures(project, local(project, delivery["report_ref"]), parts, figures)
-        coverage = _result_figures(project, delivery, plan, analysis, figures, captions)
+        captions, embedded, descriptions = _embedded_figures(project, local(project, delivery["report_ref"]), parts,
+                                                             figures, study=study)
+        coverage = _result_figures(project, delivery, plan, analysis, figures, captions, embedded, descriptions)
     scope = ("核对了报告和答复中的图像、图件所用运行与数据、实际条件和科学问题。成图内容、数字与可读性需目视核实。"
              if root is not None else "核对了模型名称与正文标注的图版类别。")
     return {"status": "passed", "model_name": name, "checked_figures": sorted(set(checked)), **coverage, "scope": scope}
@@ -602,10 +845,13 @@ def _command_config(root, entry, record, cwd):
             "resolved_config_ref": record["config_ref"]}
 
 
-def _claim_inputs(root, claim):
+def _claim_sources(claim):
     raw = claim.get("raw_calculation", claim)
-    selectors = (raw["left"], raw["right"]) if raw.get("operation") == "difference" else (raw,)
-    return {local(root, selector["csv_ref"]) for selector in selectors}
+    return (raw["left"], raw["right"]) if raw.get("operation") == "difference" else (raw,)
+
+
+def _claim_inputs(root, claim):
+    return {local(root, source["csv_ref"]) for source in _claim_sources(claim)}
 
 
 def _recorded_outputs(root, entry, delivery, analysis, model_ref, command_ref, records):
@@ -826,7 +1072,7 @@ def verify_response_file(root, ref, delivery, plan, analysis, *, source_kind="pr
     actual = normalize_response(raw.decode("utf-8-sig"))
     require(actual == expected,
             "Response file differs from the freshly reviewed final body; recheck any edited, shortened or reordered message.")
-    presentation = check_presentation(delivery, plan, analysis)
+    presentation = check_presentation(delivery, plan, analysis, root=root if _study_presentation(plan) else None)
     reproduction = check_reproduction(root, delivery, plan, analysis)
     require(reproduction["status"] != "failed", "Reproduction check failed: " + "; ".join(reproduction["issues"]))
     return {

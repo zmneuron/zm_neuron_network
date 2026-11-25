@@ -18,13 +18,14 @@ from check_regulation import check_regulation, regulation_scope
 from current_project import resolve_current_plan, check_current_artifacts
 from delivery_response import check_presentation, check_reproduction, verify_response_file, _visible as visible_text
 from scientific_review import check_scientific_review, unavailable_findings
+from study_design import check_study_design
 from show_progress import render_progress
 import statistics
 import tempfile
 import sys
 
 import calibration
-from check_records import fingerprint, local, read, require, verify_run
+from check_records import check_captured_design, fingerprint, local, read, require, verify_run
 
 CONTRACT = "zm-neuron-review/2"
 LEGACY_CONTRACT = "zm-neuron-review/1"
@@ -238,6 +239,8 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     original_plan_digest = fingerprint(plan_file)
     plan = read(plan_file)
     require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Declare the review contract before capture")
+    design = check_study_design(root, plan)
+    require(design["status"] != "incomplete", "科学提问与选模尚未完成：" + "；".join(design["issues"]))
     reuse = check_reuse(root, plan)
     require(reuse["status"] != "failed", "Resolve current reuse records before capture: " + "; ".join(reuse["issues"]))
     regulation = check_regulation(root, plan, checkpoint="start")
@@ -261,6 +264,11 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
                     scope=state, criteria=criteria, skill_files=skills,
                     datasets=review.get("datasets", []), selection_uses=review.get("selection_uses", []))
     baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
+    if plan.get("schema_version") == 2 or design["status"] == "ready":
+        baseline["task_schema_version"] = plan["schema_version"]
+        baseline["study_design_status"] = design["status"]
+        if design["status"] == "ready":
+            baseline["study_design"] = review["study_design"]
     if full_model_task(plan) and plan["review_contract"] == CONTRACT:
         from final_model import check_final_plan
         baseline["final_plan"] = check_final_plan(root, plan)
@@ -558,6 +566,7 @@ def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
 
 def _check_scope(root, plan, baseline, report, skill):
     require(baseline.get("review_contract") == plan.get("review_contract") and baseline.get("plan_id") == plan.get("plan_id"), "Capture belongs to another plan")
+    check_captured_design(plan, baseline, full_model_task(plan))
     if baseline.get("reuse_contract"):
         require(isinstance(plan.get("reuse"), dict) and plan["reuse"].get("contract") == baseline["reuse_contract"],
                 "Previously required reuse review cannot be removed as a legacy exemption")
@@ -1611,6 +1620,14 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         full = full_model_task(plan)
         report["full_model_task"] = full
         report["historical"] = historical
+        design = check_study_design(root, plan)
+        report["checks"]["study_design"] = design
+        if design["status"] == "incomplete":
+            report.update(status="incomplete", unmet_requirements=design["issues"])
+            report["read_next"].append("references/interview.md")
+            return report
+        if design["status"] == "previous_protocol":
+            report["warnings"].append("此计划按原约定检查，尚未按新版核对提问覆盖、科学选模和中文四图。")
         if plan.get("review_contract") is None:
             report.update(status="legacy_not_reviewed")
             report["warnings"].append("No review contract; do not reconstruct or claim a historical review automatically.")

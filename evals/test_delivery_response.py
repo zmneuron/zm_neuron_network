@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import csv
 import json
 from pathlib import Path
 import subprocess
@@ -212,6 +213,217 @@ class ModelFigureCoverageTests(unittest.TestCase):
         self.assertEqual(self.check()["conditions"], ["rest"])
         self.add_arm("repeat201", role="seed")
         self.assertEqual(self.check()["conditions"], ["rest"])
+
+    def study_figures(self, shared=False):
+        names = dict(baseline="rest", adverse="pulse", regulation="treated")
+        labels = dict(rest="静息条件", pulse="刺激条件", treated="调控条件")
+        self.plan["review"]["study_design"] = dict(conditions=names)
+        roles = dict(model_figure=self.graph["id"], baseline=self.plot["id"], adverse="pulse_plot", regulation="treated_plot")
+        self.delivery["figure_roles"] = roles
+        overview = dict(flow=["背景刺激", "环形网络", "细胞发放率"], modules=["环形网络"], contribution="逐细胞脉冲计数")
+        self.graph["model_overview"] = overview
+        model = self.root / self.graph["files"][0]
+        svg = model.read_text(encoding="utf-8").replace('height="120"', 'height="170"')
+        model.write_text(svg.replace("</svg>", '<text x="10" y="115">背景刺激 → 环形网络 → 细胞发放率</text>'
+                                               '<text x="10" y="145">逐细胞脉冲计数</text></svg>'), encoding="utf-8")
+        for field in ("report_excerpt", "response_excerpt"):
+            self.parts["methods"][field] += "\n\n背景刺激驱动环形网络，按逐细胞脉冲计数计算细胞发放率。"
+        reading = dict(paper="合成用例（2020）", panel="图 2A", comparison="不同条件的细胞发放率", reason="同一记录时窗可比较细胞发放率")
+        note = "docs/figure_reading.md"
+        (self.root / note).write_text("；".join(reading.values()), encoding="utf-8")
+        group = self.parts["questions"]["question_groups"][0]
+        group["interpretation"] = "按同一记录时窗计算静息条件的细胞发放率与静默比例。"
+        for field in ("report_excerpt", "response_excerpt"):
+            self.parts["questions"][field] += "\n\n" + group["interpretation"]
+        with (self.root / "results/run/rates.csv").open(encoding="utf-8", newline="") as stream:
+            baseline = [(r["cell"], float(r["rate_hz"])) for r in csv.DictReader(stream)]
+        rates = {name: [(cell, value + change) for cell, value in baseline]
+                 for name, change in (("rest", 0), ("pulse", 30), ("treated", 5))}
+        values = {name: sum(v for _, v in cells) / len(cells) for name, cells in rates.items()}
+        if shared:
+            rows = "".join(f"{name},{cell},{value}\n" for name, cells in rates.items() for cell, value in cells)
+            ref, path = self.add_arm("protocols", role="seed", table="protocol,cell,rate_hz\n" + rows)
+            self.plan["review"]["model_components"] = list(names)
+            self.analysis["construction_steps"] = [dict(component=role, status="complete", data_ids=["protocols"]) for role in names]
+            measured = {name: dict(metric="rate", condition=name, status="observed", value=value, source=dict(
+                csv_ref=path, where={"protocol": name}, column="rate_hz", operation="mean")) for name, value in values.items()}
+            (self.root / "analysis/within.json").write_text(json.dumps(dict(measurements=measured)), encoding="utf-8")
+            self.analysis["completion_review"]["comparisons"].append(dict(id="within", run_ref=ref, measurements_ref="analysis/within.json"))
+            for claim in self.delivery["claims"]:
+                claim.update(csv_ref=path, where={"protocol": "rest"})
+        for role, name in names.items():
+            fid = roles[role]
+            figure = self.plot if role == "baseline" else dict(self.plot, id=fid, files=["analysis/output/" + fid + ".svg"])
+            if role != "baseline":
+                if not shared:
+                    rows = "".join(f"{cell},{value}\n" for cell, value in rates[name])
+                    self.add_arm(name, component=role, table="cell,rate_hz\n" + rows)
+                self.analysis["figures"].append(figure)
+                question = self.parts["questions"]
+                question["figure_ids"].append(fid)
+                ref = figure["files"][0]
+                question["report_excerpt"] += f"\n\n![{labels[name]}](../{ref})"
+                question["response_excerpt"] += f"\n\n![{labels[name]}](<{(self.root / ref).as_posix()}>)"
+            figure.update(data_ids=["protocols" if shared else ("rates" if role == "baseline" else name)],
+                          condition_labels={name: labels[name]}, caption=labels[name] + "的细胞发放率",
+                          literature_figure=reading, design_ref=note)
+            if shared:
+                figure["condition_measurements"] = {name: dict(comparison_id="within", measurement_id=name)}
+            cells = rates[name]
+            zero = sum(value == 0 for _, value in cells)
+            bars = "".join(f'<rect x="{30 * i + 20}" y="{140 - value}" width="14" height="{value}"/>'
+                           for i, (_, value) in enumerate(cells))
+            labels_svg = (f'<text x="10" y="18">{labels[name]}的逐细胞发放率（Hz）</text>'
+                          f'<text x="10" y="43">均值 {values[name]:g} Hz；静默细胞 {zero}/{len(cells)}</text>'
+                          '<text x="10" y="164">细胞编号</text>')
+            (self.root / figure["files"][0]).write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="330" height="175">{labels_svg}{bars}</svg>', encoding="utf-8")
+        for step in self.analysis["construction_steps"]:
+            step.setdefault("method_summary", "同一八细胞数据逐细胞取样，用于比较各条件的平均率和静默比例。")
+        return roles
+
+    def publish_response(self):
+        from review_project import compose_response
+        self.sync()
+        self.delivery["response_text"] = compose_response(self.delivery, self.plan)
+        ref = "docs/response.md"
+        (self.root / ref).write_text(self.delivery["response_text"], encoding="utf-8")
+        return ref
+
+    def test_study_delivers_independent_role_plots_and_reuses_an_answered_question_plot(self):
+        roles = self.study_figures()
+        result = self.check()
+        self.assertEqual(result["figure_roles"], roles)
+        self.assertEqual(result["figure_reading"]["checked_figures"], sorted(roles.values()))
+        self.assertEqual(self.parts["questions"]["question_groups"][0]["figure_ids"], [roles["baseline"]])
+        checked = verify_response_file(self.root, self.publish_response(), self.delivery, self.plan, self.analysis)
+        self.assertEqual(checked["presentation"]["figure_roles"], roles)
+        with self.assertRaisesRegex(ValueError, "实际报告"):
+            check_presentation(self.delivery, self.plan, self.analysis)
+        self.plan["review"]["delivery_profile"] = "scoped"
+        self.delivery.pop("figure_roles")
+        self.assertEqual(self.check()["status"], "not_applicable")
+
+    def test_version_two_cannot_fall_back_to_historical_figures_or_response_checks(self):
+        self.plan["schema_version"] = 2
+        response = self.publish_response()
+        with self.assertRaisesRegex(ValueError, "review.study_design"):
+            self.check()
+        with self.assertRaisesRegex(ValueError, "review.study_design"):
+            verify_response_file(self.root, response, self.delivery, self.plan, self.analysis)
+        self.plan["review"]["delivery_profile"] = "scoped"
+        self.assertEqual(self.check()["status"], "not_applicable")
+
+    def test_question_model_choice_and_observable_are_locatable_in_both_deliveries(self):
+        self.study_figures()
+        choice = dict(question_id="Q1", selected="由背景输入驱动的环形网络", observable="细胞发放率与静默比例")
+        self.plan["review"]["study_design"]["model_choices"] = [choice]
+        third = self.parts["questions"]
+        group = third["question_groups"][0]
+        answer = self.analysis["completion_review"]["axes"]["scientific_answer"]["questions"][0]
+        answer["conclusion"] = "逐细胞发放率与静默比例共同描述静息条件的响应。"
+        third["response_excerpt"] = third["response_excerpt"].replace(group["interpretation"], answer["conclusion"])
+        self.assertEqual(self.check()["status"], "passed")
+        original = self.parts["methods"]["response_excerpt"]
+        self.parts["methods"]["response_excerpt"] = original.replace("背景刺激驱动环形网络", "电导在膜区室传播")
+        with self.assertRaisesRegex(ValueError, "采用模型在response_excerpt"):
+            self.check()
+        self.parts["methods"]["response_excerpt"] = original
+        choice["observable"] = "胞内钙峰的恢复潜伏期"
+        with self.assertRaisesRegex(ValueError, "判别读数"):
+            self.check()
+
+    def test_study_rejects_missing_copied_and_relabelled_results(self):
+        roles = self.study_figures()
+        baseline_plot = self.root / self.plot["files"][0]
+        adverse = next(f for f in self.analysis["figures"] if f["id"] == roles["adverse"])
+        adverse_plot = self.root / adverse["files"][0]
+        value = roles.pop("regulation")
+        with self.assertRaisesRegex(ValueError, "分别登记"):
+            self.check()
+        roles["regulation"] = value
+        roles["adverse"] = roles["baseline"]
+        with self.assertRaisesRegex(ValueError, "独立图件"):
+            self.check()
+        roles["adverse"] = adverse["id"]
+        image = adverse_plot.read_bytes()
+        adverse_plot.write_bytes(baseline_plot.read_bytes())
+        with self.assertRaisesRegex(ValueError, "同一张成图"):
+            self.check()
+        adverse_plot.write_bytes(image)
+        adverse["data_ids"] = ["rates"]
+        with self.assertRaisesRegex(ValueError, "对应条件实际取得的数据"):
+            self.check()
+        for f in (self.plot, adverse, self.analysis["figures"][-1]):
+            f["data_ids"] = ["rates", "pulse", "treated"]
+        with self.assertRaisesRegex(ValueError, "同一组数据"):
+            self.check()
+
+    def test_study_checks_direct_answers_and_all_rendered_images(self):
+        roles = self.study_figures()
+        questions = self.parts["questions"]
+        group = questions["question_groups"][0]
+        group["figure_ids"] = [roles["model_figure"]]
+        with self.assertRaisesRegex(ValueError, "回答该题的实算数据图"):
+            self.check()
+        group["figure_ids"] = [roles["baseline"]]
+        self.plan["review"]["questions"].append(dict(id="Q2", required=True))
+        with self.assertRaisesRegex(ValueError, "Q2"):
+            self.check()
+        self.plan["review"]["questions"].pop()
+        group["interpretation"] = "只在内部登记的回答"
+        with self.assertRaisesRegex(ValueError, "须出现在报告和答复"):
+            self.check()
+        group["interpretation"] = "按同一记录时窗计算静息条件的细胞发放率与静默比例。"
+        self.parts["abstract"]["report_excerpt"] += "\n\n![未登记的成图](../analysis/output/methods.svg)"
+        with self.assertRaisesRegex(ValueError, "未列入该段"):
+            self.check()
+
+    def test_study_checks_one_network_with_three_conditions_in_the_same_table(self):
+        import review_project
+        self.study_figures(shared=True)
+        self.assertEqual(self.check()["conditions"], ["pulse", "rest", "treated"])
+        self.publish_response()
+        review = review_project._delivery(self.root, self.delivery, self.plan, self.analysis,
+                                          self.analysis["completion_review"]["axes"])
+        self.assertEqual(set(review["claims_recomputed"]), {"mean", "silent"})
+        with (self.root / "results/protocols/rates.csv").open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual({name: len({r["cell"] for r in rows if r["protocol"] == name})
+                          for name in ("rest", "pulse", "treated")}, {"rest": 8, "pulse": 8, "treated": 8})
+        group = self.parts["questions"]["question_groups"][0]
+        group["figure_ids"] = ["pulse_plot"]
+        with self.assertRaisesRegex(ValueError, "该题定量结论所用的原始行列"):
+            self.check()
+        group["figure_ids"] = [self.plot["id"]]
+        adverse = next(f for f in self.analysis["figures"] if f["id"] == "pulse_plot")
+        link = adverse.pop("condition_measurements")
+        with self.assertRaisesRegex(ValueError, "原始行列"):
+            self.check()
+        adverse["condition_measurements"] = {"pulse": dict(comparison_id="within", measurement_id="rest")}
+        with self.assertRaisesRegex(ValueError, "与登记的观测不一致"):
+            self.check()
+        adverse["condition_measurements"] = link
+        observed = self.root / "analysis/within.json"
+        document = read(observed)
+        document["measurements"]["pulse"]["value"] = 100
+        observed.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "原始行列复算"):
+            self.check()
+
+    def test_study_regulation_plot_must_use_the_selected_candidate(self):
+        roles = self.study_figures()
+        record = dict(status="complete",
+                      contexts=[dict(B=dict(run_ref="results/run/run.json"), D0=dict(run_ref="results/pulse/run.json"))],
+                      freeze=dict(candidate_id="chosen"),
+                      candidates=[dict(id="chosen", runs=[dict(run_ref="results/treated/run.json")]),
+                                  dict(id="unused", runs=[dict(run_ref="results/pulse/run.json")])],
+                      delivery=dict(groups=dict(B_D0_selected=[roles["regulation"]])))
+        self.analysis["completion_review"]["regulation"] = record
+        self.assertEqual(self.check()["figure_roles"], roles)
+        record["freeze"]["candidate_id"] = "unused"
+        with self.assertRaisesRegex(ValueError, "对应条件实际取得的数据"):
+            self.check()
 
     def test_shared_comparison_panel_covers_actual_adverse_and_regulation_outputs(self):
         displayed = ["rest"]

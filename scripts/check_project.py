@@ -12,6 +12,7 @@ import check_outputs
 from current_project import resolve_current_plan, check_current_artifacts
 from check_records import fingerprint, local, read, require, verify_check, verify_run, RUN_SCHEMA
 from delivery_response import check_reproduction
+from study_design import check_study_design
 
 
 def ids(value, label, empty=False):
@@ -39,7 +40,12 @@ def check_structure(project, plan_path="docs/task_plan.json", phase="implemented
         plan_file = resolve_current_plan(root, str(plan_path), historical=historical)
         plan_path = plan_file.relative_to(root).as_posix()
         plan = read(plan_file)
-        require(plan.get("schema_version") == 1, "Unsupported task plan schema")
+        require(type(plan.get("schema_version")) is int and plan["schema_version"] in (1, 2), "Unsupported task plan schema")
+        design = check_study_design(root, plan)
+        report["checks"]["study_design"] = design
+        if design["status"] == "incomplete":
+            report.update(status="incomplete" if phase == "plan" else "failed", issues=design["issues"])
+            return report
         record_contract = plan.get("run_record_contract")
         require(record_contract in (None, RUN_SCHEMA), "Unsupported run record contract")
         for field in ("plan_id", "model_version"):

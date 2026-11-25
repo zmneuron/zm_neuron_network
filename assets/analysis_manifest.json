@@ -74,6 +74,7 @@
     },
     "delivery": {
       "report_ref": "docs/results.md",
+      "figure_roles": {"model_figure": "", "baseline": "", "adverse": "", "regulation": ""},
       "reproduction": {"commands": []},
       "response_text": "",
       "parts": [],

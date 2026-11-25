@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "run_record_contract": "zm-neuron-run/1",
   "plan_id": "",
   "model_version": "",
@@ -30,6 +30,12 @@
       "source_ref": "docs/model_spec.md"
     },
     "questions": [],
+    "study_design": {
+      "tier": "",
+      "decisions": [],
+      "model_choices": [],
+      "conditions": {"baseline": "", "adverse": "", "regulation": ""}
+    },
     "required_axes": [
       "execution",
       "calibration",
@@ -40,10 +46,16 @@
     "independent_evidence": "biological",
     "independent_goal": "test_prediction",
     "component_calibration": {
-      "baseline": {"mode": "targets"}
+      "baseline": {"mode": "targets"},
+      "adverse": {"mode": ""},
+      "regulation": {"mode": ""}
     },
     "regulation": {
-      "mode": "not_requested"
+      "mode": "implementation",
+      "design_status": "pending",
+      "question_id": "",
+      "authorization_ref": "",
+      "method_ref": "docs/model_spec.md"
     },
     "delivery_profile": "full_model",
     "require_reproduction": true,
@@ -52,7 +64,7 @@
       "auto_open": true
     },
     "model_components": [
-      "baseline"
+      "baseline", "adverse", "regulation"
     ],
     "followup_questions": [],
     "skill_files": [
@@ -65,6 +77,7 @@
       "references/calibration.md",
       "references/run-compare-optimize.md",
       "references/result-delivery.md",
+      "references/regulation-design.md",
       "references/project-checks.md",
       "references/final-model.md",
       "references/round-followup.md",

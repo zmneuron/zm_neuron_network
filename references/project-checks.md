@@ -10,7 +10,7 @@
 
 | 字段 | 含义 |
 |---|---|
-| `schema_version` | 当前整数 `1`。 |
+| `schema_version` | 新建计划使用整数 `2`。第 1 版按原约定检查，结果单列新版科学设计与中文图件尚未评价。 |
 | `plan_id, model_version, catalog_version` | 当前方案、模型及清单版本。模块索引和当前分析使用相同标识；历史运行保留自己的来源。 |
 | `mode` | `research/build/modify/reanalyze/audit`。只讨论无需完整任务文件；研究方案只用 `--phase plan`。 |
 | `run_record_contract` | 新工程采用 `zm-neuron-run/1`，按[运行记录约定](versioning.md#运行记录与阶段衔接)生成解析配置与父/子运行记录；联合检查逐份核实。旧记录未声明时单列 `legacy_not_verified`，不冒充已验证，也不伪造历史补齐。 |
@@ -20,11 +20,19 @@
 | `files` | 逐项表、模块索引、参数表、实际配置、实际实例导出、分析记录；`network` 可指向网络数值检查说明。不使用的可选路径删除字段，不能填写空路径后声称完成。 |
 | `runtime_parameter_ids` | 本轮必须从实际对象核对的关键参数标识，在运行前确定。动态构建至少有一项；参数数量、适用对象及覆盖范围按研究需要确定，不能只挑已通过的参数。 |
 | `requirements` | 每项包含唯一 `id`、具体 `description`、原要求或决定的 `source_ref`，以及 `item_ids,module_ids,parameter_ids,step_ids,result_ids` 数组。除不涉及具体参数时的 `parameter_ids` 外均非空。用简短出处和 `source_kind` 区分 `user`、`document_suggestion`、`assistant_choice`；文档建议说明是否采纳及理由，后来明确取舍优先，不复制整段私人聊天。这里登记本轮必需要求。 |
-| `review_contract, review` | 新任务采用 `zm-neuron-review/1`，在同一计划中保存原目标、科学问题、必需完成项、数据用途、接受依据和适用技能文件；开始记录与恢复/交付核对见下节。不能只登记实现者容易完成的事项。 |
+| `review_contract, review` | 新任务采用 `zm-neuron-review/2`，在同一计划中保存原目标、科学问题、必需完成项、数据用途、接受依据和适用技能文件；开始记录与恢复/交付核对见下节。不能只登记实现者容易完成的事项。 |
 
 例如，要求计算 LFP 时将 `lfp` 加入 `features`，把相关详细事项与观测模块、参数、步骤和结果关联。不能遗漏该特征后称工具已自动确认用户目标；方案阶段的人工核对仍是必要工作。模块表中 `required_items` 保留这些事项及原因，联合检查确认没有漏登记或被改为不适用。各模块的 `parameter_ids,step_ids` 指向本项目实际条目，不生成独立的一套数值。
 
 `analysis.json` 当前使用 `schema_version: 2`，增加 `plan_id,model_version`。旧格式仍可用于范围有限的输出检查；联合交付检查需要版本 2。修改任务保留完整清单，只重做受影响的检查；未受影响的记录要能证明其输入与代码未变。重分析保留模型方案及仿真来源，分析标识单独更新，原始数据不能因更新分析而重写。
+
+## 科学提问、选模和结果图怎样登记
+
+完整交付由执行者填写 `review.study_design`。`tier` 取 `exploratory`、`standard` 或 `precise`。`decisions` 每行保存 `id, question_id, topic, prompt, answer, source_ref, critical`，关联已登记的主问题，`source_ref` 指向项目内的资料或决策记录。科学问题、选模、对照、主读数四个主题分别用 `scientific_question, model, control, readout`。其他实际决定可自定主题，影响核心结果的标 `critical: true`。尚待回答时留空答案或出处，保留在分母中。不同阶段可另填 `stage`；分阶段分别达到 95%，也可直接查看每阶段的分子和分母。论文 DOI 和用户回答记入所引的项目文件；程序核对文件可打开，执行者核对其内容确实支持该决定。运行 `python scripts/check_project.py --project <工程> --phase plan`，查看 `checks.study_design` 中的实际分子、分母及尚待确定的事项。正式运行前保存本轮设计。已登记的非关键待定项可补入答案与出处。研究问题、采用模型或对照有实质修改时，按新一轮保留原始记录。[提问及 95% 的定义](interview.md#何时结束提问并进入实施)
+
+`model_choices` 每个必答主问题一行，填写 `question_id, selected, alternative, observable, reason, source_ref`。`selected` 指实际采用的模型或模块，`alternative` 写明另一种可行表示，指定复现时写明原表示所限的解释，`observable` 是判别读数。`reason` 写出候选在什么条件下预期有何差异，以及为什么选用当前表示。`conditions` 把 `baseline, adverse, regulation` 各自指向真实且互异的条件标识。逐题选模的完整说明沿用方法表。模板中的 `component_calibration` 要按各条件的实际用途填写，承担定参的填 `targets`，其余用 `outside_calibration` 记下理由与来源；条件图本身不增加校准或补实验要求。明确限定的交付使用已有 `delivery_profile: scoped` 并保存用户限定范围的出处。
+
+在 `analysis.json` 的 `completion_review.delivery.figure_roles` 填入 `model_figure, baseline, adverse, regulation` 对应的四个不同图号。模型图条目的 `model_overview` 用 `flow` 和 `modules` 列出图内实际标注，用 `contribution` 写图上具体创新或复现内容。每题沿用 `question_groups` 的结果图、数值和解释。结果图的 `design_ref` 可直接指向图件计划中的一条参考图阅读记录；同一节有多篇论文时用 `literature_figure` 指定 `paper, panel, comparison, reason`。同一运行且各条件共用一张表时，可用 `condition_measurements` 按条件引用既有 `comparison_id, measurement_id` 的数据行及列。图件实际显示为位图或轮廓文字时，在其 `visual_review` 中按导出文件记下 `file, sha256, labels, observation`，记录正常阅读尺寸下亲眼看到的中文标注与具体情况。每个结果图与每个主问题均须能回到已有运行和读数。[呈现与读图](literature-figures.md)
 
 ## 记录实际检查，不手工填写成功标签
 
@@ -72,7 +80,7 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 ## 在阶段转换恢复和交付前执行复核
 
-使用现有 `docs/task_plan.json` 保存当前适用要求，`analysis.json` 保存实际完成判断，`docs/progress.md` 只写关键决定与下一动作。开始时用 [review_project.py](../scripts/review_project.py) 留存一次原要求记录；它是不可覆盖的历史副本，不是第二份当前方案。初期仅明确需求时登记已知目标和待决定范围，不先填一套虚构完整网络；进入正式构建后补齐原有要素、参数和模块关联。
+首次讨论先在原方案和进度记录中保存用户原话的出处、已确定的目标及待决定范围。逐批讨论时可随时查看设计完成度。科学问题、选模、对照和主读数已明确且达到 95% 后，在正式运行前用 [review_project.py](../scripts/review_project.py) 的 `--capture` 保存本轮原定设计。之后沿用 `docs/task_plan.json` 保存当前要求，`analysis.json` 保存完成判断，`docs/progress.md` 记录关键决定与下一动作。
 
 | 时点 | 实际读取与处理 | 不允许的替代 |
 |---|---|---|

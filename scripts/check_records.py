@@ -189,6 +189,33 @@ def _check_formal_requirements(root, plan, saved):
         checked_files(root, saved["requirement_sources"], "captured requirement sources")
 
 
+def check_captured_design(plan, saved, full_model):
+    """Keep the original questions and choices; a pending minor decision may gain an answer."""
+    current = plan.get("review", {}).get("study_design")
+    if "task_schema_version" not in saved and plan.get("schema_version") != 2 and current is None:
+        return
+    require(saved.get("task_schema_version") == plan.get("schema_version"), "研究设计版本已改变，请按新一轮设计登记")
+    if not full_model and saved.get("study_design_status") != "ready":
+        return
+    original = saved.get("study_design")
+    message = "已登记的科学选模、比较或问题发生变化，正式运行前请完成本轮科学提问并保存独立记录"
+    require(saved.get("study_design_status") == "ready" and isinstance(original, dict) and isinstance(current, dict), message)
+    require({k: v for k, v in current.items() if k != "decisions"} ==
+            {k: v for k, v in original.items() if k != "decisions"}, message)
+    before = original.get("decisions", [])
+    after = current.get("decisions")
+    require(isinstance(after, list) and len(after) == len(before) and all(isinstance(r, dict) for r in after), message)
+    by_id = {r.get("id"): r for r in after}
+    for row in before:
+        updated = by_id.get(row["id"])
+        require(isinstance(updated, dict), message)
+        if row.get("answer") and row.get("source_ref"):
+            require(updated == row, message)
+        else:
+            require({k: v for k, v in row.items() if k not in {"answer", "source_ref"}} ==
+                    {k: v for k, v in updated.items() if k not in {"answer", "source_ref"}}, message)
+
+
 def _pre_run_review(root, model_version, stage):
     """Bind new-protocol runs to requirements saved before computation.
 
@@ -200,6 +227,8 @@ def _pre_run_review(root, model_version, stage):
         return None
     plan_digest = fingerprint(plan_path)
     plan = read(plan_path)
+    if plan.get("schema_version") == 2:
+        require(plan.get("review_contract") == "zm-neuron-review/2", "新版计划须保留研究复核约定")
     if plan.get("review_contract") != "zm-neuron-review/2":
         return None
     review = plan.get("review", {})
@@ -224,6 +253,7 @@ def _pre_run_review(root, model_version, stage):
     require(fingerprint(capture) == review.get("baseline_sha256"),
             "Save and check current requirements before starting the run")
     saved = read(capture)
+    check_captured_design(plan, saved, full_model)
     require(saved.get("review_contract") == "zm-neuron-review/2" and saved.get("plan_id") == plan.get("plan_id"),
             "Run requirements belong to another plan or review version")
     captured = datetime.fromisoformat(saved["captured_at_utc"])
