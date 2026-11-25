@@ -339,6 +339,142 @@ class FinalModelTests(unittest.TestCase):
         self.assertNotIn("optional", result["requirements"])
         self.assertIn("fit", " ".join(result["pending"]))
 
+    def test_empirical_scope_requires_axis_and_at_least_one_required_target(self):
+        self.assertFalse(calibration.requires_empirical(self.plan))
+        self.plan["schema_version"] = 2
+        self.assertTrue(calibration.requires_empirical(self.plan))
+        result = check_final_plan(self.root, self.plan)
+        self.assertEqual(result["status"], "incomplete", result)
+        self.assertIn("fit/fit", str(result["requirements"]["fit"]["pending"]))
+        self.assertEqual(result["requirements"]["test"]["status"], "passed")
+        self.plan["review"]["required_axes"].remove("calibration")
+        self.assertIn("calibration", str(check_final_plan(self.root, self.plan)["pending"]))
+        self.plan["review"]["required_axes"].append("calibration")
+        self.targets[0]["required"] = False
+        self.dump(TARGETS, {"targets": self.targets})
+        self.assertIn("至少登记一个", str(check_final_plan(self.root, self.plan)["pending"]))
+        self.plan["review"].update(delivery_profile="scoped", calibration_evidence="software_only")
+        self.assertFalse(calibration.requires_empirical(self.plan))
+        self.plan["review"].update(calibration_evidence="biological")
+        self.plan["review"]["required_axes"].remove("calibration")
+        self.assertIn("calibration", str(check_final_plan(self.root, self.plan)["pending"]))
+
+    def test_empirical_target_uses_its_actual_table_and_preserves_diagnostic_readout(self):
+        actual_ref, diagnostic_ref = "data/train.csv", "data/technical.csv"
+        self.table(diagnostic_ref, ["value"], [[90]])
+        biological = dict(self.plan["review"]["datasets"][0], kind="biological", source_id="LFP-24-B3",
+                          files=[diagnostic_ref])
+        technical = dict(biological, id="tech", source_ref=diagnostic_ref, kind="model_output", files=[])
+        target = dict(self.targets[0], evidence_type="published_summary", source_ref=actual_ref)
+        diagnostic = dict(target, id="technical", source_ref=diagnostic_ref)
+        selected = [biological, technical]
+        remembered = calibration.registered_empirical_datasets([biological], selected)
+        self.assertFalse(calibration.has_empirical_target(self.root, diagnostic, remembered))
+        values = {t["id"]:dict(t, status="observed", value=v) for t,v in [(target,2), (diagnostic,90)]}
+        def scores():
+            raw = calibration.score_targets([target, diagnostic], values, candidate_id="unit", config={},
+                                            data_role="calibration")
+            checked = calibration.apply_empirical_sources(self.root, [target, diagnostic], selected, raw)
+            self.assertEqual(raw["rows"][1]["state"], "unmet")
+            return checked
+        checked = scores()
+        self.assertEqual(checked["status"], "pending")
+        self.assertEqual([(r["value"],r["state"]) for r in checked["rows"]], [(2,"passed"),(90,"pending")])
+        self.assertIsNone(checked["aggregate_score"])
+        diagnostic["required"] = False
+        checked = scores()
+        self.assertEqual((checked["status"], checked["aggregate_score"], checked["max_required_violation"]),
+                         ("passed", 0, 0))
+        for change in [{"evidence_type": "published_simulation"}, {"evidence_type":"synthetic"},
+                       {"evidence_type":"model"}, {"evidence_type":"model-derived"}, {"evidence_type":"model_results"},
+                       {"source_id":"different-experiment"}]:
+            with self.subTest(change=change):
+                self.assertFalse(calibration.has_empirical_target(self.root, dict(target,**change), selected))
+        self.assertTrue(calibration.has_empirical_target(self.root, dict(target,evidence_type="animal_model_recording"), selected))
+        for change in [{"available":False}, {"comparable":False}, {"role":"reference"}, {"origin":"model"}]:
+            with self.subTest(change=change):
+                self.assertFalse(calibration.has_empirical_target(self.root, target, [dict(biological,**change)]))
+
+    def test_empirical_target_accepts_registered_original_figures_and_local_acquisitions(self):
+        ref = "data/train.csv"
+        target = dict(self.targets[0], evidence_type="digitized_figure", source_ref=ref)
+        data = dict(self.plan["review"]["datasets"][0], kind="biological", source_id="reference")
+        self.assertFalse(calibration.has_empirical_target(self.root, target, [data]))
+        self.write("docs/acquisition.md", "Acquisition ID: B-032. Original laboratory measurements.")
+        data.update(source_ref="docs/acquisition.md", files=[ref])
+        self.assertTrue(calibration.has_empirical_target(self.root, target, [data]))
+        self.write("docs/acquisition.md", "Author et al. (2020). Figure 4b. Digitized group response.")
+        self.assertTrue(calibration.has_empirical_target(self.root, target, [data]))
+        self.write("docs/acquisition.md", "These are values chosen to exercise the code.")
+        self.assertFalse(calibration.has_empirical_target(self.root, target, [data]))
+        self.table(ref, ["acquisition_id","value"], [["lab-17A",2]])
+        data.update(source_ref=ref,files=[])
+        self.assertTrue(calibration.has_empirical_target(self.root, dict(target,evidence_type="experimental_recording"), [data]))
+        self.table(ref, ["acquisition_id","value"], [["",2]])
+        self.assertFalse(calibration.has_empirical_target(self.root, target, [data]))
+
+    def test_simulator_output_and_post_run_reclassification_cannot_supply_empirical_target(self):
+        run = self.record(BASE,self.config,[1]*4)
+        source = next(p for p in run["output_sha256"] if p.endswith("/raw.csv"))
+        data = dict(self.plan["review"]["datasets"][0],kind="biological",source_ref=source,source_id="patch-15A")
+        target = dict(self.targets[0],evidence_type="experimental_recording",source_ref=source)
+        self.assertFalse(calibration.has_empirical_target(self.root,target,[data]))
+        data["source_ref"] = target["source_ref"] = "data/train.csv"
+        self.assertTrue(calibration.has_empirical_target(self.root,target,[data]))
+        for change in [{"kind":"synthetic"}, {"source_id":"another-sample"}, {"comparable":False},
+                       {"context":dict(CONTEXT,region="another region")}, {"observation_ids":["unplanned"]}]:
+            frozen = [dict(data,**change)]
+            registered = calibration.registered_empirical_datasets([data],frozen)
+            self.assertFalse(calibration.has_empirical_target(self.root,target,registered))
+
+    def test_final_empirical_fit_checks_external_data_type_separately_from_other_requirements(self):
+        self.plan["review"]["calibration_evidence"] = "biological"
+        self.plan["review"]["datasets"][0].update(kind="biological",source_id="Local-in-vivo-47")
+        self.targets[0]["evidence_type"] = "published_summary"
+        self.dump(TARGETS,{"targets":self.targets})
+        self.prepare()
+        self.assertEqual(self.check("passed")["requirements"]["fit"]["outcomes"]["fit/fit"], "passed")
+        self.analysis["datasets"].append(dict(id="misidentified",origin="external",path="data/train.csv",
+                                               evidence_type="published_simulation"))
+        result=self.check("incomplete")
+        self.assertEqual(result["requirements"]["fit"]["outcomes"]["fit/fit"], "pending")
+        self.assertEqual(result["requirements"]["test"]["outcomes"]["test/test"], "negative_prediction")
+
+    def test_one_misidentified_reference_preserves_other_target_in_same_final_comparison(self):
+        self.plan["review"]["calibration_evidence"]="biological"
+        extra_ref="data/second_recording.csv"
+        self.table(extra_ref,["animal","value"],[["A",2]])
+        self.plan["review"]["datasets"][0].update(kind="biological",source_id="sample-P13",files=[extra_ref])
+        self.targets[0]["evidence_type"]="experimental_recording"
+        self.targets.append(dict(self.targets[0],id="second",source_ref=extra_ref))
+        self.dump(TARGETS,{"targets":self.targets})
+        fit=self.plan["requirements"][0]["acceptance"]["comparisons"][0]
+        fit["target_ids"].append("second")
+        fit["selectors"]["second"]=deepcopy(fit["selectors"]["fit"])
+        self.prepare()
+        raw=self.completion["comparisons"][0]
+        measurements=read(self.root/raw["measurements_ref"])["measurements"]
+        measurements["second"]=deepcopy(measurements["fit"])
+        self.dump(raw["measurements_ref"],{"measurements":measurements})
+        numerical=calibration.score_targets(self.targets,measurements,candidate_id=raw["candidate_id"],
+            config=read(self.root/raw["config_ref"]),data_role="calibration")
+        self.dump(raw["score_ref"],numerical)
+        self.checked["fit"]=review_project._compare(self.root,raw,{d["id"]:d for d in self.plan["review"]["datasets"]},
+            self.plan,read(self.root/self.plan["review"]["baseline_ref"]),[])
+        self.assertEqual(self.check("passed")["requirements"]["fit"]["outcomes"],
+                         {"fit/fit":"passed","fit/second":"passed"})
+        self.analysis["datasets"].append(dict(id="secondary",origin="external",path=extra_ref,evidence_type="synthetic"))
+        result=self.check("incomplete")
+        self.assertEqual(result["requirements"]["fit"]["outcomes"],{"fit/fit":"passed","fit/second":"pending"})
+        self.analysis["datasets"].append(dict(id="other_unused_file",origin="model",path="unavailable/other.csv"))
+        diagnostic_paths=calibration.diagnostic_paths(self.root,self.analysis["datasets"])
+        self.checked["fit"]=review_project._compare(self.root,raw,{d["id"]:d for d in self.plan["review"]["datasets"]},
+            self.plan,read(self.root/self.plan["review"]["baseline_ref"]),[],model_files=diagnostic_paths)
+        self.assertEqual([(r["id"],r["state"],r["value"]) for r in self.checked["fit"]["rows"]],
+                         [("fit","passed",2),("second","pending",2)])
+        self.assertEqual(self.check("incomplete")["requirements"]["fit"]["outcomes"],
+                         {"fit/fit":"passed","fit/second":"pending"})
+
     def test_missing_source_receipt_and_comparison_context_are_pending(self):
         self.plan["requirements"][1]["acceptance"]["source"] = {"ref": METHOD}
         del self.plan["requirements"][0]["acceptance"]["comparisons"][0]["context"]["processing"]

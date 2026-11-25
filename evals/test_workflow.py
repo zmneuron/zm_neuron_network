@@ -196,7 +196,7 @@ def main():
                                            CurrentModelChecks, ScientificReviewTests, DeliveryFileChecks, FreshArtifactReviewChecks,
                                            ModelFigureCoverageTests, ExecutionContractChecks))
     final_model_suites = ("test_final_model", "test_round_followup", "test_optimization_round_case",
-                         "test_study_design", "test_figure_reading")
+                         "test_study_design", "test_figure_reading", "test_empirical_calibration")
     for name in final_model_suites:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)

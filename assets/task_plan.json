@@ -43,6 +43,7 @@
       "scientific_answer",
       "delivery"
     ],
+    "calibration_evidence": "biological",
     "independent_evidence": "biological",
     "independent_goal": "test_prediction",
     "component_calibration": {

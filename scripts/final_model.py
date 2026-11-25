@@ -224,6 +224,8 @@ class _Plan:
         self.root = root
         self.plan = _mapping(plan, "plan")
         self.review = _mapping(plan.get("review"), "review")
+        self.empirical = calibration.requires_empirical(plan)
+        self.ready = set()
         self.requirements = _rows(_need(plan.get("requirements"), "requirements"), "requirements")
         for row in self.requirements.values():
             require(type(row.get("required", True)) is bool, "required 应为布尔值")
@@ -321,7 +323,7 @@ class _Plan:
                 else:
                     raise ValueError("配置差异仅接受 seed、condition、control")
 
-    def comparison(self, acc, binding):
+    def comparison(self, acc, binding, source_gaps):
         ref = _text(binding.get("targets_ref"), "targets_ref")
         targets = _lookup(self.targets, ref, "review.criteria_refs 中的目标文件")
         ids = _ids(_need(binding.get("target_ids"), "target_ids"), "target_ids")
@@ -345,6 +347,9 @@ class _Plan:
             if dataset.get("available") is True:
                 _path(self.root, dataset.get("source_ref"), "参照数据")
         require(len(roles) == 1, "同一比较混用了不同数据用途")
+        declared = [self.datasets[k] for k in dataset_ids]
+        if self.empirical and "calibration" in roles:
+            declared = calibration.registered_empirical_datasets(declared, self.datasets)
         for identity in ids:
             target = _lookup(targets, identity, ref + " 中的目标")
             for key in ("metric", "condition", "unit", "statistic", "source_ref", "evidence_type",
@@ -356,12 +361,17 @@ class _Plan:
                 _need(criterion.get(key), f"{identity}.criterion.{key}")
             calibration.validate_targets([target])
             _statistical_rows(binding["selectors"][identity], target["unit"])
-            require(target["data_role"] in roles and target["source_ref"] in refs, "目标与指定数据来源或用途不符")
+            require(target["data_role"] in roles, "目标与指定数据用途不符")
+            if self.empirical and target["required"] and target["data_role"] == "calibration":
+                if not calibration.has_empirical_target(self.root, target, declared):
+                    source_gaps.append(f"{binding['id']}/{identity} · 待补该目标可定位的实测校准来源 {target['source_ref']}")
+            else:
+                require(target["source_ref"] in refs, "目标与指定数据来源或用途不符")
             require(target["condition"] == binding.get("condition", acc["condition"]),
                     "目标与事前比较条件不符 " + identity)
         return roles.pop()
 
-    def requirement(self, requirement):
+    def requirement(self, requirement, source_gaps):
         acc = _mapping(requirement.get("acceptance"), "requirements[].acceptance")
         for key in ("purpose", "condition", "control", "observable", "window", "criterion"):
             _text(acc.get(key), "acceptance." + key)
@@ -374,7 +384,7 @@ class _Plan:
         results = _result_ids(acc, requirement)
         snippets = _ids(acc.get("required_text", []), "required_text")
         bindings = _rows(acc.get("comparisons", []), "acceptance.comparisons")
-        roles = {self.comparison(acc, b) for b in bindings.values()}
+        roles = {self.comparison(acc, b, source_gaps) for b in bindings.values()}
         wanted_role = {"fit": "calibration", "prediction": "evaluation", "reference": "reference"}.get(purpose)
         if wanted_role and wanted_role not in roles:
             raise Pending("待补指定用途的比较 " + wanted_role)
@@ -421,6 +431,12 @@ class _Plan:
             for binding in acc.get("comparisons", []):
                 covered_targets.update((binding.get("targets_ref"), key) for key in binding.get("target_ids", []))
             covered_checks.update(acc.get("scientific_check_ids", []))
+        if self.empirical:
+            if "calibration" not in self.review.get("required_axes", []):
+                raise Pending("实测校准任务缺少必需的 calibration 比较轴")
+            if not any(t.get("required") and t.get("data_role") == "calibration" for targets in self.targets.values()
+                       for t in targets.values()):
+                raise Pending("至少登记一个必需的实测校准目标及其来源")
         missing = [f"{ref}#{key}" for ref, targets in self.targets.items() for key, t in targets.items()
                    if t.get("required") and (ref, key) not in covered_targets]
         missing.extend(key for key, c in self.science.items() if c.get("required") and
@@ -443,9 +459,16 @@ def _check_plan(root, plan):
         for identity, requirement in declared.required.items():
             row = dict(status="passed", issues=[], pending=[])
             report["requirements"][identity] = row
-            _check(report, identity, lambda: declared.requirement(requirement), row)
+            source_gaps = []
+            _check(report, identity, lambda: declared.requirement(requirement, source_gaps), row)
             if row["status"] == "passed":
+                declared.ready.add(identity)
                 row["result_ids"] = _result_ids(requirement["acceptance"], requirement)
+            for gap in source_gaps:
+                message = identity + "/" + gap
+                report["pending"].append(message)
+                row["pending"].append(message)
+            _status(row)
         # Malformed rows have their own diagnosis and cannot pass through coverage.
         if not report["issues"]:
             _check(report, "必需目标与机制", declared.coverage)
@@ -949,6 +972,7 @@ class _Evidence:
         self.unresolved = set(science.get("unresolved_question_ids", []))
         self.results = _rows(analysis.get("results", []), "analysis.results")
         self.datasets = _rows(analysis.get("datasets", []), "analysis.datasets")
+        self.diagnostic_paths = calibration.diagnostic_paths(self.root, self.datasets) if spec.empirical else set()
         self.figures = _rows(analysis.get("figures", []), "analysis.figures")
         self.delivery = _mapping(self.completion.get("delivery", {}), "delivery")
         self.parts = _rows(self.delivery.get("parts", []), "delivery.parts", "kind")
@@ -1042,6 +1066,12 @@ class _Evidence:
             used = prior_selection_sources(self.root, self.spec.plan, self.runs.saved, self.analysis)
             require(not any(_observations_overlap(self.root, data, source) for source in used),
                     "旧评价单位已用于本轮修正，须使用新的事前留出观测")
+
+    def check_diagnostic_source(self, path):
+        for identity, item in self.datasets.items():
+            if (item.get("origin", "model") == "model" and item.get("run_ids") and item.get("path")
+                    and (self.root / item["path"]).resolve() == path):
+                self.dataset(identity)  # Verify the producing run when one is recorded.
 
     def negative(self, identity):
         if self.spec.review.get("independent_goal") != "test_prediction":
@@ -1140,9 +1170,13 @@ class _Evidence:
         require(checked["axis"] == raw["axis"] == {"calibration": "calibration", "evaluation": "independent_evaluation",
                 "reference": "reference"}[role], "比较轴与数据用途不符")
         target_refs = {self.spec.targets[ref][key]["source_ref"] for key in binding["target_ids"]}
+        empirical = self.spec.empirical and role == "calibration"
+        selected = [self.spec.datasets[k] for k in binding["dataset_ids"]]
+        registered = calibration.registered_empirical_datasets(selected, self.frozen_datasets) if empirical else selected
         for key in binding["dataset_ids"]:
             require(self.spec.datasets[key]["role"] == role, "实际数据用途与事前比较不符")
-            self.reference(key, binding["context"], role, target_refs)
+            if not empirical:
+                self.reference(key, binding["context"], role, target_refs)
         changed_observation = self.needs_reanalysis(raw, binding)
         producers = [] if changed_observation else [run_ref]
         if changed_observation:
@@ -1158,15 +1192,38 @@ class _Evidence:
         targets = list(self.spec.targets[ref].values())
         recomputed = calibration.score_targets(targets, measurements, candidate_id=raw["candidate_id"],
             config=read(local(self.root, run["config_ref"])), data_role=role)
-        require(all(_same_config(value, checked.get(key)) for key, value in recomputed.items()),
+        possible = [recomputed]
+        if empirical:
+            before_manifest = calibration.apply_empirical_sources(self.root, targets, registered, recomputed)
+            excluded = self.diagnostic_paths.intersection((self.root / t["source_ref"].partition("#")[0]).resolve()
+                                                         for t in targets if t["data_role"] == role)
+            recomputed = (calibration.apply_empirical_sources(self.root, targets, registered, recomputed,
+                                                              diagnostic_paths=excluded) if excluded else before_manifest)
+            # The supplied comparison may precede a newly recorded data origin. Its numbers still
+            # have to match; the per-target decision below always uses the current, stricter source check.
+            possible = [recomputed, before_manifest]
+        require(any(all(_same_config(value, checked.get(key)) for key, value in candidate.items()) for candidate in possible),
                 "比较的逐项目标与复算结果不符 " + identity)
         scores = _rows(recomputed["rows"], "逐项目标")
         frozen = _rows(self.runs.saved.get("criteria", {}).get(ref, []), "事前目标")
         def evaluate(key):
-            require(_lookup(frozen, key, "事前目标") == self.spec.targets[ref][key], "采用了事后改变的目标 " + key)
+            target = self.spec.targets[ref][key]
+            require(_lookup(frozen, key, "事前目标") == target, "采用了事后改变的目标 " + key)
             score = _lookup(scores, key, "本次评分目标")
-            observation = _lookup(measurements, key, "实际测量")
             label = identity + "/" + key
+            if empirical:
+                source_path = (self.root / target["source_ref"].partition("#")[0]).resolve()
+                if source_path in self.diagnostic_paths or score.get("reason") == "empirical_calibration_source_missing":
+                    row["outcomes"][label] = "pending" if target["required"] else "diagnostic"
+                    if source_path in self.diagnostic_paths:
+                        self.check_diagnostic_source(source_path)
+                    if target["required"]:
+                        raise Pending("缺少该目标事前登记的可比实测校准来源 " + target["source_ref"])
+                    return
+                for data in selected:
+                    if calibration.has_empirical_target(self.root, target, [data]):
+                        self.reference(data["id"], binding["context"], role, {target["source_ref"]})
+            observation = _lookup(measurements, key, "实际测量")
             state = score["state"]
             if observation.get("status") != "observed" or state not in {"passed", "unmet"}:
                 raise Pending("缺少可判定的实际测量 " + label)
@@ -1367,7 +1424,7 @@ def check_final_evidence(root, plan, analysis, comparisons, science):
         report["run_ref"] = evidence.runs.ref
     for identity, row in report["requirements"].items():
         row.update(run_refs=set(), outcomes={})
-        if row["status"] == "passed":
+        if declared is not None and identity in declared.ready:
             if evidence is None:
                 row["pending"].append("尚无可核对的采用模型记录")
             else:

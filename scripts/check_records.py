@@ -159,6 +159,10 @@ def _check_formal_requirements(root, plan, saved):
     actual = required_rows(current)
     require(original and json.dumps(actual, sort_keys=True) == json.dumps(original, sort_keys=True),
             "Required items or acceptance differ from the captured plan; review the changes before a formal run")
+    if saved["scope"].get("calibration_evidence") == "biological":
+        require(plan["review"].get("calibration_evidence", "biological") == "biological"
+                and "calibration" in plan["review"]["required_axes"],
+                "正式运行须保留事前约定的生物实测校准要求")
     if "scientific_checks" in saved["scope"]:
         frozen_checks = {k: row for k, row in saved["scope"]["scientific_checks"].items() if row.get("required")}
         checks = [row for row in plan["review"].get("scientific_checks", []) if row.get("required")]

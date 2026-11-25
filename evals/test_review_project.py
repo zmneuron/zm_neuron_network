@@ -237,6 +237,176 @@ class CompletionReviewChecks(unittest.TestCase):
         self.assertTrue(result["ready_to_deliver"])
         self.assertEqual(set(result["checks"]["comparisons"]), {"calibration", "batch_1", "batch_2"})
 
+    def fixed_model_study(self, folder, *, extra_drive=None):
+        """An independently specified finite task, created before the ten-cell synthetic network is run."""
+        import optimization_round_case as case
+
+        root, config = case.prepare(self.home / folder)
+        scope = "只用本次十细胞环形网络、原定合成对照和参数表列出的完整配置；固定细胞机制、测量窗及静默判据。"
+        (root / case.PROTOCOL).write_text("# 两轮网络校准的预定方案\n\n" + scope +
+                "\n\n统计 100 至 500 ms 的逐细胞脉冲；平均每细胞 19–21 次，静默比例为 0。", encoding="utf-8")
+        plan = case.make_plan(root, case.FIRST, config)
+        plan["requirements"] = [r for r in plan["requirements"] if r["id"] != "reserved_voltage"]
+        targets = case.read(root, case.TARGETS)
+        targets["targets"] = [r for r in targets["targets"] if r["data_role"] == "calibration"]
+        case.dump(root, case.TARGETS, targets)
+        plan["review"]["objective"]["text"] = "检验限定参数和细胞机制能否达到原定计数及静默比例。"
+        plan["review"]["required_axes"].remove("independent_evaluation")
+        plan["review"]["parameter_space_ref"] = "data/allowed.json"
+        refs = [plan["files"]["config"]]
+        if extra_drive is not None:
+            refs.append("data/higher_drive.json")
+            case.dump(root, refs[-1], dict(config, drive_mV=extra_drive))
+        case.dump(root, "data/allowed.json", dict(config_refs=refs, rationale_ref=case.PROTOCOL))
+        case.dump(root, case.PLAN, plan)
+        review_project.capture_review(root)
+        plan = case.read(root, case.PLAN)
+        capture = case.read(root, plan["review"]["baseline_ref"])["final_plan"]
+        self.assertEqual(capture["status"], "passed", capture["pending"])
+        case.run_python(root, "model/run.py", case.FIRST, plan["files"]["config"], str(case.START_MS))
+        case.run_python(root, "analysis/run.py", case.FIRST, "analysis/round_1/plots", "calibration", str(case.START_MS))
+        first = case.observe(root, case.FIRST)
+        fit, score = case.comparison(root, case.FIRST, first, "calibration")
+        analysis = case.make_first_analysis(root, plan, first, fit, score, 23.7)
+        c = analysis["completion_review"]
+        c["axes"]["independent_evaluation"]["status"] = "not_applicable"
+        answers = c["axes"]["scientific_answer"]
+        answers["status"] = "answered"
+        answers["questions"][0].update(state="answered", comparison_complete=True,
+                conclusion="所测配置未同时达到计数和静默标准。", adequacy_reason="对原定窗口内十个细胞的计数逐项进行了比较。")
+        c["iterations"].append(case.make_iteration("final", first, [fit["id"]], "保留被直接检验的固定配置。"))
+        c["decision"] = dict(action="stop", stop_reason="range_exhausted", gap="计数未达预定区间，静默比例达标。",
+                recovery_condition="如获得依据并授权扩大背景驱动范围，可重新检验。",
+                next_action="仅在范围改变后运行新增驱动配置。",
+                source_ref=case.PROTOCOL, source_excerpt=scope,
+                attempts=[dict(method="按全部十个细胞的脉冲重新计算两项约定指标。", evidence_ref=first["run_ref"])],
+                alternatives=[dict(method="更换细胞机制或增加驱动配置", feasible=False,
+                                   blocked_by="超出锁定的模型与参数范围", evidence_ref=case.PROTOCOL)],
+                scientific_check_ids=["synaptic_input"], **case.assessment("在原定范围内未达预设平均计数。", fit["measurements_ref"]))
+        case.dump(root, plan["files"]["analysis"], analysis)
+        return root, plan, analysis
+
+    def test_full_model_can_report_a_measured_failure_in_the_original_scope(self):
+        root, plan, analysis = self.fixed_model_study("fixed_scope")
+        def check():
+            fixture.dump(root, plan["files"]["analysis"], analysis)
+            return review_project.check_review(root, checkpoint="transition")
+        report = check()
+        self.assertEqual(report["work_state"], "scientific_failure", report["issues"])
+        self.assertEqual(report["status"], "incomplete")
+        self.assertFalse(report["goal_complete"] or report["final_model_ready"])
+        self.assertEqual(report["checks"]["final_evidence"]["requirements"]["software_workflow"]["outcomes"],
+                         {"calibration/count": "unmet", "calibration/silent": "passed"})
+        stage = review_project.stage_report_text(root, plan, report)
+        self.assertIn("calibration · count · unmet", stage)
+        self.assertIn("如获得依据并授权扩大背景驱动范围", stage)
+        c = analysis["completion_review"]
+        c["decision"]["alternatives"][0]["feasible"] = True
+        self.assertIn("仍有可行", str(check()["issues"]))
+        c["decision"]["alternatives"][0]["feasible"] = False
+        c["decision"]["alternatives"][0]["evidence_ref"] = "docs/round_1_diagnosis.md"
+        self.assertIn("须引用实际尝试", str(check()["issues"]))
+        c["decision"]["alternatives"][0]["evidence_ref"] = c["decision"]["source_ref"]
+        c["decision"]["attempts"][0]["evidence_ref"] = "docs/round_1_diagnosis.md"
+        self.assertIn("所列实际尝试", str(check()["issues"]))
+        c["decision"]["action"] = "complete"
+        self.assertFalse(check()["goal_complete"])
+
+    def test_batch_boundary_cannot_close_a_full_model_with_an_untried_configuration(self):
+        root, plan, analysis = self.fixed_model_study("untried", extra_drive=23.7)
+        for label in ("range_exhausted", "no_justified_batch"):
+            with self.subTest(label=label):
+                analysis["completion_review"]["decision"]["stop_reason"] = label
+                fixture.dump(root, plan["files"]["analysis"], analysis)
+                result = review_project.check_review(root, checkpoint="transition")
+                self.assertEqual(result["work_state"], "repair_required", result["issues"])
+                self.assertIn("未实算", str(result["issues"]))
+                self.assertFalse(result["goal_complete"] or result["final_model_ready"])
+
+    def test_unsampled_required_observation_is_not_a_measured_failure(self):
+        import optimization_round_case as case
+        root, plan, analysis = self.fixed_model_study("missing_observation")
+        trial = analysis["completion_review"]["comparisons"][0]
+        measured = case.read(root, trial["measurements_ref"])
+        measured["measurements"]["silent"]["status"] = "missing"
+        case.dump(root, trial["measurements_ref"], measured)
+        score = calibration.score_targets(case.read(root, case.TARGETS)["targets"], measured["measurements"],
+                candidate_id=trial["candidate_id"], config=case.read(root, trial["config_ref"]), data_role="calibration")
+        case.dump(root, trial["score_ref"], score)
+        result = review_project.check_review(root, checkpoint="transition")
+        self.assertEqual(result["work_state"], "repair_required", result["issues"])
+        self.assertFalse(result["goal_complete"] or result["final_model_ready"])
+        self.assertIn("缺少实测结果", str(result["issues"]))
+
+    def test_scoped_empirical_calibration_can_obtain_the_reference_before_parameter_trials(self):
+        self.other(modern=True, distribution_failure=True, parameter_space=True, budget_limit=3)
+        plan, analysis = self.actual["plan"], self.actual["analysis"]
+        plan["review"].update(delivery_profile="scoped", calibration_evidence="biological")
+        c = analysis["completion_review"]
+        c["decision"].update(next_action="先核对可比较的公开实测细胞发放率。")
+        c["decision"].pop("next_batch")
+        datasets = {d["id"]: d for d in plan["review"]["datasets"]}
+        groups = review_project._component_results(self.root, plan, {})
+        capture = fixture.read(self.root, plan["review"]["baseline_ref"])
+        review_project._decision(self.root, c, ["calibration"], datasets, plan, capture, groups, {}, [], False, {})
+        plan["review"]["calibration_evidence"] = "software_only"
+        with self.assertRaisesRegex(ValueError, "concrete next parameter batch"):
+            review_project._decision(self.root, c, ["calibration"], datasets, plan, capture, groups, {}, [], False, {})
+
+    def test_bounded_failure_checks_the_other_executed_config_against_the_same_targets(self):
+        import optimization_round_case as case
+        for drive, expected in ((20.2, "scientific_failure"), (23.7, "repair_required")):
+            with self.subTest(drive=drive):
+                root, plan, analysis = self.fixed_model_study("finite_" + str(drive), extra_drive=drive)
+                folder = "results/additional_drive"
+                case.run_python(root, "model/run.py", folder, "data/higher_drive.json", str(case.START_MS))
+                measured = case.observe(root, folder)
+                comparison, score = case.comparison(root, folder, measured, "calibration")
+                comparison.update(id="second_drive", historical=True)
+                c = analysis["completion_review"]
+                c["comparisons"].append(comparison)
+                c["iterations"].insert(1, case.make_iteration("candidate", measured, ["second_drive"], "与相同预定目标比较。"))
+                c["budget"].update(consumed=2, round_consumed=2)
+                case.dump(root, plan["files"]["analysis"], analysis)
+                result = review_project.check_review(root, checkpoint="transition")
+                self.assertEqual(result["work_state"], expected, result["issues"])
+                self.assertEqual(score["status"], "infeasible" if expected == "scientific_failure" else "passed")
+                if expected == "repair_required":
+                    self.assertIn("原范围包含已达标", str(result["issues"]))
+
+    def test_measured_negative_support_goal_is_scientific_failure_only_after_all_questions(self):
+        import optimization_round_case as case
+        root, config = case.prepare(self.home / "negative_support", test_prediction=True)
+        targets = case.read(root, case.TARGETS)
+        targets["independent_goal"] = "require_support"
+        case.dump(root, case.TARGETS, targets)
+        scope = "本项原定目标要求冻结候选得到留出电位区间的支持；留出结果不得用于继续选参。"
+        protocol = root / case.PROTOCOL
+        protocol.write_text(protocol.read_text(encoding="utf-8") + "\n\n" + scope, encoding="utf-8")
+        first, old, candidate = case.run_initial(root, config)
+        plan, final, fit, evaluation, adopted = case.run_candidate(root, candidate, old)
+        analysis = case.describe_final(root, plan)
+        c = case.final_completion(root, plan, analysis, first, final, old, fit, evaluation, adopted)
+        analysis["completion_review"] = c
+        c["axes"]["independent_evaluation"].update(evaluation_completed=True,
+                adequacy_reason="按事前指定细胞和 10 ms 的唯一观测与留出区间比较。")
+        response = c["axes"]["scientific_answer"]
+        response["status"] = "answered"
+        response["questions"][0].update(state="answered", comparison_complete=True, comparison_ids=[fit["id"], evaluation["id"]],
+                conclusion="校准达到原标准，原定启动电位的留出区间未获支持。")
+        c["decision"].update(action="stop", stop_reason="independent_non_support", source_ref=case.PROTOCOL, source_excerpt=scope,
+                gap="采用模型的 10 ms 电位超出留出区间。", recovery_condition="取得新的独立数据并重新登记后可再行检验。",
+                next_action="保留已查看的留出观测。", alternatives=[dict(method="按已揭示的留出电位调参", feasible=False,
+                     blocked_by="冻结选参和留出检验的原定约束", evidence_ref=case.PROTOCOL)])
+        case.write_report(root, plan, analysis)
+        result = review_project.check_review(root, checkpoint="transition")
+        self.assertEqual(result["work_state"], "scientific_failure", result["issues"])
+        self.assertTrue(result["negative_test_completed"])
+        self.assertFalse(result["goal_complete"] or result["final_model_ready"])
+        response["questions"][0]["comparison_complete"] = False
+        case.write_report(root, plan, analysis)
+        self.assertEqual(review_project.check_review(root, checkpoint="transition")["work_state"], "repair_required")
+
     def test_candidate_comparison_automatically_counts_as_selection(self):
         self.other(modern=True, evaluation="pass", independent_goal="test_prediction")
         self.analysis(lambda c: c["iterations"].append(dict(c["iterations"][0], role="candidate",
