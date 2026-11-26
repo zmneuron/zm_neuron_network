@@ -265,6 +265,8 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     skill_root = Path(skill).resolve() if skill else Path(__file__).resolve().parents[1]
     paths = review.get("skill_files")
     require(isinstance(paths, list) and paths and len(set(paths)) == len(paths), "Declare applicable skill files")
+    if (review.get("study_design") or {}).get("entry") == "materials" and "references/material-intake.md" not in paths:
+        paths.append("references/material-intake.md")
     if (regulation_scope(plan) or {}).get("mode") == "implementation":
         require("references/regulation-design.md" in paths, "Capture the applicable regulation rules for full implementation")
     skills = {p: fingerprint(local(skill_root, p)) for p in paths}

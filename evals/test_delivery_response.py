@@ -214,11 +214,13 @@ class ModelFigureCoverageTests(unittest.TestCase):
         self.add_arm("repeat201", role="seed")
         self.assertEqual(self.check()["conditions"], ["rest"])
 
-    def study_figures(self, shared=False):
-        names = dict(baseline="rest", adverse="pulse", regulation="treated")
+    def study_figures(self, shared=False, names=None):
+        if names is None:
+            names = dict(baseline="rest", adverse="pulse", regulation="treated")
         labels = dict(rest="静息条件", pulse="刺激条件", treated="调控条件")
         self.plan["review"]["study_design"] = dict(conditions=names)
         roles = dict(model_figure=self.graph["id"], baseline=self.plot["id"], adverse="pulse_plot", regulation="treated_plot")
+        roles = {key: value for key, value in roles.items() if key == "model_figure" or key in names}
         self.delivery["figure_roles"] = roles
         overview = dict(flow=["背景刺激", "环形网络", "细胞发放率"], modules=["环形网络"], contribution="逐细胞脉冲计数")
         self.graph["model_overview"] = overview
@@ -303,6 +305,27 @@ class ModelFigureCoverageTests(unittest.TestCase):
         self.plan["review"]["delivery_profile"] = "scoped"
         self.delivery.pop("figure_roles")
         self.assertEqual(self.check()["status"], "not_applicable")
+
+    def test_material_led_baseline_result_uses_the_actual_registered_condition(self):
+        roles = self.study_figures(names={"baseline": "rest"})
+        review = self.plan["review"]
+        review["study_design"]["entry"] = "materials"
+        source = "docs/figure_reading.md"
+        review.update(model_components=["baseline"], regulation={"mode": "not_requested",
+                      "reason": "目前只研究正常生理响应。", "source_ref": source})
+        with self.assertRaisesRegex(ValueError, "材料、出处和已选方向"):
+            self.check()
+        review["study_design"]["material_intake"] = dict(
+            kinds=["observations"], inventory_ref=source, selected_by="user", selection_ref=source)
+        self.assertEqual(self.check()["figure_roles"], roles)
+        self.assertEqual(self.check()["conditions"], ["rest"])
+        roles["adverse"] = roles["baseline"]
+        with self.assertRaisesRegex(ValueError, "已登记的模型部分"):
+            self.check()
+        roles.pop("adverse")
+        review["regulation"]["mode"] = "implementation"
+        with self.assertRaisesRegex(ValueError, "完整调控研究"):
+            self.check()
 
     def test_version_two_cannot_fall_back_to_historical_figures_or_response_checks(self):
         self.plan["schema_version"] = 2

@@ -23,6 +23,7 @@ from xml.etree import ElementTree
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
 from recovery_fraction import recovery_columns
+from study_design import ROLES, check_material_intake, study_component_roles
 
 CONTRACT = "zm-neuron-review/2"
 DEPICTIONS = {"schematic", "actual_model", "data_result"}
@@ -587,11 +588,12 @@ def _figure_measurements(root, figure, observed, plotted):
 
 def _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw):
     roles = delivery.get("figure_roles")
-    names = ("baseline", "adverse", "regulation")
+    names = study_component_roles(review)
     keys = ("model_figure", *names)
     require(isinstance(roles, dict) and all(isinstance(roles.get(k), str) and roles[k] in embedded for k in keys),
-            "完整交付须分别登记并在两份正文中嵌入模型图、基础模型图、负面影响图和调控结果图")
-    require(len({roles[k] for k in keys}) == len(keys), "模型图及三个条件的实算结果须分别使用独立图件")
+            "完整交付须分别登记并在两份正文中嵌入模型图和各适用条件的实算图")
+    require(set(roles).intersection(ROLES) == set(names), "条件结果图须与已登记的模型部分一致")
+    require(len({roles[k] for k in keys}) == len(keys), "模型图及各适用条件的实算结果须分别使用独立图件")
     methods = next(p for p in delivery["parts"] if p["kind"] == "methods")
     model = roles["model_figure"]
     require(model in methods.get("figure_ids", []) and _figure_kinds(figures[model]) & {"schematic", "actual_model"},
@@ -602,9 +604,9 @@ def _study_figure_roles(delivery, review, analysis, figures, embedded, captions,
         require(not previous & fingerprints, "模型图和各条件结果图不能重复使用同一张成图：" + key)
         previous.update(fingerprints)
     declared = review["study_design"].get("conditions", {})
-    require(set(review.get("model_components", [])) == set(names) and isinstance(declared, dict)
+    require(isinstance(declared, dict) and set(declared) == set(names)
             and all(isinstance(declared.get(k), str) and declared[k].strip() for k in names)
-            and len({declared[k] for k in names}) == len(names), "完整研究须注明基础、负面影响、调控各自对应的实际条件")
+            and len({declared[k].strip() for k in names}) == len(names), "完整研究须注明各适用部分对应的实际条件")
     formal = _regulation_role_runs(review, analysis.get("completion_review", {}))
     datasets = {d["id"]: d for d in analysis.get("datasets", [])}
     expected = {}
@@ -630,7 +632,7 @@ def _study_figure_roles(delivery, review, analysis, figures, embedded, captions,
         require((runs & (required_runs - other_runs)) or (paths & (required_files - other_files)) or condition in selectors,
                 "共用运行或表格时须以分条件的实算输出或原始行列区分结果图：" + role + " / " + condition)
         signature = frozenset(paths & raw), frozenset(key for _, key in selectors.values())
-        require(signature not in signatures, "三个条件的独立结果图重复使用同一组数据和取数位置：" + role)
+        require(signature not in signatures, "各条件的独立结果图重复使用同一组数据和取数位置：" + role)
         signatures.add(signature)
         require(_visible_condition(fid, condition, figures, captions),
                 "该实算图或其报告图注须明确标出对应的条件：" + role + " / " + condition)
@@ -668,6 +670,8 @@ def _result_figures(root, delivery, plan, analysis, figures, captions, embedded,
                       choices=choices, descriptions=descriptions)
     extra = {}
     if study:
+        if review["study_design"].get("entry") == "materials":
+            check_material_intake(root, review)
         raw = {path for ref, record in run_records.items() if ref not in history and record.get("stage") == "simulation"
                for path in record.get("output_sha256", {})}
         roles = _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw)

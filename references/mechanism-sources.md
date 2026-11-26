@@ -2,7 +2,7 @@
 
 按问题选读，不默认下载或安装。此索引从用户提供的《面向科学问题的神经元模型机制扩展：文献、代码与跨系统建模调研》（2026-11-22）第 2 节及按需扩展部分提炼，配合《未预设科学问题的调研、追问与神经模型构建工作流》的开放检索思路使用。所需操作规则已保存在本技能内，运行不依赖这两份文档在作者电脑上的路径。
 
-它不是全部可用模型的列表，也不是一份已安装、已运行的模型库。缺少条目时按[现象与条件检索](interview.md#调研与追问交替推进)继续查原始研究、作者存档及相关实现；[ModelDB 官方帮助](https://modeldb.science/help)可用于发现完整模型及局部组件。采用前仍需固定实际版本、读取相关方程/代码并按[机制接入规则](mechanism-extension.md)核对适用性。
+先查[共享文献、观测与代码索引](index/README.md)，按真实条件回填本轮核实的公共条目。以下入口可用于扩大查找范围。缺少条目时按[现象与条件检索](interview.md#调研与追问交替推进)继续查原始研究、作者存档及相关实现；[ModelDB 官方帮助](https://modeldb.science/help)可用于发现完整模型及局部组件。采用前仍需固定实际版本、读取相关方程/代码并按[机制接入规则](mechanism-extension.md)核对适用性。
 
 需要发现不同数学表示或选择软件时，按[方法发现与软件选择](method-discovery.md)从必要过程和观测出发。也可由 [BioModels](https://www.ebi.ac.uk/training/online/courses/biomodels-quick-tour/what-is-biomodels/) 查找相关定量机制模型，由 [NeuroML 官方运行说明](https://docs.neuroml.org/Userdocs/SimulatingNeuroMLModels.html) 了解模型描述、转换和运行后端的区别；所列平台不构成安装清单。新增入口的定向核查范围与日期见方法发现页，原有条目的核查范围仍如下所述。
 

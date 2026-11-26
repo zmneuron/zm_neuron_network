@@ -45,6 +45,81 @@ class StudyDesignChecks(unittest.TestCase):
     def check(self):
         return check_study_design(self.root, self.plan)
 
+    def use_materials(self):
+        self.design.update(entry="materials", conditions={"baseline": "step_current"},
+                           material_intake=dict(kinds=["protocol", "summary"], inventory_ref=self.source,
+                                                selected_by="user", selection_ref=self.source))
+        self.review.update(model_components=["baseline"], regulation=dict(mode="not_requested",
+                           reason="本研究仅比较正常细胞的注流响应。", source_ref=self.source))
+        self.review["component_calibration"] = {"baseline": {"mode": "targets"}}
+        for topic in ("material_state", "scope", "resources"):
+            self.add_row(topic)
+
+    def test_materials_allow_physiology_but_require_sources_and_selected_direction(self):
+        self.use_materials()
+        self.assertEqual(self.check()["status"], "ready")
+        intake = self.design["material_intake"]
+        for key, value in (("kinds", []), ("inventory_ref", "missing"), ("selection_ref", "missing"),
+                           ("selected_by", "inferred")):
+            with self.subTest(key=key):
+                previous, intake[key] = intake[key], value
+                self.assertEqual(self.check()["status"], "incomplete")
+                intake[key] = previous
+        self.review["regulation"].pop("source_ref")
+        self.assertEqual(self.check()["status"], "incomplete")
+
+    def test_material_scope_cannot_drop_required_regulation_or_hide_unresolved_resources(self):
+        self.use_materials()
+        self.review["model_components"].append("adverse")
+        self.design["conditions"]["adverse"] = "withdrawal"
+        self.assertEqual(self.check()["status"], "ready")
+        self.review["regulation"]["mode"] = "implementation"
+        self.assertEqual(self.check()["status"], "incomplete")
+        self.review["model_components"].append("regulation")
+        self.design["conditions"]["regulation"] = "selected_protocol"
+        self.assertEqual(self.check()["status"], "ready")
+        while len(self.design["decisions"]) < 20:
+            self.add_row()
+        next(row for row in self.design["decisions"] if row["topic"] == "resources")["answer"] = ""
+        result = self.check()
+        self.assertEqual((result["coverage_percent"], result["status"]), (95, "incomplete"))
+
+    def test_question_led_or_historical_plan_cannot_silently_remove_conditions(self):
+        self.use_materials()
+        self.design.pop("material_intake")
+        for entry in ("question", None, "unknown"):
+            with self.subTest(entry=entry):
+                if entry is None:
+                    self.design.pop("entry", None)
+                else:
+                    self.design["entry"] = entry
+                self.assertEqual(self.check()["status"], "incomplete")
+
+    def test_material_led_study_captures_selected_scope_and_preserves_five_axes(self):
+        self.use_materials()
+        self.plan.update(plan_id="material-study", model_version="m1", spec_ref=self.source, requirements=[
+            dict(id="R", description="预测新注流刺激下的脉冲时序", source_ref=self.source, source_kind="user")])
+        self.plan.pop("reuse")
+        self.plan["current_model"].update(name="适应性点模型", spec_ref=self.source)
+        config = self.root / self.plan["files"]["config"]
+        config.parent.mkdir(parents=True)
+        config.write_text("{}", encoding="utf-8")
+        self.review.update(baseline_ref="docs/material_start.json",
+                           objective=dict(text="预测新刺激下的放电", source_kind="user", source_ref=self.source))
+        self.save()
+        captured = review_project.capture_review(self.root)
+        saved = read(self.root / captured["baseline_ref"])
+        self.assertEqual(saved["scope"]["model_components"], ["baseline"])
+        self.assertEqual(set(saved["scope"]["required_axes"]), {
+            "execution", "calibration", "independent_evaluation", "scientific_answer", "delivery"})
+        self.assertEqual(saved["research_delivery"]["interventions"], [])
+        self.assertIn("references/material-intake.md", saved["skill_files"])
+        bound = read(self.root / "docs/task_plan.json")
+        self.assertIn("references/material-intake.md", bound["review"]["skill_files"])
+        self.design["material_intake"]["kinds"] = ["observations"]
+        with self.assertRaisesRegex(ValueError, "科学选模"):
+            check_captured_design(self.plan, saved, True)
+
     def save(self):
         (self.root / "docs/task_plan.json").write_text(json.dumps(self.plan), encoding="utf-8")
 
