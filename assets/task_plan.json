@@ -59,6 +59,11 @@
       "method_ref": "docs/model_spec.md"
     },
     "delivery_profile": "full_model",
+    "research_delivery": {
+      "contract": "zm-research-delivery/1",
+      "interventions": [],
+      "candidate_plot_ids": []
+    },
     "require_reproduction": true,
     "display_progress": true,
     "viewer": {

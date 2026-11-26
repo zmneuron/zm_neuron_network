@@ -146,6 +146,9 @@ class StudyDesignChecks(unittest.TestCase):
         self.review.update(baseline_ref="docs/initial.json",
                            objective=dict(text="比较诱发响应", source_kind="user", source_ref=self.source))
         self.review["regulation"].update(question_id="Q", authorization_ref=self.source, method_ref=self.source)
+        self.review["research_delivery"]["interventions"] = [
+            dict(id="R1", column="evoked_rate", unit="Hz", endpoint_definition="诱发时间窗内的平均放电率",
+                 direction="higher", minimum_effect=0)]
         for component in self.review["component_calibration"].values():
             component.update(mode="outside_calibration", reason="本例只验证研究设计的登记", source_ref=self.source)
         self.save()
@@ -153,6 +156,7 @@ class StudyDesignChecks(unittest.TestCase):
         self.assertEqual(result["status"], "captured")
         recorded = read(self.root / result["baseline_ref"])
         self.assertEqual(recorded["study_design"], self.design)
+        self.assertEqual(recorded["research_delivery"], self.review["research_delivery"])
         remaining.update(answer="按补充说明显示时间刻度", source_ref=self.source)
         self.assertEqual(self.check()["status"], "ready")
         check_captured_design(self.plan, recorded, True)

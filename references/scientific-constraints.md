@@ -88,3 +88,25 @@
 按原始问题逐项作科研判断。核对资料质量和适用条件、目标机制在正式统计时段的实际作用、对照能否区分备选解释，以及效应大小与不确定性。充分的独立阴性检验可以回答预设预测，精度不足则保留未定。若原任务要求某项机制、拟合精度或独立支持，仍缺哪一项，就回到相应构建或比较环节处理。各项可支持的结论按实际条件并列报告。
 
 最终正文直接交代关键依据、实际改动与结果支持范围；有调控时同时说明可控量、未知转导、匹配对照及实际改善/代价。方法、参数、图件和文字使用同一有效版本。[调控作用](regulation-design.md) · [科研交付](result-delivery.md) · [迭代记录](versioning.md)
+
+### 逐结论核对数据来源
+
+正式结果表的每条必需结果都有来源记录。记录写入 `completion_review.claim_sources`。正文在对应结论旁说清“本模型中的效应”“在另一批模拟种子上重复”“与已发表模型一致”“与某项实验测量相符”或“在未参与选择的实验对象上检验了预测”。同一篇论文可能同时报告患者测量和由这些测量拟合的模型参数，应按引用的具体图表判定来源。一个结果包含不同层次的主张时，分别登记对应的句子。
+
+| 结论层级 `scope` | 所需来源与允许表述 |
+|---|---|
+| `simulation` | 模型运行输出；报告模型条件下的效应、反例或预测。 |
+| `simulation_repeat` | 同模型家族的开发与评价种子从实际观测表读取，成员互不重合；报告指定设定下的跨种子稳定性。 |
+| `literature_model` | 其他研究的仿真结果或由其模型推断的量；提供来源标识和原文图表、作者输出的位置，用于跨模型比较。 |
+| `biological_comparison` | `measured_record` 原始实测或 `measured_summary` 实测汇总；报告可比的方向、大小或失配，注明是否参与选参。 |
+| `independent_biological` | 将模型预先规定的观测与保留的生物实测记录对齐，核对实际对象与开发对象的身份，列出单位层面的比较结果和不确定性。独立评价的阴性结果也如实呈现。 |
+| `method` | 分析清单中 `kind=method` 的方法说明，给出可定位的 `method_ref`，该行的 `dataset_ids` 取空列表。 |
+
+每条 `claim_sources` 填 `result_id,scope,dataset_ids,report_excerpt`。最后一项取 Markdown 与离线 HTML 正文中共同呈现的一句完整结论。两份阅读版均核对实测验证表述。结果的 `data_ids` 沿用分析清单；仅登记在计划中的外部来源，可在该条结果的 `evidence_dataset_ids` 引用。普通模型输出可直接引用分析数据的 `id,path,origin=model`。以下给出填写独立实测比较时涉及的最少附加信息。
+
+- 在原有 `review.datasets` 上补 `source_class`，选择 `simulation,simulation_repeat,literature_model,measured_summary,measured_record` 之一。登记 `source_ref` 和可定位采集或公开记录的 `source_id`。文献模型额外注明 `source_locator`（图、表、归档成员等）或在引用中附图表锚点。真实实验保留 `kind=biological`。
+- 生物数据行的 `measurement_ref` 引用原始资料的测量定义；结论行的 `model_measurement_ref` 引用模型端的定义。二者可指向既有 JSON 内不同节点，例如 `docs/methods.json#/recording` 和 `model/config.json#/readout_definition`。对应字段为 `object,stimulus,window,readout,unit`。先完成确有依据的单位或统计换算，注明来源和转换方法，再使用统一名称核对。刺激后的平均率和随强度变化的响应斜率须分别比较。独立生物验证要求同定义观测；时间窗或协议仅在方向上相近时，保留定性讨论及差异，不将其登记为同定义的定量对标。
+- 独立实测来源沿用 `role=evaluation,available=true,comparable=true,used_for_selection=false`。提供 `observation_ids,unit_column,value_column`；程序读取实际非空数值和实验对象 ID。可直接用原表，或在 `files` 中登记从原始实测提取的逐单位 CSV/TSV，以 `observations_ref` 指向该表，保留其生成方法和原始记录定位。原有 `unit_where,units_ref,unit_join` 可用于条件筛选和关联单位表。同一队列分批保存时共用 `source_id`，按研究主张选择患者、动物或制备为独立单位。新种子比较同样保存可读取的种子列与开发成员。跨轮选择时保留用过的观测，包括用变化方向或组间差来改模型的记录。
+- 核查结果按每条主张列出来源类别和原始材料位置。实测独立评价还展示读取到的对象、刺激、时间窗、读数、单位及独立对象列表。自动检查能发现已登记的重用、来源层级冲突和观测定义不符；研究者仍需核对原始来源真实性、提取过程、测量等价性、所有正文与图注的实际含义。找不到合适实验记录时，直接交代本轮能确认的模型现象和待检验的预测。
+
+例如，`{"result_id":"R1","scope":"simulation","dataset_ids":["gamma_sim"],"report_excerpt":"在当前网络中，调控后 gamma 功率升高。"}` 可支撑一项模型内比较。若后续取得独立脑片记录，应在相应问题下另给规定刺激、规定时窗和同一读数的实际检验结果。仅给同一模拟结果补上 DOI 或再运行若干种子，不能提升其资料层级。[来源与结论检查](../scripts/claim_sources.py)

@@ -274,6 +274,9 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
                     scope=state, criteria=criteria, skill_files=skills,
                     datasets=review.get("datasets", []), selection_uses=review.get("selection_uses", []))
     baseline["reuse_contract"] = plan.get("reuse", {}).get("contract")
+    if full_model_task(plan) and "research_delivery" in review:
+        from research_delivery import check_plan
+        baseline["research_delivery"] = check_plan(plan)
     if plan.get("schema_version") == 2 or design["status"] == "ready":
         baseline["task_schema_version"] = plan["schema_version"]
         baseline["study_design_status"] = design["status"]
@@ -1889,6 +1892,9 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         capture = local(root, plan["review"]["baseline_ref"])
         require(fingerprint(capture) == plan["review"].get("baseline_sha256"), "Captured original requirements changed or are not bound to this plan")
         baseline = read(capture)
+        if full and ("research_delivery" in baseline or "research_delivery" in plan["review"]):
+            require("research_delivery" in baseline and plan["review"].get("research_delivery") == baseline["research_delivery"],
+                    "The registered intervention results or research delivery contract changed; start a new research round")
         _check_scope(root, plan, baseline, report, skill)
         full_current = full and plan["review_contract"] == CONTRACT
         plan_gaps = []
@@ -1948,6 +1954,18 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         axes = completion.get("axes")
         require(isinstance(axes, dict) and set(axes) == set(AXES), "Report all five completion axes separately")
         report["axes"] = {name: dict(value) for name, value in axes.items()}
+        delivering = axes["delivery"].get("status") == "complete" or decision.get("action") == "complete"
+        if full and checkpoint == "delivery":
+            if "research_delivery" in plan["review"] and delivering:
+                from research_delivery import check as check_research_delivery
+                quality = check_research_delivery(root, plan, analysis)
+                report["checks"]["research_delivery"] = quality
+                report["issues"].extend(quality["issues"])
+            elif "research_delivery" in plan["review"]:
+                report["checks"]["research_delivery"] = {"status": "awaiting_final_delivery"}
+            else:
+                report["checks"]["research_delivery"] = {"status": "previous_protocol"}
+                report["warnings"].append("按原计划评价。本次未核实新版的干预归因、逐项来源和完整阅读版重建。")
         science = _scientific_review(root, plan, analysis, checkpoint)
         report["checks"]["scientific"] = science
         if science["status"] == "failed":
@@ -1997,7 +2015,6 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         if axes["delivery"].get("status") == "complete":
             try: report["checks"]["delivery"] = _delivery(root, completion.get("delivery"), plan, analysis, axes)
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"delivery: {error}")
-        delivering = axes["delivery"].get("status") == "complete" or completion.get("decision", {}).get("action") == "complete"
         additional_pending = list(plan_gaps)
         if empirical["status"] in {"not_satisfied", "not_evaluated"}:
             calibration_axis = report["axes"]["calibration"]

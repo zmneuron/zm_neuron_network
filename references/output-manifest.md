@@ -15,7 +15,7 @@
 | `report` | 已填写的结果报告路径。 |
 | `runs` | 非空数组，元素含唯一 `run_id` 与 `record` 路径；对应 JSON 运行记录包含相同 `run_id`，状态 `completed/partial/failed`。完整科学结果不能引用未完成运行冒充完成。 |
 | `datasets` | 数据条目数组，见下文。 |
-| `figures` | 图件条目数组，见下文；结果型模型交付至少有一张适用的正式图。 |
+| `figures` | 结果图条目数组。完整研究正文至少 6 幅实算结果图，常用 6–8 幅，模型示意图另计；局部分析按委托范围。 |
 | `construction_steps` | 按实际构建顺序排列的非空步骤数组，字段见下文。与构建方法和模块索引使用相同的步骤标识，已有结果直接引用。 |
 | `results` | 本轮结果条目数组，每项包含唯一 `id`、非空 `question`、布尔 `required`、`status`、`data_ids`、`figure_ids`；未完成或不适用时写 `reason`。至少有一项必需结果。 |
 
@@ -69,3 +69,42 @@ CSV 必须完整声明列，自动检查列名、行宽和数值有限性。`key
 `design_ref` 指向[文献图阅读与本模型面板对应](literature-figures.md)的实际记录，可带 `#` 章节定位。没有合适参考图时记录自主设计理由，不能编造引用。工具只验证该文件存在且非空，不判断是否实际看过原图、设计是否适用或图是否准确，仍需人工核对。
 
 程序只检查引用与非空文件，不执行绘图代码，也不推断像素是否与数据一致。打开主要图核对实际显示并从保存数据复算，是独立的必要步骤。非 CSV 数据的 shape、单位、时间映射和二进制可读性需用项目读取器核对。已经有其他格式时可在保持原始数据的同时导出兼容记录，或完成等价检查并说明未运行本工具，不能伪称自动检查已通过。
+
+## 从清洁目录重建读者实际打开的报告
+
+完整新研究的正文至少展示 6 幅有独立科学问题、能定位数据与绘图代码的结果图，通常安排 6–8 幅，复杂研究可增加。模型示意另计。同一幅图的多个面板或导出格式计为一幅。基线、病理、干预、参照与候选、个体差异、机制对照、稳健性和实测比较可按原研究问题组合。重要阴性结果可以独立成图。材料不足时交代已展示哪些结果及缺失原因。
+
+沿用分析记录已登记的图 ID、文件和数据。把读者打开的 Markdown、HTML、主表和主图填入阅读版检查配置。完整字段示意如下。数组中的省略项需要按实际内容补充。`inputs` 逐文件列出重建用的原始数据、配置、代码及包含文字的模板。最终阅读文件、主表、结果 PNG、坐标范围文件和重建记录另列在对应字段。清洁目录只复制声明的输入，重新运行项目出图、排版和导出的可信入口。
+
+```json
+{
+  "model_version": "v1.2.0",
+  "markdown": "docs/results.md",
+  "html": "docs/results.html",
+  "inputs": ["analysis/render.py", "analysis/results_template.md", "results/observations.csv", "model/config.json"],
+  "tables": ["analysis/output/main.csv"],
+  "figures": [
+    {"id": "F1", "path": "analysis/output/F1_model.png", "role": "overview"},
+    {"id": "F4", "path": "analysis/output/F4_search.png", "role": "result",
+     "axes": [{"table": "results/observations.csv", "x": "ei", "y": "gamma", "limits": "analysis/output/F4_axes.json"}]}
+  ],
+  "numbers": [
+    {"table": "analysis/output/main.csv", "where": {"condition": "active"}, "column": "gamma",
+     "decimals": 3, "label": "固定候选的 gamma/B"}
+  ],
+  "receipt": "analysis/output/reader_build.json"
+}
+```
+
+含参数搜索散点的图，在绘图代码中记录最终 `ax.get_xlim()` 和 `ax.get_ylim()`，以 `xlim`、`ylim` 保存；`savefig` 后计算实际 PNG 的 SHA-256，填入同一 JSON 的 `figure_sha256`。每个展示全部候选的坐标轴逐点核对横纵范围。科学上需要局部放大时保留全部候选的总览，再另加放大面板。主要数字用选择条件在表内定位唯一一行，以约定小数位检查读者看到的数值。例如正文或一行表格同时显示“固定候选的 gamma/B ＝ 1.048”。表格需有列名和实际记录。文中 Markdown 的一级标题、HTML 的页面标题注明当前模型版本。
+
+在本人已审核、使用工程相对路径的构建命令上运行下列入口；`--` 后的命令从空输出目录执行。给出的第一个参数为技能内检查脚本的位置。配置既可独立保存，也可由现行交付入口引用；命令行可直接读取含 `completion_review.reader_report` 对象的分析 JSON。数值检验和 PNG 解码使用本地 Python，读取图像时需要 Pillow。
+
+```text
+python <skill>/scripts/reader_report.py build --project <工程> --spec <阅读版配置.json> -- python analysis/render.py
+python <skill>/scripts/reader_report.py check --project <工程> --spec <阅读版配置.json>
+```
+
+`build` 在临时目录运行显式提供的命令，将日期、时间戳等易变元素固定在已登记输入中，有助于文件的确定性重建。构建命令负责生成所有最终文件，包括 HTML 用到的本地图像副本。`check` 只读取证据，比较当前输入、输出与那次重建的记录，并逐图解码。两份阅读版均须实际嵌入登记的 PNG，HTML 可内嵌图像或使用可随目录复制的相对地址。相同像素的重复导出只计一次。推荐的 Markdown 语法为 `![图注](相对路径.png)`。读者应能在离线打开的最终文件中看到坐标轴、单位、图例和所有关键条件。
+
+分别报告两项结论。`numeric_reproduction` 对照从原始输入重建的主表与交付表，按 CSV 的表头、行、字段内容核对。`reader_rebuild` 另外检查命令成功、Markdown、HTML 和 PNG 的重建一致性、图像在两个目录中能否解析、数字与指定单元格是否对应、已登记轴界内的候选覆盖，以及实际结果图数。主表成功而排版或图像失败时分别给出状态。程序比对并解码文件；最终仍需打开实际渲染的页面检查文字遮挡、图例可读性和图意是否重复。[检查入口](../scripts/reader_report.py) · [可运行的完整与失败示例](../evals/test_reader_report.py)

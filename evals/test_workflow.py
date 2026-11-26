@@ -197,7 +197,8 @@ def main():
                                            ModelFigureCoverageTests, ExecutionContractChecks))
     final_model_suites = ("test_final_model", "test_round_followup", "test_optimization_round_case",
                          "test_study_design", "test_figure_reading", "test_empirical_calibration",
-                         "test_experiment_inputs", "test_recovery_fraction")
+                         "test_experiment_inputs", "test_recovery_fraction", "test_intervention_contrasts",
+                         "test_claim_sources", "test_reader_report", "test_research_delivery", "test_delivery_entry")
     for name in final_model_suites:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)

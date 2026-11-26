@@ -13,6 +13,18 @@
   "results": [],
   "review_contract": "zm-neuron-review/2",
   "completion_review": {
+    "claim_sources": [],
+    "intervention_contrasts": {"claims": []},
+    "reader_report": {
+      "model_version": "",
+      "markdown": "docs/results.md",
+      "html": "docs/results.html",
+      "inputs": [],
+      "tables": [],
+      "numbers": [],
+      "figures": [],
+      "receipt": "analysis/output/reader_build.json"
+    },
     "axes": {
       "execution": {
         "status": "incomplete",
