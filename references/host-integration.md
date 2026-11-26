@@ -17,8 +17,8 @@
 
 | 触发方式 | 技能做什么 |
 |---|---|
-| 宿主中调用 `$zm_neuron_network`，或按 [agents/openai.yaml](../agents/openai.yaml) 的默认提示发起 | 恢复原目标与实际状态，首轮询问三档；目标未定时先按[需求探索与方向选择](research-direction.md) 调研方向 |
-| 「继续优化模型」「继续调参数」等开放式改进 | 恢复当前工程与实际结果，补查资料后按新优化轮次分批讨论，通常总计 7–10 问 |
+| 宿主中调用 `$zm_neuron_network`，或按 [agents/openai.yaml](../agents/openai.yaml) 的默认提示发起 | 按本次委托恢复原目标与实际状态。需要研究方向时先[调研方向](research-direction.md)，方向明确后推荐档位。 |
+| 「继续优化模型」「继续调参数」等开放式改进 | 从当前结果研究新方向，按[新优化轮次](interview.md#完成模型后继续优化)讨论仍需选择的事项。 |
 | 明确点名复用、续接、检查或重分析某工程 | 读取该工程，只重查受影响部分 |
 | 只调研、检查、维护技能或泛泛讨论 | 按实际范围交付，不自动新建科研工程、不自动打开查看页、不启动仿真 |
 
@@ -30,7 +30,7 @@
 
 | 配置项 | 位置 | 说明 |
 |---|---|---|
-| 三档建模与问题安排 | [分阶段讨论](interview.md#构建讨论与额外的科学讨论)、[结束条件](interview.md#何时结束提问并进入实施) | 新建每阶段沿用原构建题数，另有 2–3 个科学讨论问题和 2–3 个决定选模、对照或图件的追问。探索通常共 6–9 问，规范共 9–12 问，精确构建逐批深入。每批通常 2–3 问，设计把握达到 95% 且关键取舍已定后进入相应动作。新优化整轮通常共 7–10 问。 |
+| 三档建模与问题安排 | [分阶段讨论](interview.md#构建讨论与额外的科学讨论)、[正式实施条件](interview.md#何时结束提问并进入实施) | 档位决定研究深度。AI 用资料和已有结果核对构建、预测与对照，按剩余取舍向研究者提问。用户侧取舍明确后继续已授权工作，正式构建另核对设计依据。 |
 | 当前任务与要求 | `docs/task_plan.json`，模板 [task_plan.json](../assets/task_plan.json) | 当前入口；原要求有不可覆盖的初始快照 |
 | 模块与参数映射 | `docs/model_spec.md`、`docs/research/parameter_mapping.csv`，模板 [module_contracts.json](../assets/module_contracts.json)、[parameter_mapping.csv](../assets/parameter_mapping.csv) | 模块七项定义与来源到采用值的对应 |
 | 分析与五轴完成判断 | `analysis.json`、模板 [analysis_manifest.json](../assets/analysis_manifest.json) | 运行、校准、独立评价、科学回答、交付分别判断 |

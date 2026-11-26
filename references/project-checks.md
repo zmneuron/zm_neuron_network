@@ -28,6 +28,8 @@
 
 ## 科学提问、选模和结果图怎样登记
 
+决定表中的 `prompt` 写需要解决的设计问题。材料、文献或已记录的委托能回答时，执行者直接填写答案与出处。只有答案依赖研究者尚未作出的取舍时才发问。
+
 完整交付由执行者填写 `review.study_design`。`tier` 取 `exploratory`、`standard` 或 `precise`。`decisions` 每行保存 `id, question_id, topic, prompt, answer, source_ref, critical`，关联已登记的主问题，`source_ref` 指向项目内的资料或决策记录。科学问题、选模、对照、主读数四个主题分别用 `scientific_question, model, control, readout`。其他实际决定可自定主题，影响核心结果的标 `critical: true`。尚待回答时留空答案或出处，保留在分母中。不同阶段可另填 `stage`；分阶段分别达到 95%，也可直接查看每阶段的分子和分母。论文 DOI 和用户回答记入所引的项目文件；程序核对文件可打开，执行者核对其内容确实支持该决定。运行 `python scripts/check_project.py --project <工程> --phase plan`，查看 `checks.study_design` 中的实际分子、分母及尚待确定的事项。正式运行前保存本轮设计。已登记的非关键待定项可补入答案与出处。研究问题、采用模型或对照有实质修改时，按新一轮保留原始记录。[提问及 95% 的定义](interview.md#何时结束提问并进入实施)
 
 材料选模时将 `review.study_design.entry` 设为 `materials`。在同一对象下填写 `material_intake`，用 `kinds` 列出实际材料（`protocol` 方案、`manuscript` 草稿或相近论文、`observations` 逐对象数据、`summary` 汇总），`inventory_ref` 指向项目内的材料说明，`selected_by` 填 `user` 或 `delegated`，`selection_ref` 指向选择或委托的记录；可共用同一方法文件。在原决定表补充适用的材料状态 `material_state`、研究范围 `scope` 和资源 `resources`，这三类取舍均需解决。单纯调研或前瞻方案仍可按原限定交付。常规新建使用模板中的 `question`，原计划缺少入口字段时沿用原约定。

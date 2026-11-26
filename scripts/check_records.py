@@ -202,7 +202,7 @@ def check_captured_design(plan, saved, full_model):
     if not full_model and saved.get("study_design_status") != "ready":
         return
     original = saved.get("study_design")
-    message = "已登记的科学选模、比较或问题发生变化，正式运行前请完成本轮科学提问并保存独立记录"
+    message = "已登记的科学选模、比较或科学提问与原设计不符，请核实变更依据，并在正式运行前保存本轮设计记录"
     require(saved.get("study_design_status") == "ready" and isinstance(original, dict) and isinstance(current, dict), message)
     require({k: v for k, v in current.items() if k != "decisions"} ==
             {k: v for k, v in original.items() if k != "decisions"}, message)

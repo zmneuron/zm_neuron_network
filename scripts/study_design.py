@@ -65,7 +65,7 @@ def check_study_design(root, plan):
         require(review.get("delivery_profile", "full_model") == "full_model", "完整研究须按完整模型交付")
         design = review.get("study_design")
         require(isinstance(design, dict), "缺少科学提问与模型选择记录 review.study_design")
-        require(design.get("tier") in {"exploratory", "standard", "precise"}, "请登记已选的提问档位")
+        require(design.get("tier") in {"exploratory", "standard", "precise"}, "请登记本研究已采用的建模档位")
         material_led = design.get("entry") == "materials"
         core_topics = CORE_TOPICS | MATERIAL_TOPICS if material_led else CORE_TOPICS
         if material_led:
@@ -82,7 +82,7 @@ def check_study_design(root, plan):
         for row in rows:
             require(isinstance(row, dict), "设计决定必须包含问题和依据")
             identity, prompt, topic = (row.get(k) for k in ("id", "prompt", "topic"))
-            require(filled(identity) and identity not in ids and filled(prompt), "设计决定缺少编号、重复或缺少提问")
+            require(filled(identity) and identity not in ids and filled(prompt), "请给每项设计决定唯一编号，并写明要解决的问题")
             normalized = "".join(prompt.casefold().split())
             require(normalized not in prompts, f"同一决定被重复计数 {identity}")
             require(filled(topic) and row.get("question_id") in questions and type(row.get("critical")) is bool,
@@ -114,7 +114,7 @@ def check_study_design(root, plan):
             known, applicable = counts["resolved"], counts["applicable"]
             counts["coverage_percent"] = round(100 * known / applicable, 2)
             if 100 * known < 95 * applicable:
-                report["issues"].append(f"{stage}有依据的决定为 {known}/{applicable}，继续讨论尚未决定的事项")
+                report["issues"].append(f"{stage}有依据的决定为 {known}/{applicable}，请补查未决项的依据，仅就需要研究者选择的事项提问")
         if critical_open:
             report["issues"].append("尚未解决的关键决定 " + ", ".join(critical_open))
         if core_topics - topics:
