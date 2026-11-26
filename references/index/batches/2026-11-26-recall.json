@@ -1,0 +1,185 @@
+{
+  "date": "2026-11-26",
+  "initial_file_digest": "19119920b47bcec176561eeaaa771eace3ecf416299043944f57b7d06fab0fe8",
+  "initial_ranking": "初检候选表以各条目的自身标识计分，同一对象的引文、同名对象与题名提及均不算数。",
+  "recent_list_digest": "72b9f1ab343b54394aedc246d5c0b03b54948df05dbf8a9a8c3519ea92c1ebb0",
+  "recent_selection": "先按既往熟悉的题目，分别从小鼠视觉皮层微环路、人类全皮层动力学和海马可塑性选取一篇。选题时未查阅本轮检索式、首批命中清单或其他人的名单。随后才按已选标题核对题名、日期与 DOI。",
+  "recent": [
+    {
+      "title": "Systematic Integration of Structural and Functional Data into Multi-scale Models of Mouse Primary Visual Cortex",
+      "doi": "10.1016/j.neuron.2020.01.040",
+      "url": "https://doi.org/10.1016/j.neuron.2020.01.040",
+      "date": "2020-03-05",
+      "date_basis": "PubMed ArticleDate Electronic",
+      "date_source": "https://pubmed.ncbi.nlm.nih.gov/32142648/",
+      "topic": "小鼠视觉皮层微环路的多尺度网络",
+      "reason": "同一局部回路有多尺度模型，并用实验资料约束网络结构与视觉反应，适合检验检索是否覆盖实测约束的回路建模。",
+      "original_hit": false,
+      "supplement_hits": [
+        {
+          "query": "recent_v1",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "title": "Hierarchical Heterogeneity across Human Cortex Shapes Large-Scale Neural Dynamics",
+      "doi": "10.1016/j.neuron.2019.01.017",
+      "url": "https://doi.org/10.1016/j.neuron.2019.01.017",
+      "date": "2019-02-07",
+      "date_basis": "PubMed ArticleDate Electronic",
+      "date_source": "https://pubmed.ncbi.nlm.nih.gov/30744986/",
+      "topic": "人类全皮层结构与功能动力学",
+      "reason": "以皮层区域层级差异约束大尺度动力学，并与人类脑成像数据比较，适合覆盖不同于单元放电的模型与观测尺度。",
+      "original_hit": false,
+      "supplement_hits": [
+        {
+          "query": "recent_hierarchy",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "title": "Behavioral time scale synaptic plasticity underlies CA1 place fields",
+      "doi": "10.1126/science.aan3846",
+      "url": "https://doi.org/10.1126/science.aan3846",
+      "date": "2017-09-08",
+      "date_basis": "PubMed 与 Crossref 均标此正式发表日，未单列电子先发日。九月正式发表可确定处于纳入时段。",
+      "date_source": "https://pubmed.ncbi.nlm.nih.gov/28883072/",
+      "topic": "海马突触可塑性与空间位置编码",
+      "reason": "原始实验结合秒级学习规则及计算预测，可检验能否检出以实验现象命名且具有机制模型的论文。",
+      "original_hit": false,
+      "supplement_hits": [
+        {
+          "query": "recent_ca1",
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "cross_period_list_digest": "7808871539583365cad3e1f6a31b8b16369d4bb3306f5f34c4e12f8cc957d261",
+  "cross_period_selection": "审阅者先凭对研究的熟悉程度独立列出四项，再到出版社或数据库原页核对稳定标识。选取不同尺度和记录类型，包括三个独立研究和一份可直接按数据库标识确认的数据集。列单时未查看检索方的拟用检索词、脚本、结果或其他人的名单。样本为目的抽样，只评价这四个对象的可发现性。",
+  "cross_period": [
+    {
+      "kind": "paper",
+      "stable_id": "10.1113/jphysiol.1952.sp004764",
+      "title": "A quantitative description of membrane current and its application to conduction and excitation in nerve",
+      "eligible_in_original_window": false,
+      "original_hits": [],
+      "supplement_hits": [
+        {
+          "query": "membrane_history",
+          "rank": 1,
+          "id": "10.1113/jphysiol.1952.sp004764"
+        }
+      ],
+      "interpretation": "初检论文时间仅覆盖 2016-11-26 至 2026-11-26，而原论文发表于 1952 年。",
+      "source": "https://physoc.onlinelibrary.wiley.com/doi/10.1113/jphysiol.1952.sp004764"
+    },
+    {
+      "kind": "paper",
+      "stable_id": "10.1038/nn1352",
+      "title": "Similar network activity from disparate circuit parameters",
+      "eligible_in_original_window": false,
+      "original_hits": [],
+      "supplement_hits": [
+        {
+          "query": "pyloric_history_page_two",
+          "rank": 26,
+          "id": "10.1038/nn1352"
+        },
+        {
+          "query": "pyloric_circuit_variation",
+          "rank": 13,
+          "id": "10.1038/nn1352"
+        }
+      ],
+      "interpretation": "初检论文时间仅覆盖 2016-11-26 至 2026-11-26，而原论文发表于 2004 年。 补检相同检索式前 25 个结果未包含该文，翻到第 26 位找到；另外的参数变异主题式也能找回。",
+      "source": "https://www.nature.com/articles/nn1352"
+    },
+    {
+      "kind": "paper",
+      "stable_id": "10.1038/nature11129",
+      "title": "Neural population dynamics during reaching",
+      "eligible_in_original_window": false,
+      "original_hits": [],
+      "supplement_hits": [
+        {
+          "query": "reaching_history",
+          "rank": 1,
+          "id": "10.1038/nature11129"
+        }
+      ],
+      "interpretation": "初检论文时间仅覆盖 2016-11-26 至 2026-11-26，而原论文发表于 2012 年。 初检返回了以同一研究命名、带独立编号的 DANDI 数据集，实际论文 DOI 未出现在候选编号中。",
+      "source": "https://www.nature.com/articles/nature11129"
+    },
+    {
+      "kind": "dataset",
+      "stable_id": "CRCNS:hc-3",
+      "title": "Multiple single unit recordings from different rat hippocampal and entorhinal regions while the animals were performing multiple behavioral tasks",
+      "eligible_in_original_window": true,
+      "original_hits": [],
+      "supplement_hits": [
+        {
+          "query": "data_repository_terms",
+          "rank": 7,
+          "id": "10.6080/k09g5jrz"
+        }
+      ],
+      "interpretation": "资源不设登记年份。原数据库查询包括 DANDI、以视网膜电生理为关键词的 DataCite，以及未返回候选的 ModelDB 请求；未检索 CRCNS，也没有查询海马与内嗅皮层的数据题名。",
+      "source": "https://crcns.org/data-sets/hc/hc-3"
+    }
+  ],
+  "cross_period_scores": {
+    "all_four": {
+      "initial": {
+        "found": 0,
+        "total": 4
+      },
+      "supplement_found_among_original_misses": {
+        "found": 4,
+        "total": 4
+      },
+      "combined": {
+        "found": 4,
+        "total": 4
+      }
+    },
+    "by_kind": {
+      "paper": {
+        "initial": [
+          0,
+          3
+        ],
+        "supplement": [
+          3,
+          3
+        ]
+      },
+      "dataset": {
+        "initial": [
+          0,
+          1
+        ],
+        "supplement": [
+          1,
+          1
+        ]
+      }
+    },
+    "restricted_to_initial_scope": {
+      "papers": {
+        "eligible": 0,
+        "hits": 0,
+        "rate": null,
+        "reason": "三篇均早于十年范围，不能估计近十年论文检出率。"
+      },
+      "datasets": {
+        "eligible": 1,
+        "hits": 0,
+        "rate": 0.0
+      }
+    }
+  },
+  "interpretation": "这四项为事前目的抽样，可检验历史作品的补溯、资源本体与同名论文识别、数据库主题覆盖及翻页策略。单项资源遗漏及零项合资格论文都不能外推为整库覆盖率。补检已知缺失主题，属于针对性修正；不能视作第二次盲测。"
+}

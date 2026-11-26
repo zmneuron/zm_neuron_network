@@ -1,0 +1,172 @@
+id	dimension	zh	en	aliases
+ion_channel	scale	离子通道与膜过程	ion channel and membrane	膜动力学;membrane dynamics
+dendrite_axon	scale	树突与轴突	dendrite and axon	电缆;dendritic integration;axon propagation
+single_cell	scale	单细胞	single cell	单神经元;单个细胞;single neuron;single-cell
+synapse	scale	突触	synapse	synaptic;synapses
+glia_neuron	scale	胶质与神经元	glia–neuron interaction	星形胶质细胞;astrocyte
+microcircuit	scale	局部微环路	local microcircuit	微环路;microcircuitry;local circuit
+population	scale	神经群体	neuronal population	群体活动;neural population
+interregional	scale	脑区间网络	interregional network	长程网络;interareal;inter-areal
+whole_brain	scale	全脑模型	whole brain	全脑网络;whole-brain
+biophysical	method	生物物理模型	biophysical model	电导型;conductance-based
+hh	method	霍奇金–赫胥黎模型	Hodgkin-Huxley	HH;Hodgkin–Huxley
+multicompartment	method	多区室模型	multicompartment model	多室模型;cable model;compartmental model
+point_neuron	method	点神经元	point neuron	LIF;GLIF;AdEx;integrate-and-fire
+spiking_network	method	脉冲网络	spiking network	SNN;spiking neural network
+neural_mass	method	神经群体模型	neural mass	神经质量模型;神经团模型;neural mass model
+neural_field	method	神经场	neural field	neural field model
+dynamical_system	method	动力系统	dynamical system	mean field;mean-field;分岔
+probabilistic	method	概率与统计生成模型	probabilistic generative model	统计生成模型;point process;GLM
+encoding	method	编码模型	neural encoding	encoding model
+decoding	method	解码模型	neural decoding	decoder
+data_driven	method	数据驱动建模	data-driven modeling	系统辨识;system identification
+hybrid	method	混合建模	hybrid model	混合模型
+numerical	method	数值方法	numerical method	数值算法;solver
+observation_model	method	观测信号生成	observation model	前向模型;forward model
+cortex	anatomy	大脑皮层	cerebral cortex	大脑皮质;cortical;neocortex;皮层
+hippocampus	anatomy	海马	hippocampus	海马体;hippocampal;CA1;CA3
+thalamus	anatomy	丘脑	thalamus	thalamic
+basal_ganglia	anatomy	基底节	basal ganglia	基底神经节;basal nuclei
+cerebellum	anatomy	小脑	cerebellum	cerebellar
+brainstem	anatomy	脑干	brainstem	brain stem
+spinal_cord	anatomy	脊髓	spinal cord	spinal
+retina	anatomy	视网膜	retina	retinal
+cochlea	anatomy	耳蜗	cochlea	cochlear
+peripheral	anatomy	周围神经系统	peripheral nervous system	外周神经;PNS
+autonomic	anatomy	自主神经系统	autonomic nervous system	自主神经;植物神经;ANS
+neuromuscular	anatomy	神经肌肉系统	neuromuscular system	神经肌肉接头;NMJ;neuromuscular junction
+whole_cns	anatomy	全中枢神经系统	central nervous system	全脑范围;entire brain
+human	species	人类	human	Homo sapiens;人脑
+mouse	species	小鼠	mouse	Mus musculus;mice
+rat	species	大鼠	rat	Rattus norvegicus;rats
+macaque	species	猕猴	macaque	Macaca mulatta;Macaca fascicularis
+cat	species	猫	cat	Felis catus
+ferret	species	雪貂	ferret	Mustela putorius furo
+fish	species	鱼类	fish	鱼纲
+zebrafish	species	斑马鱼	zebrafish	Danio rerio
+bird	species	鸟类	bird	avian;鸣禽;songbird
+insect	species	昆虫	insect	insects
+drosophila	species	果蝇	fruit fly	Drosophila;Drosophila melanogaster
+nematode	species	线虫	nematode	Caenorhabditis elegans;C. elegans;秀丽隐杆线虫
+invertebrate	species	其他无脊椎类	other invertebrate	甲壳类;crustacean
+awake	state	清醒	awake	wakefulness;waking;觉醒
+anesthesia	state	麻醉	anesthesia	anaesthesia;anesthetized;anaesthetised
+sedation	state	镇静	sedation	sedated
+sleep	state	睡眠	sleep	NREM;REM
+resting	state	静息	resting	resting state;resting-state
+task	state	任务态	task-engaged	任务状态;task state
+disease	state	疾病扰动	disease perturbation	病理;pathological
+development	state	发育	development	developmental
+aging	state	衰老	aging	ageing
+spontaneous	state	自发活动	spontaneous activity	自发放电;spontaneous firing
+excitability	topic	兴奋性	excitability	intrinsic excitability
+adaptation	topic	放电适应	spike-frequency adaptation	发放适应;放电频率适应;spike frequency adaptation;firing adaptation;SFA
+transmission	topic	突触传递	synaptic transmission	递质传递
+plasticity	topic	突触可塑性	synaptic plasticity	STDP;突触时序可塑性;short-term plasticity
+rhythm	topic	网络节律	oscillation	脑节律;节律;振荡;oscillations;rhythms
+synchrony	topic	同步	synchrony	synchronization;同步化
+sensory	topic	感觉编码	sensory coding	感觉处理
+motor	topic	运动控制	motor control	运动调控
+learning_memory	topic	学习记忆	learning and memory	记忆;学习
+pharmacology	topic	药理作用	pharmacology	药物作用
+neuromodulation	topic	神经调控	neuromodulation	neurostimulation
+bci	topic	脑机接口	brain-computer interface	BCI;脑-机接口
+closed_loop	topic	闭环控制	closed loop	closed-loop;反馈控制
+connectivity	topic	连接与拓扑	connectivity	神经连接;连接概率
+reproducibility	topic	复现与互操作	reproducibility	数据标准;interoperability
+patch_clamp	recording	膜片钳	patch clamp	patch-clamp;whole-cell patch clamp;whole cell
+intracellular	recording	细胞内记录	intracellular recording	细胞内电生理;intracellular
+extracellular_single	recording	胞外单单位	extracellular single-unit recording	single-unit;单单位
+extracellular_multi	recording	胞外多单位	multiunit recording	MUA;multi-unit
+mea	recording	多电极阵列	multielectrode array	MEA;微电极阵列;multi-electrode array
+lfp	recording	局部场电位记录	local field potential recording	LFP;场电位
+ecog	recording	皮层电图	electrocorticography	ECoG;electrocorticogram
+ieeg	recording	颅内脑电	intracranial EEG	iEEG;sEEG;stereo-EEG
+eeg	recording	头皮脑电	scalp electroencephalography	EEG;头皮EEG;脑电图
+voltage_clamp	recording	电压钳	voltage clamp	voltage-clamp
+current_clamp	recording	电流钳	current clamp	current-clamp
+paired_recording	recording	配对记录	paired recording	dual recording;双细胞记录
+membrane_voltage	signal	膜电位	membrane potential	Vm;膜电压
+ionic_current	signal	离子电流	ionic current	膜离子电流
+synaptic_current	signal	突触电流	synaptic current	EPSC;IPSC
+ap_waveform	signal	动作电位波形	action potential waveform	AP waveform;spike shape
+spike_rate	signal	发放率	firing rate	放电率;脉冲频率;spike rate
+isi	signal	放电间隔	interspike interval	ISI;峰间间隔;inter-spike interval
+fi_curve	signal	刺激–频率曲线	frequency-current curve	F-I;f–I;f-I curve;频率电流曲线
+power_spectrum	signal	功率谱	power spectrum	PSD;谱峰;功率谱密度;spectral power
+phase_coupling	signal	相位耦合	phase coupling	相位同步;phase locking;相位锁定
+evoked	signal	诱发反应	evoked response	ERP;诱发电位
+spike_times	signal	尖峰时间	spike times	spike train;脉冲序列
+connection_probability	signal	连接概率	connection probability	接通率
+calcium	related	钙成像	calcium imaging	荧光;ΔF/F
+magnetic	related	磁场或脑磁	magnetoencephalography	MEG;脑磁图
+bold	related	血氧信号	blood oxygenation level dependent	BOLD;fMRI;功能磁共振
+behavior	related	行为观测	behavior	behaviour;行为记录
+morphology	related	神经元形态	neuronal morphology	形态重建;reconstruction
+connectome	related	连接组	connectome	connectomics;连接组学
+in_vivo	preparation	在体	in vivo	活体记录
+in_vitro	preparation	离体	in vitro	体外;急性切片;acute slice
+ex_vivo	preparation	离体组织	ex vivo	ex-vivo
+step_current	protocol	阶跃电流	current step	step current;方波电流;long square
+propofol	protocol	丙泊酚	propofol	异丙酚
+isoflurane	protocol	异氟烷	isoflurane	异氟醚
+sensory_stimulus	protocol	感觉刺激	sensory stimulation	视觉刺激;听觉刺激
+ablation	protocol	消融实验	ablation	lesion
+auditory_task	protocol	听觉任务	auditory task	oddball;听觉偏差
+cell_types	cell	细胞类型分类	cell typing	cell classification
+chemical_synapse	topic	化学突触	chemical synapse	chemical synapses
+clinical	preparation	临床记录	clinical recording	perioperative
+continuous_recording	protocol	连续记录	continuous recording	continuous acquisition
+covariance	signal	协方差	covariance	协方差结构
+coverage	metadata	收录覆盖范围	index coverage	检索覆盖
+crcns	metadata	CRCNS 数据库	CRCNS data sharing	CRCNS
+dandi	metadata	DANDI 档案	DANDI Archive	DANDI
+data_access	metadata	资源访问条件	data access	access conditions
+dataset_descriptor	metadata	数据集描述	dataset descriptor	data descriptor
+dataset_scope	metadata	归档样本范围	dataset scope	archive scope
+effective_model	method	有效动力学模型	effective dynamical model	phenomenological neuron model;唯象模型
+electron_microscopy	related	电子显微成像	electron microscopy	EM;电镜
+electrophysiology	recording	电生理记录	electrophysiological recording	electrophysiology
+entorhinal_cortex	anatomy	内嗅皮层	entorhinal cortex	内嗅皮质
+extracellular	recording	胞外记录	extracellular recording	细胞外记录
+fast_spiking	cell	快发放细胞	fast-spiking neuron	fast spiking;FS neuron
+figure_data	metadata	图表源数据	figure source data	source data
+fluctuating_current	protocol	波动电流	fluctuating current	noisy current;噪声电流
+functional_connectivity	related	功能连接	functional connectivity	功能连通性
+habenula	anatomy	缰核	habenula	habenular
+historical_anchor	metadata	早期关联来源	historical source	classic source
+image_volume	related	体积成像	image volume	volume imaging
+inferred_connectivity	method	连接推断	connectivity inference	inferred connectivity
+jpca	method	旋转群体动力学分析	jPCA	joint principal component analysis of rotational dynamics
+ketamine	protocol	氯胺酮	ketamine	ketamin
+lfpy	method	LFPy 场信号计算	LFPy	LFPy 2.0
+licensing	metadata	资源许可	resource license	licence
+loss_of_responsiveness	state	失去反应	loss of responsiveness	unresponsiveness;LOC
+matched_control	protocol	匹配对照	matched control	time-matched control
+medetomidine	protocol	美托咪定	medetomidine	Domitor
+motor_cortex	anatomy	运动皮层	motor cortex	运动皮质;M1
+null_model	method	零模型	null model	null hypothesis model
+nwb	metadata	神经生理数据格式	NWB	Neurodata Without Borders
+partial_archive	metadata	部分样本归档	partial archive	sample archive
+perturbation	protocol	实验扰动	experimental perturbation	perturbation
+preoptic_area	anatomy	视前区	preoptic area	POA
+processed	metadata	处理后资料	processed material	processed data
+pyramidal	cell	锥体细胞	pyramidal neuron	pyramidal cell
+reaching	protocol	伸手到达任务	reaching task	arm reaching
+release	metadata	资源发行版	resource release	versioned release
+rotation	signal	群体轨迹旋转	population trajectory rotation	rotational dynamics
+sensorimotor	topic	感觉运动整合	sensorimotor integration	sensorimotor
+sensory_task	protocol	感觉任务	sensory task	sensory paradigm
+simulation	metadata	模拟结果	computational simulation	in silico
+software	metadata	软件实现	software implementation	implementation
+structural_data	related	结构测量	structural measurement	structural data
+surrogate_data	method	替代数据分析	surrogate data analysis	surrogate data
+temperature	protocol	温度刺激或控制	temperature manipulation	thermal stimulus
+threshold	signal	动作电位阈值	spike threshold	firing threshold
+units	metadata	计量单位	measurement units	physical units
+xenon	protocol	氙气	xenon	Xe
+zebra_finch	species	斑胸草雀	zebra finch	Taeniopygia guttata;斑马雀
+layer3	layer	皮层第三层	cortical layer 3	L3;layer III
+layer4	layer	皮层第四层	cortical layer 4	L4;layer IV
+adult	stage	成年	adult	成体;adulthood
+larval	stage	幼体	larval stage	larva;larvae

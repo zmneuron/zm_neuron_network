@@ -4,6 +4,8 @@
 
 在自己的研究工程中使用。先确定要解释的现象和关键对照，再运行模型。报告用全貌图说明模型怎样建成，用各条件的结果图回答科学问题。
 
+从具体科学问题寻找论文、原始图表、实验记录和模型代码，可进入[共享文献与数据链接索引](references/index/README.md)。索引可按脑区、模型、记录方式或主题浏览，并说明样本和数据复用情况。[两个实际试查](references/index/examples.md) · [本轮检索范围](references/index/batches/README.md)
+
 ![从明确问题、设计比较，到构建模型和解释结果](assets/workflow/overview.png)
 
 **一个例子。** 十个模拟神经元的平均放电率经校准从 37.5 Hz 升至 49.75 Hz。固定参数后，一个细胞的膜电位为 −55.657 mV，落在预留区间内。两项参照均为合成数据。[查看结果与复算方法](evals/optimization-round-example.md)
