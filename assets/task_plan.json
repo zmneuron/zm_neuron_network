@@ -33,6 +33,8 @@
     "study_design": {
       "entry": "question",
       "readout_registration": "per_question",
+      "module_output_contract": "run_csv/1",
+      "prediction_precision": "declare_scope",
       "tier": "",
       "decisions": [],
       "model_choices": [],

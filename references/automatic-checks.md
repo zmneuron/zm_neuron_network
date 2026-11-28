@@ -85,3 +85,19 @@ python <skill_dir>/scripts/check_model.py --project <project> --config results/<
 可在 `derivations` 保存关键算术推导：`parameter_id,operation,operands,result_unit`。每个操作数包含 `value,unit,source_ref`。支持 `product`、`sum` 和两个操作数的 `ratio`，重算结果再与对应配置比较；例如数量来自密度与体积。工具复算算术，不自动证明复合单位或来源适用性。生理模型相关的非线性换算仍由项目的实际函数和结构化检查核对，通用工具不执行公式字符串或任意来源代码。
 
 联合任务中提前登记 `runtime_parameter_ids`，确保关键实例参数不能在交付时漏掉。当前适配从实际使用的后端开始：记录它的对象读取接口、后端量纲、标识、读取时机及所需规模，不预先建立覆盖所有后端的框架。维护时用真实构造并积分的合成 LIF 对象验证这条路径；这不代表已验证 NEURON/NEST 等所有后端或真实生理参数。
+
+## 从关键模块的运行输出复算
+
+新模板的完整模型使用 `review.study_design.module_output_contract = "run_csv/1"`。在运行前，从必需的校准、预测、机制和主要观测要求的 `module_ids` 找出会改变主要读数的计算模块。每个这样的模块至少选一项能检出具体错误的量，写入现有 `requirements[].acceptance.module_metrics`。多条主张共用模块时，读数只需登记一次。其他要求可按需登记。资料整理、报告排版和限定范围的审查沿用其适用方法。
+
+例如要检查被动膜的电流方向和单位，预先指定 200 MΩ、80 pF、约 −90 pA 阶跃下的晚窗电压。按 ΔV = RI 预期约 −18 mV。写入该模块所关联要求的一条记录如下。
+
+```json
+{"module_id":"passive","name":"late_voltage","unit":"mV","expected":-18,"atol":0.00001,
+ "source":{"run_ref":"results/grid/run.json","file":"windows.csv","column":"predicted_delta_mv",
+           "column_unit":"mV","where":{"R_Mohm":"200","C_pF":"80","sweep":"23","start_ms":"800"},"operation":"first"}}
+```
+
+也可登记有限的 `bounds` 区间。取数使用运行目录内的 CSV，支持唯一行、均值、中位数、求和、极值、行数、不同标识数与零值比例，对应 `first/mean/median/sum/min/max/count/distinct_count/zero_fraction`。`where` 使用表内实际文字。计数使用 `count` 等计数单位，零值比例用 `1`，有量纲的数值注明原列单位。多条件或对照运行必须能定位到预定运行或其条件行。原输出使用其他格式时，可由实际运行或关联的分析运行导出所需观测列，并保留原文件与生成代码。
+
+模块继续使用原 `result_refs` 和 `check_refs`。检查记录中保留同名指标、完整精度的 `actual` 及原判据。联合检查从该运行实际保存的输出复算，核对采用的模型、模块代码、数值和登记单位。CSV 本身没有物理单位时，依据导出器和方法核对原始量纲。`checks.elements.module_outputs` 分别给出通过的实得值（`observations`）、与原判据或自报值不符的实得值（`rejected`），以及缺少合格读数的项目（`missing`）。此项评价模块的实现。预测是否达到生理误差标准另据留出实测判断。旧计划按原约定列出尚未经此方法复算的项目。

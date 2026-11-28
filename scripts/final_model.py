@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 
 import calibration
+import precision
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
 from delivery_response import _same_config
@@ -172,12 +173,17 @@ def _selector(rule, *, raw=False):
     require(rule.keys() <= allowed, "取数定义包含未执行的字段 " + str(sorted(rule.keys() - allowed)))
 
 
-def _selectors(binding):
+def _selectors(binding, targets):
     ids = _ids(_need(binding.get("target_ids"), "target_ids"), "target_ids")
-    selectors = _mapping(binding.get("selectors"), "各目标的 selectors 取数定义")
+    selectors = _mapping(binding.get("selectors", {}), "各目标的 selectors 取数定义")
     require(selectors.keys() <= set(ids), "selectors 中包含未指定的目标")
     for key in ids:
-        _selector(_lookup(selectors, key, "selectors"))
+        target = _lookup(targets, key, "事前目标")
+        if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
+            if key in selectors:
+                require(_same_config(selectors[key], target.get("precision")), "selectors 与目标的 precision 取数定义不同")
+        else:
+            _selector(_lookup(selectors, key, "selectors"))
 
 
 def _statistical_rows(rule, result_unit):
@@ -340,7 +346,7 @@ class _Plan:
         ref = _text(binding.get("targets_ref"), "targets_ref")
         targets = _lookup(self.targets, ref, "review.criteria_refs 中的目标文件")
         ids = _ids(_need(binding.get("target_ids"), "target_ids"), "target_ids")
-        _selectors(binding)
+        _selectors(binding, targets)
         dataset_ids = _ids(_need(binding.get("dataset_ids"), "dataset_ids"), "dataset_ids")
         context = binding.get("context")
         roles = set()
@@ -373,7 +379,12 @@ class _Plan:
             for key in {"interval": ("bounds",), "direction": ("relation", "threshold")}.get(kind, ()):
                 _need(criterion.get(key), f"{identity}.criterion.{key}")
             calibration.validate_targets([target])
-            _statistical_rows(binding["selectors"][identity], target["unit"])
+            if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
+                precision.check_unit(context, target["precision"]["unit_id"])
+                if target["precision"]["operation"] == "paired_error":
+                    precision.reference_definition(target, {d["id"]: d for d in declared})
+            else:
+                _statistical_rows(binding["selectors"][identity], target["unit"])
             require(target["data_role"] in roles, "目标与指定数据用途不符")
             if self.empirical and target["required"] and target["data_role"] == "calibration":
                 if not calibration.has_empirical_target(self.root, target, declared):
@@ -401,6 +412,8 @@ class _Plan:
         wanted_role = {"fit": "calibration", "prediction": "evaluation", "reference": "reference"}.get(purpose)
         if wanted_role and wanted_role not in roles:
             raise Pending("待补指定用途的比较 " + wanted_role)
+        from stage_review import check_prediction_precision
+        check_prediction_precision(self.plan, acc, self.targets, self.datasets)
         kinds = set()
         for key in _ids(acc.get("scientific_check_ids", []), "scientific_check_ids"):
             check = _lookup(self.science, key, "review.scientific_checks")
@@ -468,6 +481,8 @@ def _check_plan(root, plan):
     report = _report()
     declared = _check(report, "事前计划", lambda: _Plan(root, plan))
     if declared is not None:
+        from check_records import module_output_rules
+        _check(report, "关键模块的运行读数", lambda: module_output_rules(plan))
         _check(report, "条件与种子", declared.check_variants)
         for identity, requirement in declared.required.items():
             row = dict(status="passed", issues=[], pending=[])
@@ -662,7 +677,8 @@ def preserved_formal_run(root, plan, ref, record):
                                              for k, r in required.items()), "原始正式模拟缺少逐项事前核对")
                     for requirement in required.values():
                         for comparison in requirement["acceptance"].get("comparisons", []):
-                            _selectors(comparison)
+                            frozen_targets = older["criteria"][comparison["targets_ref"]]
+                            _selectors(comparison, _rows(frozen_targets, "原始正式目标"))
                     found = True
             capture = older
     except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError, csv.Error, OverflowError):
@@ -1114,6 +1130,13 @@ class _Evidence:
         require(_where(source.get("where", {}), "measured.source.where") == where,
                 "测量选取的行与事前 where 不符 " + relative)
         allowed = {"csv_ref", "column", "operation", "where", "other_column", "raw_calculation"}
+        unit_columns = set()
+        if "expected_ids" in rule:
+            precision.check_source(rule, source, relative)
+            allowed.update(("unit_id", "expected_ids", "unit", "arm", "left", "right", "reference"))
+            unit_columns.add(rule["unit_id"])
+            if rule["operation"] == "paired_mean":
+                unit_columns.add(rule["arm"])
         if rule["operation"] == "recovery_fraction":
             validate_recovery(source)
             require(all(_same_config(rule[k], source[k]) for k in RECOVERY_FIELDS), "恢复比例的比较列、统计单位或算法与事前取数定义不符")
@@ -1132,7 +1155,7 @@ class _Evidence:
         if rule["operation"] == "recovery_fraction":
             units.update(dict.fromkeys(recovery_columns(rule), rule["column_unit"]))
         units.update(rule.get("where_units", {}))
-        columns = units.keys() | where.keys()
+        columns = units.keys() | where.keys() | unit_columns
         for dataset in datasets:
             fields = _mapping(dataset.get("fields"), relative + ".fields")
             for name in columns:
@@ -1142,7 +1165,12 @@ class _Evidence:
                     require(actual == units[name], f"{relative}#{name} 单位与事前取数定义不符")
                 elif actual not in {"1", "dimensionless", "unitless", "id", "label", "category", "text"}:
                     raise Pending(f"待补筛选列 {name} 的事前 where_units")
-        _check_table(self.root, relative, context, where, columns, row_key)
+        if rule["operation"] == "paired_mean":
+            for level in (rule["left"], rule["right"]):
+                arm = {rule["arm"]: level}
+                _check_table(self.root, relative, {**context, **arm}, {**where, **arm}, columns, row_key)
+        else:
+            _check_table(self.root, relative, context, where, columns, row_key)
 
     def raw_measurement(self, rule, source, owner, sim_ref, context):
         raw = source.get("raw_calculation")
@@ -1212,7 +1240,8 @@ class _Evidence:
         measurements = _mapping(payload.get("measurements", payload), "measurements")
         targets = list(self.spec.targets[ref].values())
         recomputed = calibration.score_targets(targets, measurements, candidate_id=raw["candidate_id"],
-            config=read(local(self.root, run["config_ref"])), data_role=role)
+            config=read(local(self.root, run["config_ref"])), data_role=role, project_root=self.root,
+            run_ref=run_ref, targets_ref=ref, dataset_ids=binding["dataset_ids"])
         possible = [recomputed]
         if empirical:
             before_manifest = calibration.apply_empirical_sources(self.root, targets, registered, recomputed)
@@ -1247,6 +1276,11 @@ class _Evidence:
             observation = _lookup(measurements, key, "实际测量")
             state = score["state"]
             if observation.get("status") != "observed" or state not in {"passed", "unmet"}:
+                if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
+                    row["outcomes"][label] = "pending"
+                    if score.get("estimate_interval"):
+                        lo, hi = score["estimate_interval"]
+                        raise Pending(f"{label} 的 95% 区间 [{lo:g}, {hi:g}] {target['unit']} 跨过事前判定边界")
                 raise Pending("缺少可判定的实际测量 " + label)
             _context(binding["context"], observation.get("context"), "模型测量 " + label)
             source = _mapping(observation.get("source"), "测量 source")
@@ -1256,13 +1290,19 @@ class _Evidence:
             require(len(owners) == 1, "测量来源不是本次模拟或分析的输出 " + relative)
             row["run_refs"].update(self.runs.produced(owners[0], relative))
             self.runs.use(self.runs.family(owners[0]), condition=binding.get("condition", acc["condition"]))
-            rule = binding["selectors"][key]
             context = dict(binding["context"], condition=binding.get("condition", acc["condition"]))
-            self.measurement_source(rule, source, owners[0], context, _statistical_rows(rule, self.spec.targets[ref][key]["unit"]))
-            self.raw_measurement(rule, source, owners[0], run_ref, context)
             actual = observation["value"]
-            raw_paths = {local(self.root, p) for p in self.runs.raw_outputs(run)} if "raw_calculation" in source else None
-            _claim(self.root, dict(source, value=actual, format=".15g", text=format(actual, ".15g"), unit=""), {path}, raw_paths)
+            if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
+                rule = target["precision"]
+                require(owners[0] == run_ref and relative in self.runs.raw_outputs(run),
+                        "独立单位区间须由同一采用模拟登记的原始逐单位观测计算")
+                self.measurement_source(rule, source, run_ref, context, [rule["unit_id"]])
+            else:
+                rule = binding["selectors"][key]
+                self.measurement_source(rule, source, owners[0], context, _statistical_rows(rule, target["unit"]))
+                self.raw_measurement(rule, source, owners[0], run_ref, context)
+                raw_paths = {local(self.root, p) for p in self.runs.raw_outputs(run)} if "raw_calculation" in source else None
+                _claim(self.root, dict(source, value=actual, format=".15g", text=format(actual, ".15g"), unit=""), {path}, raw_paths)
             row["outcomes"][label] = state
             if state == "unmet":
                 if role == "evaluation" and acc["purpose"] == "prediction" and self.negative(identity):

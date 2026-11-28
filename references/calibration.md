@@ -95,6 +95,28 @@ d_k(\theta)=\frac{\max\{L_k-\hat y_k(\theta),\,0,\,\hat y_k(\theta)-U_k\}}{s_k},
 
 真实静默时发放率可为 0；依赖尖峰的宽度、ISI 等此时是“无响应而不可定义”，不能凭空填 0。根据目标预先定义此状态是不满足还是本来允许，并使用相应比较器。实现缺记录与真实无响应不能混为一类。近边界不机械重跑所有候选；按方差、精度及影响判断的程度安排预定追加规则，说明区间是种子范围、置信区间还是其他量。
 
+### 逐独立单位的 95% 区间
+
+检验留出对象上的**平均预测偏差**时，先按原科学目标确定上下容许误差和单位，冻结模型、独立对象、比较条件、取数方法和实测来源。对每个对象计算预测减实测，再对差值求双侧 95% Student t 置信区间。区间完全落在容许范围内时该项通过，完全落在范围外时该项未达标，跨过边界时保留未定。一个对象仅保留点估计。全部差值相同或浮点精度使区间宽度为零时，本规则保留未定，结合测量分辨率和设计解释。确定性复现沿用事前规定的数值或容差。
+
+在原目标表登记 `uncertainty_rule: "unit_mean_ci95"`，用同一目标的 `criterion` 记录本题容许误差。`statistic` 填 `mean` 或与实际配对运算同名的 `paired_mean`、`paired_error`。下面是读数为 Hz、留出四只动物的 `precision` 示例。
+
+```json
+{
+  "operation": "paired_error",
+  "file": "predictions.csv", "column": "rate_Hz", "column_unit": "Hz",
+  "unit_id": "animal", "expected_ids": ["A01", "A02", "A03", "A04"],
+  "where": {"window": "rest"},
+  "reference": {"dataset_id": "heldout", "column": "observed_Hz", "column_unit": "Hz"}
+}
+```
+
+预测表来自指定正式模拟的原始输出。测量的 `source` 沿用 `csv_ref/column/operation/where`，`value` 填该指标的实际点估计。目标的 `source_ref` 指向留出数据的 `observations_ref` 对应的原始 CSV，直接登记原表时用数据集的 `source_ref`。留出登记包括 `kind=biological`、`source_class=measured_record`、`value_column`、可核对的观测单位以及 `observation_ids`。单位沿用 `context.unit`、`fields[观测列].unit` 或随数据冻结的 `measurement_ref`。程序按 `unit_column/unit_where` 读取实测值，按编号逐一配对。每个独立单位在一臂只允许一个值。重号、缺号、更换分层或将留出响应文件读入预测计算，均会阻止该结论。完整项目可省去该目标重复的 `selectors` 项，直接使用目标定义。
+
+同一选项也支持 `operation: "mean"` 和 `"paired_mean"`。前者读取模拟表里每个独立单位的一个数值，后者用 `arm/left/right` 登记模拟表内两臂，按编号求左减右。二者估计模拟单位均值或模拟条件差。生物预测偏差采用上述 `paired_error`。独立单位以事前比较的 `context.statistical_unit` 为准，可使用同名列或后加 `_id` 的列，其他列名在对应的 `context.unit_column` 登记。独立单位内重复的细胞、扫次和时点按事前方法汇总，保留原读数及其与汇总表的关系。具有动物内、中心间等层级依赖时，采用相应的分层分析。[神经科学中的伪重复](https://pmc.ncbi.nlm.nih.gov/articles/PMC2817684/)
+
+该区间估计一个事前指定的总体均值，自由度等于独立单位数减一。小样本时需有单位值或配对差近似正态的依据。独立性取决于实际采样设计。按预定样本量一次判定时，95% 描述同一采样方案下该方法的长期覆盖率。反复查看结果并择时停止、多项指标同时覆盖，以及比例、分位数或相关系数，均需适合各自设计的方法。平均有符号误差可能相消，逐对象精度应另定绝对误差或覆盖率等指标。模型整体正确的概率无法由一个均值区间推出。[NIST 均值区间](https://www.itl.nist.gov/div898/handbook/eda/section3/eda352.htm) · [NIST 配对观测](https://www.itl.nist.gov/div898/handbook/prc/section3/prc311.htm)
+
 ## 模型集合用于什么推断
 
 区分四个对象：**B0 原始模型；当前最佳候选（可能仍不合格）；校准相容集合；最终采用版本 B1 或采用集合。** 在同一代码与配置索引中表达，保存实际参数组合，不能逐列抽样或取平均后未经运行即作为新模型。候选很多时可预先规定覆盖/代表性规则与复核上限，保留完整搜索摘要；未经复核的相容实例与已正式评价实例分开。
@@ -109,7 +131,7 @@ d_k(\theta)=\frac{\max\{L_k-\hat y_k(\theta),\,0,\,\hat y_k(\theta)-U_k\}}{s_k},
 
 最终沿用[六项交付](result-delivery.md#最终科研文字怎样组织)：摘要、模型与方法图、主要公式、逐题结果之后，专门解释真实生物数据比较、验证与实际迭代，直接展示最终采用模型与真实数据的对比图；最后一句概括局限。合成参考只支持相应软件验证，不能填补真实数据验证项。按问题需要展示 `参考—B0—采用模型` 的逐项比较、轮次与成本、相容参数组合及未拟合条件预测分歧。区分数据误差、模拟波动和集合范围，正文保留未达标/未评价条件，结尾一句话概括最重要限制。拟合达标图不能替代机制或调控问题的图组。
 
-可选用标准库 [calibration.py](../scripts/calibration.py) 进行区间/方向逐项检查、冻结配置与接受规则、采用判断和累计调用预算。`score_targets` 的目标记录需 `id/metric/condition/unit/statistic/source_ref/evidence_type/data_role/required/scale/criterion`；观测键与目标 ID 对应，带相同定义、`status` 和实际 `value`。`criterion` 支持 `interval: bounds` 或 `direction: relation, threshold`；必需标准未知时设为 `null` 并填 `unavailable_reason`。其他分布/波形等目标实现并检查项目比较器，不强塞进此接口。
+[calibration.py](../scripts/calibration.py) 可逐项检查区间或方向，冻结配置与接受规则，判断采用条件，并记录累计调用次数。`score_targets` 的目标记录包含 `id/metric/condition/unit/statistic/source_ref/evidence_type/data_role/required/scale/criterion`。观测键对应目标 ID，并带相同定义、`status` 和实际 `value`。`criterion` 支持 `interval: bounds` 或 `direction: relation, threshold`，标准未知时用 `null` 并填 `unavailable_reason`。独立单位 95% 区间使用 SciPy 的 Student t 分位数，调用时传入 `project_root`、`run_ref`、`targets_ref` 和本次比较的 `dataset_ids`。结果行保留点估计、区间、单位、样本量、自由度和数据来源范围。其他分布和波形目标采用经检验的专门比较器。
 
 `freeze_candidate` 只接受校准通过且配置一致的记录；传入事先固定的评价目标指纹，`assess_adoption` 才能核对评价规则和模型身份。无独立评价默认不能采用为已验证模型；明确无需该项时可声明 `require_evaluation=False`，输出仍标记“仅校准”。`SimulationBudget` 在单一协调者提交前预留次数，保存 `state()` 并在续接恢复；它不是分布式调度器。这些函数不检查来源真实性、不抽取特征、不执行优化器，不替代实际运行与科学判断。
 

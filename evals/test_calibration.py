@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from calibration import (SimulationBudget, assess_adoption, fingerprint,
-                         freeze_candidate, score_targets, validate_targets)
+                         freeze_candidate, require_frozen_precision, score_targets, validate_targets)
 
 
 class CalibrationChecks(unittest.TestCase):
@@ -88,6 +88,35 @@ class CalibrationChecks(unittest.TestCase):
         self.assertEqual(self.score()["status"], "pending")
         self.obs["rate"]["estimate_interval"] = [11, 13]
         self.assertEqual(self.score()["status"], "passed")
+
+    def test_unit_interval_requires_identified_units_and_the_registered_run(self):
+        rule = dict(file="units.csv", operation="mean", column="rate", column_unit="Hz", unit_id="animal_id",
+                    expected_ids=["A", "B"], where={"phase": "formal"})
+        target = dict(self.targets[0], statistic="mean", uncertainty_rule="unit_mean_ci95", precision=rule)
+        for change in ({"expected_ids": ["A", "A"]}, {"operation": "median"}, {"file": "../other.csv"},
+                       {"where": {"rate": 10}}, {"column_unit": "kHz"}, {"expected_ids": []}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                validate_targets([dict(target, precision=dict(rule, **change))])
+        with self.assertRaisesRegex(ValueError, "statistic"):
+            validate_targets([dict(target, statistic="median")])
+        self.obs["rate"].update(statistic="mean", estimate_interval=[12, 12], interval_meaning="95%")
+        with self.assertRaisesRegex(ValueError, "run_ref"):
+            self.score(targets=[target])
+        for replacement in ([], self.targets, [dict(target, precision=dict(rule, where={}))]):
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "运行后改变"):
+                require_frozen_precision(replacement, [target], "calibration")
+
+    def test_interval_touching_strict_and_inclusive_boundaries(self):
+        self.targets[0].update(uncertainty_rule="contained_interval",
+                               criterion=dict(kind="direction", relation=">", threshold=10))
+        self.obs["rate"].update(estimate_interval=[10, 12], interval_meaning="observed range")
+        self.assertEqual(self.score()["status"], "pending")
+        self.targets[0]["criterion"]["relation"] = ">="
+        self.assertEqual(self.score()["status"], "passed")
+        self.targets[0]["criterion"]["relation"] = "<"
+        self.assertEqual(self.score()["status"], "infeasible")
+        self.targets[0]["criterion"]["relation"] = "<="
+        self.assertEqual(self.score()["status"], "pending")
 
     def test_strict_direction_rejects_boundary_despite_zero_distance(self):
         self.targets[0]["criterion"] = dict(kind="direction", relation=">", threshold=12)

@@ -348,3 +348,7 @@
 - [Structure in neural population recordings: an expected byproduct of simpler phenomena?](records.md#p_breadth_elsayed2017)　文献
 - [实测与替代数据的模型拟合差异，单尾检验 · Figure 6a；Online Methods, Motor cortex data](records.md#o_breadth_surrogate_rotation)　观测与模拟结果
 - [Mensi 等作者提交的 MATLAB 参数拟合和放电模型](records.md#r_cell_mensi_code)　资源
+
+## 均值置信区间 · confidence interval for the mean
+
+- [NIST/SEMATECH 第 1.3.5.2 节，均值的双侧置信区间](records.md#r_nist_mean_ci)　资源

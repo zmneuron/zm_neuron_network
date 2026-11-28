@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from check_records import verify_check
+from check_records import fingerprint, local, module_output_rules, read, verify_check
 
 
 FIELDS = {
@@ -93,7 +93,7 @@ class Review:
         return {p for v in values if (p := self.path(v, label, must_exist)) is not None}
 
 
-def check(project, coverage, modules_path, checklist, phase, source_checklist=None):
+def check(project, coverage, modules_path, checklist, phase, source_checklist=None, *, plan=None):
     review = Review(project)
     report = {
         "phase": phase, "passed": False, "errors": review.errors,
@@ -136,6 +136,26 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
         modules = registry.get("modules")
         if not isinstance(modules, list) or not modules:
             raise ValueError("modules: at least one active module is required")
+        if plan is None and (review.project / "docs/task_plan.json").is_file():
+            plan = read(review.project / "docs/task_plan.json")
+        plan = plan or {}
+        options = plan.get("review", {})
+        output_review = report["module_outputs"] = {"status": "not_checked", "observations": {}, "rejected": {}, "missing": []}
+        try:
+            rules = module_output_rules(plan)
+            metric_contract = (options.get("study_design") or {}).get("module_output_contract")
+            if (options.get("baseline_sha256") and isinstance(options.get("baseline_ref"), str)
+                    and (metric_contract or (review.project / options["baseline_ref"]).is_file())):
+                original = local(review.project, options["baseline_ref"])
+                frozen = (read(original).get("study_design") or {}).get("module_output_contract")
+                if frozen or metric_contract:
+                    review.require(fingerprint(original) == options["baseline_sha256"] and frozen == metric_contract,
+                                   "当前关键模块复算约定与原先冻结的设计不符")
+            output_review["status"] = "planned" if rules else "not_applicable" if metric_contract else "previous_protocol"
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            review.errors.append(str(error))
+            rules = None
+            output_review.update(status="incomplete", missing=[str(error)])
         seen_modules = set()
         implemented = phase in {"implemented", "delivery"}
         # Many checklist items share one run. Read and verify its check record
@@ -144,7 +164,19 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
 
         def checked_record(ref):
             if ref not in records:
-                records[ref] = verify_check(project, ref)
+                observations = {}
+                try:
+                    record = verify_check(project, ref, observed_module_metrics=observations)
+                except (OSError, ValueError, TypeError, KeyError, csv.Error, OverflowError) as error:
+                    review.errors.append(f"{ref}: {error}")
+                    for name, value in observations.items():
+                        if value["matched"] is False:
+                            detail = {k: value[k] for k in ("actual", "recorded_actual", "unit", "run_ref", "data_ref")}
+                            detail.update({k: value["definition"][k] for k in ("expected", "bounds", "atol", "rtol")
+                                           if k in value["definition"]})
+                            output_review["rejected"].setdefault(name, []).append(dict(detail, check_ref=ref))
+                    record, observations = None, {}
+                records[ref] = record, observations
             return records[ref]
 
         for module in modules:
@@ -168,12 +200,42 @@ def check(project, coverage, modules_path, checklist, phase, source_checklist=No
             if implemented and state == "checked":
                 covered_code, covered_data = set(), set()
                 for ref in module.get("check_refs", []):
-                    record = checked_record(ref)
+                    record, observations = checked_record(ref)
+                    if record is None:
+                        continue
                     review.require(mid in record["module_ids"], f"Check does not cover module {mid}: {ref}")
                     covered_code.update((review.project / p).resolve() for p in record["code_sha256"])
                     covered_data.update((review.project / p).resolve() for p in record["data_sha256"])
+                    for name, measured in observations.items():
+                        definition = measured["definition"]
+                        if not rules or name not in rules or definition["module_id"] != mid:
+                            continue
+                        retained = measured["requirements_sha256"] == options.get("baseline_sha256")
+                        if not retained and options.get("previous_requirements_ref"):
+                            from final_model import preserved_formal_run
+                            run = read(local(review.project, record["run_ref"]))
+                            retained = preserved_formal_run(review.project, plan, record["run_ref"], run)
+                        checked_source = {local(review.project, p): digest for p, digest in record["code_sha256"].items()}
+                        executed = {local(review.project, p): digest for p, digest in measured["run_code"].items()}
+                        shared = code & executed.keys()
+                        if (rules[name] != definition or record.get("model_version") != plan.get("model_version")
+                                or measured["plan_id"] != plan.get("plan_id") or not retained
+                                or (review.project / measured["data_ref"]).resolve() not in results or not shared
+                                or any(checked_source.get(path) != executed[path] for path in shared)):
+                            review.errors.append(f"{mid}/{name} 与当前任务、模块源码、登记的结果或运行前取数定义不符")
+                            continue
+                        public = {k: measured[k] for k in ("actual", "unit", "run_id", "run_ref", "data_ref")}
+                        public.update({k: definition[k] for k in ("expected", "bounds", "atol", "rtol") if k in definition})
+                        output_review["observations"].setdefault(name, []).append(dict(public, module_id=mid, check_ref=ref))
                 review.require(code <= covered_code and results <= covered_data,
                                f"module {mid}: check records omit declared source or result files")
+        if rules:
+            review.require({rule["module_id"] for rule in rules.values()} <= seen_modules,
+                           "关键读数指向模块表中未启用的模块")
+            if implemented:
+                missing = sorted(set(rules) - output_review["observations"].keys())
+                output_review.update(missing=missing, status="incomplete" if missing else "verified")
+                review.require(not missing, "关键模块缺少与事前判据一致的本次运行实算值：" + "、".join(missing))
         seen = set()
         linked = set()
         core = {item["id"] for item in policy["items"] if item["computational"]}

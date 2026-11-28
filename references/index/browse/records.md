@@ -2583,3 +2583,11 @@ analysis_code · GitHub:tvanneau/SFARI-Alpha · 版本 未核实 · public · �
 标签　孤独症谱系、人类、头皮脑电、静息、网络节律、软件实现
 
 本条 → [p_vanneau_sfari_alpha_pre](#p_vanneau_sfari_alpha_pre) · analysis_for · 作者提供 alpha 簇发分析代码。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC13082062/)
+
+### r_nist_mean_ci
+
+**[NIST/SEMATECH 第 1.3.5.2 节，均值的双侧置信区间](https://www.itl.nist.gov/div898/handbook/eda/section3/eda352.htm)**　按独立单位的差值计算平均预测偏差的 Student t 置信区间，核对样本量和自由度。应用于神经建模时仍须证明单位独立、同单位预测与实测正确配对，另行评价个体误差。
+
+protocol · NIST-SEMATECH:e-Handbook/1.3.5.2 · 版本 在线版，未报告修订号 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `nist_sematech_ehandbook`。[依据](https://www.itl.nist.gov/div898/handbook/eda/section3/eda352.htm)
+
+标签　均值置信区间

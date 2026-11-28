@@ -53,6 +53,7 @@ class FinalModelTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
         self.config = dict(drive=2, seed=7, protocol={"feedback": True})
+        self.unit_rows = None
         self.write(METHOD, "Methods\npredeclared software test\n")
         self.write("model.py", "# synthetic observation recorder\n")
         self.dump("config.json", self.config)
@@ -127,14 +128,19 @@ class FinalModelTests(unittest.TestCase):
         self.table(output, columns, rows)
         alternate = folder + "/sub/raw.csv"
         self.table(alternate, columns, rows)
-        return finish_run(self.root, ref, [output, alternate])
+        outputs = [output, alternate]
+        if ref == BASE and self.unit_rows is not None:
+            units = folder + "/units.csv"
+            self.table(units, ["animal", "arm", "phase", "rate"], self.unit_rows)
+            outputs.append(units)
+        return finish_run(self.root, ref, outputs)
 
     def prepare(self, *, repeat_config=None, repeat_code="model.py", repeat_rate=2, repeat_region="ring",
                 signal=(0, 2, 2, 2), disposition="accepted"):
         self.dump("docs/task_plan.json", self.plan)
         review_project.capture_review(self.root)
         self.plan = read(self.root / "docs/task_plan.json")
-        base = self.record(BASE, self.config, signal)
+        base = self.record(BASE, self.config, signal, inputs=getattr(self, "prediction_inputs", ()))
         sham = self.record(SHAM, dict(self.config, protocol=dict(self.config["protocol"], feedback=False)), [0] * 4)
         repeat = self.record(REPEAT, repeat_config or dict(self.config, seed=12), [0] * 4, rate=repeat_rate,
                              code=repeat_code, region=repeat_region)
@@ -162,16 +168,21 @@ class FinalModelTests(unittest.TestCase):
             results=[dict(id="record", status="complete", required=True, data_ids=["rates"], figure_ids=[])],
             completion_review=self.completion)
         self.checked = {}
+        if self.unit_rows is not None:
+            fields = {k: dict(type="number" if k == "rate" else "text", unit="1") for k in ("animal", "arm", "phase", "rate")}
+            self.analysis["datasets"].append(dict(id="unit_readings", origin="model", kind="raw", path="results/base/units.csv",
+                                                  run_ids=[base["run_id"]], fields=fields))
         for i, (key, run_ref, record, sample) in enumerate((("fit", REPEAT, repeat, "A"), ("test", BASE, base, "B"))):
             target = self.targets[i]
             measurement = {k: target[k] for k in ("metric", "statistic", "unit", "condition", "data_role")}
-            rule = self.plan["requirements"][i]["acceptance"]["comparisons"][0]["selectors"][key]
+            rule = target.get("precision") or self.plan["requirements"][i]["acceptance"]["comparisons"][0]["selectors"][key]
             source = {k: rule[k] for k in ("column", "operation", "where", "other_column") if k in rule}
             if rule["operation"] == "recovery_fraction":
                 from recovery_fraction import RECOVERY_FIELDS
                 source.update({k: rule[k] for k in RECOVERY_FIELDS})
             source["csv_ref"] = run_ref.replace("run.json", rule["file"])
-            value = review_project._csv_statistic(self.root, source, {self.root / source["csv_ref"]})
+            value = (self.reported_value if "precision" in target else
+                     review_project._csv_statistic(self.root, source, {self.root / source["csv_ref"]}))
             measurement.update(context=CONTEXT, value=value, status="observed", source=source)
             raw = dict(id=key, candidate_id="adopted", data_role=target["data_role"],
                        axis="calibration" if key == "fit" else "independent_evaluation", dataset_ids=[sample],
@@ -180,7 +191,8 @@ class FinalModelTests(unittest.TestCase):
             config = read(self.root / record["config_ref"])
             self.dump(raw["measurements_ref"], {"measurements": {key: measurement}})
             self.dump(raw["score_ref"], calibration.score_targets(self.targets, {key: measurement},
-                candidate_id="adopted", config=config, data_role=raw["data_role"]))
+                candidate_id="adopted", config=config, data_role=raw["data_role"], project_root=self.root,
+                run_ref=run_ref, targets_ref=TARGETS, dataset_ids=raw["dataset_ids"]))
             self.completion["comparisons"].append(raw)
             self.checked[key] = review_project._compare(self.root, raw, {d["id"]: d for d in self.plan["review"]["datasets"]},
                 self.plan, read(self.root / self.plan["review"]["baseline_ref"]), [])
@@ -333,6 +345,177 @@ class FinalModelTests(unittest.TestCase):
         del self.completion["final_model"]
         self.completion["iterations"] = [dict(role="final", run_ref=BASE)]
         self.check("passed")
+
+    def register_unit_interval(self, op="paired_error", *, bounds=(-3, 3), observed=(10, 20, 30)):
+        """All rows, including the mock acquisition register, are software test data."""
+        ids = ["B1", "B2", "B3"]
+        rule = dict(file="units.csv", operation=op, column="rate", column_unit="1", unit_id="animal",
+                    where={"phase": "formal"}, expected_ids=ids)
+        self.unit_rows = [(k, "test", "formal", v) for k, v in zip(ids, (9, 20, 31))]
+        self.unit_rows.append(("B1", "test", "pre", 999))
+        data = self.plan["review"]["datasets"][1]
+        data.update(unit_column="animal", unit_where={"phase": "formal"}, observation_ids=ids)
+        self.table("data/test.csv", ["animal", "phase", "value"],
+                   [("B3", "formal", observed[2]), ("B1", "formal", observed[0]),
+                    ("B2", "formal", observed[1]), ("B2", "pre", 999)])
+        target = self.targets[1]
+        self.reported_value = 20
+        if op == "paired_error":
+            self.reported_value = 0
+            data.update(kind="biological", source_id="Unit-test acquisition 4", source_class="measured_record",
+                        value_column="value", fields={"value": {"unit": "1"}})
+            target["evidence_type"] = "unit-level recordings"
+            self.plan["review"]["independent_evidence"] = "biological"
+            rule["reference"] = dict(dataset_id="B", column="value", column_unit="1")
+        if op == "paired_mean":
+            rule.update(arm="arm", left="test", right="control")
+            self.unit_rows.extend([("B2", "control", "formal", 18), ("B1", "control", "formal", 8),
+                                   ("B3", "control", "formal", 28)])
+            self.reported_value = 2
+        target.update(uncertainty_rule="unit_mean_ci95", precision=rule, criterion=dict(kind="interval", bounds=list(bounds)))
+        del self.plan["requirements"][1]["acceptance"]["comparisons"][0]["selectors"]  # The frozen target owns the selector.
+        self.dump(TARGETS, {"targets": self.targets})
+        return rule
+
+    def repeat_unit_comparison(self):
+        raw = self.completion["comparisons"][1]
+        data = {d["id"]: d for d in self.plan["review"]["datasets"]}
+        return review_project._compare(self.root, raw, data, self.plan, read(self.root / self.plan["review"]["baseline_ref"]), [])
+
+    def test_heldout_mean_error_recomputed_by_id_in_frozen_stratum(self):
+        self.register_unit_interval()
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["state"], row["value"], row["precision"]["scope"], row["precision"]["n"], row["precision"]["df"]),
+                         ("passed", 0, "heldout_biological_mean_error", 3, 2))
+        self.assertAlmostEqual(row["estimate_interval"][1], 2.4841377117)
+        self.assertAlmostEqual(row["estimate_interval"][0], -2.4841377117)
+        self.assertEqual(self.check("passed")["requirements"]["test"]["outcomes"]["test/test"], "passed")
+        payload = read(self.root / "test.json")
+        payload["measurements"]["test"]["estimate_interval"] = [-0.00001, 0.00001]
+        self.dump("test.json", payload)
+        with self.assertRaisesRegex(ValueError, "区间端点"):
+            self.repeat_unit_comparison()
+        del payload["measurements"]["test"]["estimate_interval"]
+        for change in ({"where": {"phase": "pre"}}, {"csv_ref": "results/base/sub/raw.csv"}):
+            altered = deepcopy(payload)
+            altered["measurements"]["test"]["source"].update(change)
+            self.dump("test.json", altered)
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, "事前 precision"):
+                self.repeat_unit_comparison()
+        self.dump("test.json", payload)
+        self.write("data/test.csv", "animal,phase,value\nB1,formal,0\nB2,formal,0\nB3,formal,0\n")
+        with self.assertRaisesRegex(ValueError, "登记后改变"):
+            self.repeat_unit_comparison()
+
+    def test_same_group_means_but_large_paired_errors_remain_inconclusive(self):
+        self.register_unit_interval(observed=(30, 20, 10))
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["value"], row["state"], row["reason"]), (0, "pending", "interval_crosses_criterion"))
+        self.assertGreater(row["estimate_interval"][1], 52)
+        self.assertEqual(self.check("incomplete")["requirements"]["test"]["outcomes"]["test/test"], "pending")
+        axis = dict(self.completion["axes"]["independent_evaluation"], assessor="author", reason="checked", evidence_refs=[METHOD])
+        with self.assertRaisesRegex(ValueError, "negative test"):
+            review_project._axis(self.root, "independent_evaluation", axis, self.checked, self.plan, self.analysis)
+
+    def test_mean_error_excluding_allowed_region_can_support_negative_prediction(self):
+        self.register_unit_interval(bounds=(3, 7))
+        self.prepare()
+        axis = dict(self.completion["axes"]["independent_evaluation"], assessor="author", reason="checked", evidence_refs=[METHOD])
+        review_project._axis(self.root, "independent_evaluation", axis, self.checked, self.plan, self.analysis)
+        self.assertEqual(self.check("passed")["requirements"]["test"]["outcomes"]["test/test"], "negative_prediction")
+
+    def test_prediction_cannot_read_the_reserved_responses(self):
+        self.register_unit_interval()
+        self.prediction_inputs = ["data/test.csv"]
+        with self.assertRaisesRegex(ValueError, "上游运行读入"):
+            self.prepare()
+
+    def test_simulation_paired_interval_is_bound_to_both_arms(self):
+        self.register_unit_interval("paired_mean", bounds=(-1, 5))
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["value"], row["precision"]["scope"], row["state"]), (2, "simulation_paired_difference", "passed"))
+        self.assertAlmostEqual(row["estimate_interval"][1], 4.4841377117)
+        self.check("passed")
+        self.targets[1]["precision"].update(left="control", right="test")
+        self.dump(TARGETS, {"targets": self.targets})
+        with self.assertRaisesRegex(ValueError, "运行后改变"):
+            self.repeat_unit_comparison()
+
+    def test_uncertainty_across_simulations_does_not_claim_biological_error(self):
+        self.register_unit_interval("mean", bounds=(-10, 50))
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["value"], row["precision"]["scope"], row["state"]), (20, "simulation_mean", "passed"))
+        self.assertAlmostEqual(row["estimate_interval"][1], 47.3255148289)
+        self.check("passed")
+
+    def test_duplicated_and_wrong_independent_units_cannot_narrow_the_interval(self):
+        rule = self.register_unit_interval()
+        rule["unit_id"] = "trial"
+        self.dump(TARGETS, {"targets": self.targets})
+        self.assertIn("独立统计单位", str(check_final_plan(self.root, self.plan)["issues"]))
+        rule["unit_id"] = "animal"
+        self.dump(TARGETS, {"targets": self.targets})
+        self.unit_rows.append(("B1", "test", "formal", 9))
+        with self.assertRaisesRegex(ValueError, "repeated observation"):
+            self.prepare()
+
+    def test_repeated_measurements_in_heldout_data_are_not_independent(self):
+        self.register_unit_interval()
+        with (self.root / "data/test.csv").open("a", encoding="utf-8") as stream:
+            stream.write("B1,formal,10\n")
+        with self.assertRaisesRegex(ValueError, "repeated observation"):
+            self.prepare()
+
+    def test_single_independent_unit_cannot_establish_a_negative_prediction(self):
+        rule = self.register_unit_interval("mean", bounds=(30, 40))
+        rule["expected_ids"] = ["B1"]
+        self.unit_rows, self.reported_value = [("B1", "test", "formal", 9)], 9
+        self.dump(TARGETS, {"targets": self.targets})
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["state"], row["reason"], row["precision"]["n"]), ("pending", "insufficient_independent_units", 1))
+        self.check("incomplete")
+
+    def test_cli_capture_rejects_confusing_trial_ids_with_independent_animals(self):
+        rule = self.register_unit_interval()
+        cli = Path(review_project.__file__)
+        def capture():
+            self.dump("docs/task_plan.json", self.plan)
+            return subprocess.run([sys.executable, str(cli), "--project", str(self.root), "--capture"],
+                                  capture_output=True, encoding="utf-8", check=False)
+        valid = capture()
+        self.assertEqual((valid.returncode, json.loads(valid.stdout)["status"]), (0, "captured"))
+        self.plan["review"]["baseline_ref"] = "docs/changed.json"
+        rule["unit_id"] = "trial_id"
+        self.dump(TARGETS, {"targets": self.targets})
+        rejected = capture()
+        self.assertEqual(rejected.returncode, 1)
+        self.assertIn("独立统计单位", str(json.loads(rejected.stdout)["issues"]))
+
+    def test_mean_error_plan_reserves_original_measured_units_and_endpoint(self):
+        rule = self.register_unit_interval()
+        data = self.plan["review"]["datasets"][1]
+        changes = ({"used_for_selection": True}, {"source_class": "measured_summary"}, {"kind": "synthetic"},
+                   {"value_column": "other_value"}, {"observation_ids": ["B2", "B3"]})
+        for change in changes:
+            self.plan["review"]["datasets"][1] = dict(data, **change)
+            with self.subTest(change=change):
+                self.assertEqual(check_final_plan(self.root, self.plan)["status"], "failed")
+        self.plan["review"]["datasets"][1] = data
+        rule["reference"]["dataset_id"] = "A"
+        self.dump(TARGETS, {"targets": self.targets})
+        self.assertEqual(check_final_plan(self.root, self.plan)["status"], "failed")
+
+    def test_zero_observed_variation_does_not_demonstrate_population_precision(self):
+        self.register_unit_interval(observed=(9, 20, 31))
+        self.prepare()
+        row = self.checked["test"]["rows"][0]
+        self.assertEqual((row["value"], row["state"], row["reason"]), (0, "pending", "zero_observed_interval_width"))
+        self.check("incomplete")
 
     def test_missing_preregistration_is_incomplete_and_optional_items_need_no_schema(self):
         self.plan["requirements"].append(dict(id="optional", required=False))

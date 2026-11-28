@@ -181,3 +181,4 @@ frontal_electrodes	recording	额区头皮导联	frontal scalp electrodes	额区�
 circuit_inhibition	topic	回路抑制	circuit inhibition	抑制;inhibition;inhibitory transmission;GABAergic inhibition
 ei_balance	topic	兴奋抑制平衡	excitation-inhibition balance	E/I;E/I ratio;E/I balance;excitation/inhibition ratio;兴奋/抑制比;兴奋与抑制平衡
 gamma_rhythm	topic	伽马节律	gamma oscillations	gamma;γ节律;γ振荡;伽马振荡;gamma band;gamma rhythm
+mean_confidence_interval	method	均值置信区间	confidence interval for the mean	平均误差置信区间;平均预测偏差;mean error;mean bias;Student t interval;95%置信区间

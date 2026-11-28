@@ -1,15 +1,18 @@
 """Create isolated run records and verify provenance/checks; never execute model code."""
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import math
 import copy
 import os
+import statistics
 import tempfile
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from itertools import chain
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 def require(condition, message):
@@ -58,6 +61,7 @@ def finite(value):
 
 RUN_SCHEMA = "zm-neuron-run/1"
 FOLLOWUP_REQUEST = "ZM_NEURON_FOLLOWUP_REQUEST"
+MODULE_OUTPUT_CONTRACT = "run_csv/1"
 
 
 def check_run_parameters(config, parameters):
@@ -135,6 +139,7 @@ def _check_formal_requirements(root, plan, saved):
     """Compare the fields frozen by capture_review without importing the skill."""
     require(isinstance(saved.get("final_plan"), dict) and saved["final_plan"].get("status") == "passed",
             "Formal simulation needs passed final_plan acceptance definitions before computation")
+    module_output_rules(plan)
     frozen = saved.get("scope", {}).get("requirements")
     current = plan.get("requirements")
     require(isinstance(frozen, dict) and frozen and isinstance(current, list),
@@ -469,8 +474,176 @@ def metric_passes(metric):
     return math.isclose(actual, expected, rel_tol=rtol, abs_tol=atol)
 
 
+def module_output_rules(plan):
+    """Index the prespecified implementation measurements for the main research claims."""
+    review = plan.get("review", {})
+    contract = (review.get("study_design") or {}).get("module_output_contract")
+    full = (review.get("final_model_requested") is True or
+            review.get("delivery_profile", "full_model") == "full_model" and plan.get("mode") in {"build", "modify"})
+    if contract is None or not full:
+        return None
+    require(contract == MODULE_OUTPUT_CONTRACT, "未知的关键模块输出复算约定")
+    rules, needed = {}, set()
+    for requirement in plan["requirements"]:
+        require(isinstance(requirement, dict), "任务要求须为带编号的记录")
+        if not requirement.get("required", True):
+            continue
+        acceptance = requirement.get("acceptance") or {}
+        require(isinstance(acceptance, dict), "任务要求的接受依据须为结构化记录")
+        modules = requirement.get("module_ids", [])
+        require(isinstance(modules, list) and all(isinstance(m, str) and m.strip() for m in modules),
+                "关键模块须引用任务表中已登记的 module_ids")
+        if acceptance.get("purpose") in {"fit", "prediction", "mechanism", "observation"}:
+            require(modules, f"{requirement['id']} 的主要模型读数尚未关联实际计算模块")
+            needed.update(modules)
+        definitions = acceptance.get("module_metrics", [])
+        require(isinstance(definitions, list), "acceptance.module_metrics 须列出实际需要的读数")
+        for rule in definitions:
+            require(isinstance(rule, dict) and rule.get("module_id") in modules,
+                    f"{requirement['id']} 的输出读数须对应本项已关联的模块")
+            name = rule.get("name")
+            require(isinstance(name, str) and name.strip() and name not in rules, f"模块读数名称缺失或重复 {name}")
+            _module_metric_definition(rule)
+            rules[name] = rule
+    missing = needed - {row["module_id"] for row in rules.values()}
+    require(not missing, "尚无运行前定义的实际输出读数：" + "、".join(sorted(missing)))
+    return rules
+
+
+def _module_metric_definition(rule):
+    require(rule.keys() <= {"module_id", "name", "unit", "source", "expected", "bounds", "atol", "rtol"}
+            and isinstance(rule.get("unit"), str) and rule["unit"].strip(), "模块读数须注明单位及实际采用的判据")
+    source = rule.get("source")
+    require(isinstance(source, dict) and source.keys() <= {"run_ref", "file", "column", "column_unit", "where", "operation"},
+            "模块读数来源须为运行输出中的表、列、条件和取数方式")
+    ref = source.get("file")
+    require(isinstance(ref, str) and ref == PurePosixPath(ref).as_posix() and not PureWindowsPath(ref).anchor
+            and ".." not in PurePosixPath(ref).parts and not any(c in ref for c in "\\:*?#[]")
+            and PurePosixPath(ref).suffix.lower() == ".csv", "模块读数 file 须为运行目录内的具体 CSV 相对路径")
+    if "run_ref" in source:
+        require(isinstance(source["run_ref"], str) and source["run_ref"].strip(), "模块读数 run_ref 须标明预定运行")
+    where = source.get("where", {})
+    require(isinstance(where, dict) and all(isinstance(k, str) and k.strip() and
+            (isinstance(v, str) and v.strip() or finite(v)) for k, v in where.items()), "模块读数筛选列或条件值无效")
+    operation = source.get("operation")
+    require(isinstance(source.get("column"), str) and source["column"].strip() and operation in
+            {"first", "mean", "sum", "median", "min", "max", "zero_fraction", "count", "distinct_count"},
+            "模块读数须指定可复算的数据列与计算方式")
+    fractions = {"1", "fraction", "proportion", "dimensionless", "unitless"}
+    if operation in {"count", "distinct_count"}:
+        require(rule["unit"] in {"1", "count", "counts", "rows", "cells", "events", "spikes", "connections"},
+                "计数读数须采用计数单位")
+    elif operation == "zero_fraction":
+        require(rule["unit"] in fractions, "零值比例须为无量纲结果")
+    else:
+        require(source.get("column_unit") == rule["unit"], "运行输出列单位与预定模块读数单位须一致")
+    require(("expected" in rule) != ("bounds" in rule), "模块读数须事前指定唯一目标值或接受区间")
+    if "bounds" in rule:
+        require(not ({"atol", "rtol"} & rule.keys()), "区间判据不另加未使用的容差")
+        bounds = rule["bounds"]
+        require(isinstance(bounds, list) and len(bounds) == 2 and all(finite(v) for v in bounds)
+                and bounds[0] <= bounds[1], "模块读数须使用有限有序的接受区间")
+    else:
+        require(finite(rule["expected"]) and all(finite(rule[k]) and rule[k] >= 0 for k in ("rtol", "atol") if k in rule),
+                "模块读数须使用有限的预期值和非负容差")
+
+
+def _module_output_value(path, source):
+    column, operation, where = source["column"], source["operation"], source.get("where", {})
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle, strict=True)
+        header = reader.fieldnames or []
+        require(len(header) == len(set(header)) and {column, *where} <= set(header), f"模块输出缺列或列名重复：{path.name}")
+
+        def readings():
+            for row in reader:
+                require(None not in row and None not in row.values(), f"模块输出 CSV 行缺失或多出字段：{path.name}")
+                if all(row[key] == str(value) for key, value in where.items()):
+                    require(row[column].strip(), f"模块输出存在空读数：{column}")
+                    yield row[column]
+
+        rows = readings()
+        if operation in {"count", "distinct_count"}:
+            count = len(set(rows)) if operation == "distinct_count" else sum(1 for _ in rows)
+            # An unfiltered recorded event file may be empty. A missing arm cannot establish a zero.
+            require(count or not where, "模块计数的条件没有匹配行，请核对该条件是否实际记录")
+            return count
+
+        def numbers():
+            for cell in rows:
+                value = float(cell)
+                require(math.isfinite(value), f"模块读数不是有限值：{column}")
+                yield value
+
+        values = numbers()
+        first = next(values, None)
+        require(first is not None, f"模块读数没有符合条件的数据：{column}")
+        if operation == "first":
+            require(next(values, None) is None, "模块单值读数须恰好匹配一行")
+            return first
+        values = chain([first], values)
+        if operation == "zero_fraction":
+            return statistics.mean(v == 0 for v in values)
+        return {"mean": statistics.mean, "sum": sum, "median": statistics.median, "min": min, "max": max}[operation](values)
+
+
+def _recompute_module_metrics(root, record, run, data, observed):
+    context = run.get("review_context")
+    if not context:
+        return
+    captured = read(local(root, context["requirements_ref"]))
+    if (captured.get("study_design") or {}).get("module_output_contract") != MODULE_OUTPUT_CONTRACT:
+        return
+    scope = captured.get("scope", {})
+    if not scope.get("full_model"):
+        return
+    # Only the acceptance object is frozen in the requirements. Module/file links may evolve during construction.
+    frozen = {rule["name"]: rule for row in scope["requirements"].values() if row.get("required", True)
+              for rule in (row.get("acceptance") or {}).get("module_metrics", [])}
+    seen = set()
+    for metric in record["metrics"]:
+        name = metric["name"]
+        if name not in frozen:
+            continue
+        rule = frozen[name]
+        _module_metric_definition(rule)
+        require(name not in seen and rule["module_id"] in record["module_ids"],
+                f"事前模块读数重复或被用于其他模块：{name}")
+        seen.add(name)
+        require(record["model_version"] == run["model_version"], f"{name} 检查与实际运行的模型版本不同")
+        if record["config_sha256"] != run["config_sha256"]:
+            require(run["stage"] == "analysis" and any(read(local(root, parent["record"]))["config_sha256"]
+                    == record["config_sha256"] for parent in run["parents"]),
+                    f"{name} 的检查配置与实际运行配置不符")
+        source = rule["source"]
+        record_path = local(root, record["run_ref"])
+        if "run_ref" in source:
+            require(local(root, source["run_ref"]) == record_path, f"{name} 不属于事前指定的运行")
+        path = (record_path.parent / source["file"]).resolve()
+        ref = _relative(root, path)
+        require(path.is_relative_to(record_path.parent) and ref in run["output_sha256"] and path in data
+                and ref not in run["input_sha256"] and ref not in run["source_archive"].values()
+                and path != record_path and path != local(root, run["config_ref"]),
+                f"{name} 须读取本次运行实际产生且列入检查的输出：{ref}")
+        criteria = {"unit", "expected", "bounds", "atol", "rtol"}
+        require({k: rule[k] for k in criteria if k in rule} == {k: metric[k] for k in criteria if k in metric},
+                f"{name} 的单位、预期值、范围或容差与运行前登记不符")
+        if "source" in metric:
+            require(metric["source"] == source, f"{name} 的取数条件或来源与运行前登记不符")
+        value = _module_output_value(path, source)
+        equal = value == metric["actual"] if source["operation"] in {"count", "distinct_count"} else (
+            finite(metric["actual"]) and math.isclose(value, metric["actual"], rel_tol=1e-12, abs_tol=0))
+        matched = finite(metric["actual"]) and equal and metric_passes(dict(rule, actual=value))
+        if observed is not None:
+            observed[name] = dict(definition=rule, actual=value, recorded_actual=metric["actual"], matched=matched,
+                                  unit=rule["unit"], run_ref=record["run_ref"],
+                                  run_id=run["run_id"], data_ref=ref, plan_id=context["plan_id"],
+                                  requirements_sha256=context["requirements_sha256"], run_code=run["code_sha256"])
+        require(matched, f"{name} 与运行输出复算值或事前判据不符：{value} {rule['unit']}")
+
+
 def verify_check(root, reference, *, module_id=None, step_id=None, model_version=None,
-                 code_refs=(), result_refs=(), config_path=None):
+                 code_refs=(), result_refs=(), config_path=None, observed_module_metrics=None):
     record = read(local(root, reference))
     require(record.get("status") == "passed", f"Check is not passed: {reference}")
     require(type(record.get("schema_version")) is int and record["schema_version"] == 1,
@@ -504,5 +677,7 @@ def verify_check(root, reference, *, module_id=None, step_id=None, model_version
     metrics = record.get("metrics")
     require(isinstance(metrics, list) and bool(metrics), f"Missing actual check metrics: {reference}")
     for metric in metrics:
-        require(metric_passes(metric), f"Recorded metric failed: {metric.get('name')}")
+        require(metric_passes(metric), f"Recorded metric failed: {metric.get('name') if isinstance(metric, dict) else metric}")
+    if run.get("record_schema") == RUN_SCHEMA:
+        _recompute_module_metrics(root, record, run, data, observed_module_metrics)
     return record

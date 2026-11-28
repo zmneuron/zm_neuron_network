@@ -1,5 +1,6 @@
 """Synthetic file workflows exercising run provenance; no biological validation."""
 import copy
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -8,7 +9,7 @@ import unittest
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from check_records import begin_run, finish_run, verify_run, resolve_config, exact_steps, read, fingerprint
+from check_records import begin_run, finish_run, verify_check, verify_run, resolve_config, exact_steps, read, fingerprint, module_output_rules
 
 
 class RunRecords(unittest.TestCase):
@@ -162,6 +163,95 @@ class RunRecords(unittest.TestCase):
             exact_steps(8500.5, 1)
         for duration, step in [(1,0), (-1,.5), (float("inf"),.5)]:
             with self.assertRaises(ValueError): exact_steps(duration, step)
+
+    def measured_output(self, *, compute=True):
+        """Capture targets, then use the regular run writer to create two condition-specific readings."""
+        docs = self.root / "docs"
+        docs.mkdir()
+        source = dict(file="raw.csv", column="current", column_unit="A", operation="mean", where={"arm": "active"})
+        rule = dict(module_id="membrane", name="applied_current", unit="A", expected=3e-12, atol=1e-15, source=source)
+        units = dict(module_id="membrane", name="cell_count", unit="count", bounds=[2, 2],
+                     source=dict(file="raw.csv", column="cell", operation="distinct_count", where={"arm": "active"}))
+        req = dict(id="R1", module_ids=["membrane"], description="measure active current and cell identity",
+                   source_kind="assistant_choice", source_ref="model/run.py",
+                   acceptance=dict(purpose="prediction", module_metrics=[rule, units]))
+        design = dict(module_output_contract="run_csv/1", decisions=[])
+        plan = dict(schema_version=2, review_contract="zm-neuron-review/2", plan_id="output_check", model_version="synthetic-v1",
+                    mode="build", requirements=[req], current_model={"name":"electrical software fixture"},
+                    review=dict(study_design=design, scientific_checks=[dict(id="arm")], baseline_ref="docs/before.json"))
+        original = {k:v for k,v in req.items() if k != "module_ids"}
+        saved = dict(task_schema_version=2, review_contract=plan["review_contract"], study_design_status="ready", study_design=design,
+                     scope=dict(full_model=True, requirements={"R1":original}), plan_id=plan["plan_id"], final_plan=dict(status="passed"),
+                     captured_at_utc=datetime.now(timezone.utc).isoformat())
+        (docs / "before.json").write_text(json.dumps(saved), encoding="utf-8")
+        plan["review"]["baseline_sha256"] = fingerprint(docs / "before.json")
+        (docs / "task_plan.json").write_text(json.dumps(plan), encoding="utf-8")
+        if not compute:
+            return plan
+        ref = begin_run(self.root, "results/measurement", config=self.base, stage="simulation", model_version="synthetic-v1",
+                        code_refs=["model/run.py"], command=[sys.executable, "model/run.py"], environment={"python":sys.version})
+        result = self.complete(ref, "cell,arm,current\na,control,0\na,active,2e-12\nb,active,4e-12\n")
+        run = read(self.root / ref)
+        metrics = [dict(name="applied_current", unit="A", actual=3e-12, expected=3e-12, atol=1e-15),
+                   dict(name="cell_count", unit="count", actual=2, bounds=[2, 2])]
+        record = dict(schema_version=1, status="passed", check_id="response", command="read selected output rows",
+                      model_version=plan["model_version"], module_ids=["membrane"], step_ids=["step"], run_ref=ref,
+                      run_id=run["run_id"], config_ref=run["config_ref"], config_sha256=run["config_sha256"],
+                      code_sha256=run["code_sha256"], data_sha256={result:fingerprint(self.root / result)}, metrics=metrics)
+        return record
+
+    def check_metrics(self, record):
+        ref = "docs/module_check.json"
+        (self.root / ref).write_text(json.dumps(record), encoding="utf-8")
+        observations = {}
+        verify_check(self.root, ref, observed_module_metrics=observations)
+        return observations
+
+    def test_picoampere_current_and_distinct_cells_recomputed_from_selected_run_rows(self):
+        record = self.measured_output()
+        seen = self.check_metrics(record)
+        self.assertEqual((seen["applied_current"]["actual"], seen["cell_count"]["actual"]), (3e-12, 2))
+        self.assertEqual(seen["cell_count"]["run_id"], record["run_id"])
+        # The reported value fits the acceptance tolerance, but is not the observed value.
+        record["metrics"][0]["actual"] += 0.5e-15
+        with self.assertRaisesRegex(ValueError, "复算值"):
+            self.check_metrics(record)
+
+    def test_rewritten_expected_ranges_units_and_selectors_do_not_certify_a_pass(self):
+        original = self.measured_output()
+        for edit in ({"actual": 4e-12, "expected": 4e-12}, {"unit": "pA"}, {"atol": 5},
+                     {"source": dict(column="current", operation="mean", where={"arm":"control"})}):
+            with self.subTest(edit=edit):
+                record = copy.deepcopy(original)
+                record["metrics"][0].update(edit)
+                with self.assertRaisesRegex(ValueError, "运行前登记"):
+                    self.check_metrics(record)
+        original["metrics"][1].update(actual=3, bounds=[1, 10])
+        with self.assertRaisesRegex(ValueError, "运行前登记"):
+            self.check_metrics(original)
+
+    def test_copy_with_identical_bytes_is_not_output_of_the_measured_run(self):
+        record = self.measured_output()
+        ref = next(iter(record["data_sha256"]))
+        copied = self.root / "docs/copy.csv"
+        copied.write_bytes((self.root / ref).read_bytes())
+        record["data_sha256"] = {"docs/copy.csv": fingerprint(copied)}
+        with self.assertRaisesRegex(ValueError, "本次运行实际产生"):
+            self.check_metrics(record)
+
+    def test_only_required_computational_claims_automatically_need_output_metrics(self):
+        plan = self.measured_output(compute=False)
+        requirements = plan["requirements"]
+        requirements.append(dict(id="report", module_ids=["format"], acceptance=dict(purpose="delivery")))
+        self.assertEqual(set(module_output_rules(plan)), {"applied_current", "cell_count"})
+        requirements[0]["module_ids"].append("synapse")
+        with self.assertRaisesRegex(ValueError, "synapse"):
+            module_output_rules(plan)
+        plan["review"]["delivery_profile"] = "scoped"
+        self.assertIsNone(module_output_rules(plan))
+        plan["review"]["delivery_profile"] = "full_model"
+        plan["review"]["study_design"].pop("module_output_contract")
+        self.assertIsNone(module_output_rules(plan))
 
 
 if __name__ == "__main__":

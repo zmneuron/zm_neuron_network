@@ -13,6 +13,8 @@ import math
 from pathlib import Path
 import re
 
+UNIT_MEAN_CI95 = "unit_mean_ci95"
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -221,7 +223,11 @@ def validate_targets(targets):
         require(target.get("data_role") in ("calibration", "evaluation", "reference"), "Unknown data role")
         require(type(target.get("required")) is bool, "Declare required versus optional target")
         require(finite(target.get("scale")) and target["scale"] > 0, "Normalization scale must be positive")
-        require(target.get("uncertainty_rule", "point") in ("point", "contained_interval"), "Unknown uncertainty rule")
+        rule = target.get("uncertainty_rule", "point")
+        require(rule in ("point", "contained_interval", UNIT_MEAN_CI95), "Unknown uncertainty rule")
+        if rule == UNIT_MEAN_CI95:
+            import precision
+            precision.validate(target)
         criterion = target.get("criterion")
         if criterion is None:
             require(bool(target.get("unavailable_reason")), "Explain unavailable criterion")
@@ -250,11 +256,56 @@ def _within(value, criterion):
     return (value > boundary if relation == ">" else value >= boundary), max(0, boundary - value)
 
 
-def score_targets(targets, measurements, *, candidate_id, config, data_role, run_status="completed"):
+def require_frozen_precision(targets, frozen, role):
+    """A changed, removed or downgraded precision target cannot supply the original decision."""
+    def registered(rows):
+        return {t["id"]: t for t in rows if t["data_role"] == role and t.get("uncertainty_rule") == UNIT_MEAN_CI95}
+    require(fingerprint(registered(targets)) == fingerprint(registered(frozen)), "独立单位区间的目标或取数定义在运行后改变")
+
+
+def _interval_state(interval, criterion):
+    lo, hi = interval
+    if _within(lo, criterion)[0] and _within(hi, criterion)[0]:
+        return "passed"
+    if criterion["kind"] == "interval":
+        lower, upper = criterion["bounds"]
+        return "unmet" if hi < lower or lo > upper else "pending"
+    closest = lo if criterion["relation"] in {"<", "<="} else hi
+    return "pending" if _within(closest, criterion)[0] else "unmet"
+
+
+def _score_unit_interval(row, target, observation, recorded):
+    try:
+        value, interval, detail = recorded.estimate(target, observation)
+    except (csv.Error, OverflowError) as error:
+        raise ValueError(f"独立单位区间的原始读数无效：{error}") from error
+    require(math.isclose(value, observation["value"], rel_tol=1e-12, abs_tol=0),
+            "所报点估计与逐独立单位的原始读数不符")
+    if "estimate_interval" in observation:
+        claim = observation["estimate_interval"]
+        require(interval is not None and isinstance(claim, list) and len(claim) == 2 and all(
+                finite(v) and math.isclose(v, original, rel_tol=1e-12, abs_tol=0) for v, original in zip(claim, interval)),
+                "所报区间端点与从独立单位复算的双侧 95% 区间不符")
+    row.update(value=value, precision=detail)
+    if interval is None or interval[0] == interval[1]:
+        row["reason"] = "insufficient_independent_units" if interval is None else "zero_observed_interval_width"
+        return
+    state = _interval_state(interval, target["criterion"])
+    row.update(estimate_interval=interval, state=state)
+    if state == "pending":
+        row["reason"] = "interval_crosses_criterion"
+    else:
+        row["violation"] = _within(value, target["criterion"])[1] / target["scale"]
+
+
+def score_targets(targets, measurements, *, candidate_id, config, data_role, run_status="completed",
+                  project_root=None, run_ref=None, targets_ref=None, dataset_ids=None):
     """Compare already extracted, equally defined statistics, retaining every failure.
 
     `contained_interval` is an optional conservative project rule, not a default
     confidence threshold. Measurement intervals must explain their actual meaning.
+    `unit_mean_ci95` recomputes the point and interval from preregistered run outputs
+    and, for paired prediction errors, the reserved observations.
     A genuine absent response differs from a missing measurement and failed run.
     """
     validate_targets(targets)
@@ -271,9 +322,16 @@ def score_targets(targets, measurements, *, candidate_id, config, data_role, run
     if run_status != "completed":
         report["reason"] = run_status
         return report
+    recorded = None
+    if any(t.get("uncertainty_rule") == UNIT_MEAN_CI95 for t in selected):
+        from precision import RecordedUnits
+        recorded = RecordedUnits(project_root, run_ref, targets_ref, dataset_ids, config)
+        require_frozen_precision(selected, recorded.frozen, data_role)
     for target in selected:
         row = dict(id=target["id"], required=target["required"], state="pending", value=None,
                    violation=None, reason=None)
+        if target.get("uncertainty_rule") == UNIT_MEAN_CI95:
+            row["unit"] = target["unit"]
         observation = measurements.get(target["id"])
         criterion = target.get("criterion")
         if observation is None:
@@ -287,11 +345,16 @@ def score_targets(targets, measurements, *, candidate_id, config, data_role, run
             require(state in ("observed", "no_response", "missing"), "Unknown measurement status")
             if state == "no_response":
                 require(observation.get("value") is None, "Absent feature must not carry an invented value")
-                row.update(state="unmet", reason="feature_absent")
+                if target.get("uncertainty_rule") == UNIT_MEAN_CI95:
+                    row["reason"] = "interval_not_estimable"
+                else:
+                    row.update(state="unmet", reason="feature_absent")
             elif state == "missing":
                 row["reason"] = "measurement_missing"
             elif not finite(observation.get("value")):
                 row.update(state="invalid", reason="nonfinite_measurement")
+            elif target.get("uncertainty_rule") == UNIT_MEAN_CI95:
+                _score_unit_interval(row, target, observation, recorded)
             else:
                 value = observation["value"]
                 passed, distance = _within(value, criterion)
@@ -301,17 +364,7 @@ def score_targets(targets, measurements, *, candidate_id, config, data_role, run
                     require(isinstance(interval, list) and len(interval) == 2 and all(finite(v) for v in interval)
                             and interval[0] <= value <= interval[1] and bool(observation.get("interval_meaning")),
                             "Define the estimate interval and its meaning")
-                    lo, hi = interval
-                    inside = _within(lo, criterion)[0] and _within(hi, criterion)[0]
-                    if inside:
-                        row["state"] = "passed"
-                    elif criterion["kind"] == "interval":
-                        lower, upper = criterion["bounds"]
-                        row["state"] = "unmet" if hi < lower or lo > upper else "pending"
-                    else:
-                        relation, boundary = criterion["relation"], criterion["threshold"]
-                        possible = lo < boundary if relation == "<" else lo <= boundary if relation == "<=" else hi > boundary if relation == ">" else hi >= boundary
-                        row["state"] = "pending" if possible else "unmet"
+                    row["state"] = _interval_state(interval, criterion)
                     row["estimate_interval"] = interval
         report["rows"].append(row)
     required = [r for r in report["rows"] if r["required"]]

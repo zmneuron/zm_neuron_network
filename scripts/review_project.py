@@ -258,6 +258,13 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     original_plan_digest = fingerprint(plan_file)
     plan = read(plan_file)
     require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Declare the review contract before capture")
+    review = plan.get("review", {})
+    planned_design = review.get("study_design")
+    if (plan.get("schema_version") == 2 and plan["review_contract"] == CONTRACT and full_model_task(plan)
+            and isinstance(planned_design, dict) and not review.get("previous_analysis_ref")
+            and not review.get("previous_requirements_ref")):
+        for key, value in (("module_output_contract", "run_csv/1"), ("prediction_precision", "declare_scope")):
+            require(planned_design.setdefault(key, value) == value, "新完整研究请使用当前构建与精度约定：" + key)
     design = check_study_design(root, plan)
     require(design["status"] != "incomplete", "科学提问与选模尚未完成：" + "；".join(design["issues"]))
     reuse = check_reuse(root, plan)
@@ -342,6 +349,11 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
         if parent_ref:
             parent = local(root, parent_ref)
             require(parent != (root / review["baseline_ref"]).resolve(), "Keep earlier requirements in their original file")
+            prior_design = read(parent).get("study_design", {})
+            for key in ("module_output_contract", "prediction_precision"):
+                if key in prior_design:
+                    require((planned_design or {}).get(key) == prior_design[key],
+                            "本轮续接须保留已登记的构建与精度约定：" + key)
             baseline["previous_requirements"] = dict(ref=parent_ref, sha256=fingerprint(parent))
             baseline["final_plan"]["pending"].extend(_original_standards(root, plan, baseline, state))
         if baseline["final_plan"]["pending"]:
@@ -654,6 +666,9 @@ def _check_scope(root, plan, baseline, report, skill):
         assessment(root, acknowledgements[0], "skill change")
         require(acknowledgements[0].get("scientific_criteria_unchanged") is True or bool(actual), "New rules cannot silently change scientific criteria")
     report["scope"] = state
+    if state["full_model"] and plan["review_contract"] == CONTRACT:
+        report["required_outcome_ids"] = sorted({k for scope in (original_scope, state)
+                                                 for k, row in scope["requirements"].items() if row.get("required", True)})
 
 
 def _observation_overlap(root, left, right):
@@ -796,6 +811,7 @@ def _compare(root, item, datasets, plan, baseline, selection_sources, model_file
     config = read(config_path)
     targets = _target_content(root, item.get("targets_ref"))
     require(item["targets_ref"] in plan["review"].get("criteria_refs", []), "Comparison criteria were not declared before review capture")
+    calibration.require_frozen_precision(targets, baseline.get("criteria", {}).get(item["targets_ref"], []), role)
     reference_paths = {path for dataset in selected if dataset["available"] for path in _reference_files(root, dataset)}
     if axis == "independent_evaluation" and "independent_goal" in plan["review"] and not item.get("historical"):
         frozen = baseline.get("criteria", {}).get(item["targets_ref"], [])
@@ -822,7 +838,8 @@ def _compare(root, item, datasets, plan, baseline, selection_sources, model_file
         records.append(analyzed)
     recorded_outputs = {ref for record in records for ref in record.get("output_sha256", {})}
     inputs = {local(root, ref) for ref in recorded_outputs} | reference_paths
-    for observation in measurements.values():
+    precision_ids = {t["id"] for t in targets if t["data_role"] == role and t.get("uncertainty_rule") == "unit_mean_ci95"}
+    for key, observation in measurements.items():
         if observation.get("status") != "observed":
             continue
         source = observation.get("source")
@@ -830,9 +847,11 @@ def _compare(root, item, datasets, plan, baseline, selection_sources, model_file
                 "Observed feature lacks a CSV source bound to its actual run")
         value = observation.get("value")
         require(calibration.finite(value), "Nonfinite observed feature")
-        _claim(root, dict(source, value=value, format=".15g", text=format(value, ".15g"), unit=""), inputs)
+        if key not in precision_ids:
+            _claim(root, dict(source, value=value, format=".15g", text=format(value, ".15g"), unit=""), inputs)
     computed = calibration.score_targets(targets, measurements, candidate_id=item.get("candidate_id"),
-                                         config=config, data_role=role, run_status=run["status"])
+                                         config=config, data_role=role, run_status=run["status"],
+                                         project_root=root, run_ref=item["run_ref"], targets_ref=item["targets_ref"], dataset_ids=ids)
     require(read(local(root, item.get("score_ref"))) == computed, "Stored comparison differs from recomputed per-target results")
     if empirical:
         registered = calibration.registered_empirical_datasets(selected, baseline.get("datasets", []))
@@ -1865,7 +1884,7 @@ def _requirements(root, plan, analysis, completion):
     return unmet
 
 
-def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
+def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
                  historical=False, response_file=None, sent_response_file=None, _structure=None):
     root = Path(project).resolve()
     decision = {}
@@ -1882,6 +1901,10 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         full = full_model_task(plan)
         report["full_model_task"] = full
         report["historical"] = historical
+        if full and isinstance(plan.get("requirements"), list):
+            report["declared_claims"] = {row["id"]: row.get("description", "") for row in plan["requirements"]
+                                         if isinstance(row, dict) and isinstance(row.get("id"), str)
+                                         and row.get("required", True)}
         design = check_study_design(root, plan)
         report["checks"]["study_design"] = design
         if design["status"] == "incomplete":
@@ -1893,7 +1916,7 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
             if not plan.get("review", {}).get("calibration_evidence"):
                 report["warnings"].append("旧计划尚未逐项核对实测校准出处，既有通过状态仅适用于原约定。")
         if plan.get("review_contract") is None:
-            report.update(status="legacy_not_reviewed")
+            report.update(status="legacy_not_reviewed", work_state="legacy_not_reviewed")
             report["warnings"].append("No review contract; do not reconstruct or claim a historical review automatically.")
             return report
         require(plan.get("review_contract") in SUPPORTED_CONTRACTS, "Unsupported review contract")
@@ -1968,6 +1991,7 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         analysis = read(local(root, plan["files"]["analysis"]))
         require(analysis.get("review_contract") == plan["review_contract"], "Analysis lacks the adopted review contract")
         require(analysis.get("plan_id") == plan.get("plan_id") and analysis.get("model_version") == plan.get("model_version"), "Review mixes task/model versions")
+        report["analysis_available"] = True
         current = _current_model_check(root, plan, plan_ref, report, checkpoint, analysis)
         completion = analysis.get("completion_review")
         require(isinstance(completion, dict), "Missing completion_review")
@@ -2064,7 +2088,7 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
                 from check_project import check_structure
                 structure = _structure if _structure is not None else check_structure(
                     root, plan_path, "delivery" if checkpoint == "delivery" else "implemented", historical=historical)
-                report["checks"]["implementation"] = dict(status=structure["status"], issues=list(structure["issues"]))
+                report["checks"]["implementation"] = structure
                 if structure["status"] == "failed":
                     report["issues"].extend("implementation: " + msg for msg in structure["issues"])
                 elif structure["status"] != "passed":
@@ -2105,7 +2129,10 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         try: _decision(root, completion, pending, datasets, plan, baseline, components, comparisons,
                        analysis.get("runs", []), verified_negative, science, report["checks"].get("final_evidence"),
                        report["checks"].get("empirical_calibration"), report["checks"].get("followup"))
-        except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"decision: {error}")
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            report["issues"].append(f"decision: {error}")
+            if decision.get("action") == "stop":
+                report["checks"]["stop_decision"] = {"status": "failed", "issues": [str(error)]}
         report["goal_complete"] = (not pending and not report["issues"] and completion["decision"]["action"] == "complete"
                                    and not historical and (not full or full_current))
         if full and report["goal_complete"] and checkpoint != "delivery":
@@ -2166,7 +2193,25 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         report["work_state"] = ("final_model" if report["final_model_ready"] else "repair_required" if report["issues"]
                                 else "scientific_failure" if measured_stop else "paused" if decision.get("action") == "stop" else "continue_required"
                                 if "current_final_delivery_review" not in report.get("unmet_requirements", []) else "awaiting_delivery")
+        if report["work_state"] == "paused":
+            report["recovery_condition"] = decision.get("recovery_condition")
     report["read_next"] = sorted(set(report["read_next"]))
+    return report
+
+
+def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
+                 historical=False, response_file=None, sent_response_file=None, _structure=None):
+    from stage_review import summarize
+    report = _check_review(project, plan_path, checkpoint, skill, historical=historical,
+                           response_file=response_file, sent_response_file=sent_response_file, _structure=_structure)
+    structure = _structure or report["checks"].get("implementation")
+    if (report.get("full_model_task") and not historical and structure is None and checkpoint != "start"
+            and (report.get("status") == "failed" or report.get("status") == "incomplete" and report.get("analysis_available"))):
+        from check_project import check_structure
+        phase = "delivery" if checkpoint == "delivery" and report["status"] == "failed" else "implemented"
+        structure = check_structure(project, plan_path, phase)
+        report["checks"]["implementation"] = structure
+    summarize(report, structure)
     return report
 
 
@@ -2216,6 +2261,13 @@ def stage_report_text(root, plan, report):
     if report.get("work_state") == "scientific_failure":
         lines += ["", "在已核实的模型和数据范围内，原定目标未达到。"]
     lines += ["", "## 尚待解决", "", *["- " + x for x in gaps]]
+    build = next((row for row in report.get("stage_review", {}).get("stages", []) if row["stage"] == "构建与实际运行"), {})
+    if build.get("gaps"):
+        lines += ["", "## 本轮已查到的构建问题", "", *["- " + detail for detail in build["gaps"]]]
+    claims = report.get("stage_review", {}).get("remaining_claims", [])
+    if claims:
+        lines += ["", "## 回到原研究问题", "",
+                  *[f"- {item['id']} · {item['description']}" for item in claims if item.get("description")]]
     ref = plan.get("files", {}).get("analysis")
     if ref and (root / ref).is_file():
         try:
@@ -2229,9 +2281,11 @@ def stage_report_text(root, plan, report):
                             if isinstance(entry, dict) and entry.get("method") and entry.get("evidence_ref")]
                 if attempts:
                     lines += ["", "## 已尝试的方法", "", *attempts]
-                for field, title in (("gap", "当前缺口"), ("recovery_condition", "恢复条件"), ("next_action", "下一项工作")):
+                for field, title in (("gap", "当前缺口"), ("recovery_condition", "恢复条件")):
                     if isinstance(decision.get(field), str) and decision[field].strip():
                         lines += ["", "## " + title, "", decision[field].strip()]
+    if report.get("next_action"):
+        lines += ["", "## 下一项工作", "", report["next_action"]]
     return "\n".join(lines) + "\n"
 
 
