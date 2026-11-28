@@ -87,6 +87,8 @@ voltage_clamp	recording	电压钳	voltage clamp	voltage-clamp
 current_clamp	recording	电流钳	current clamp	current-clamp
 paired_recording	recording	配对记录	paired recording	dual recording;双细胞记录
 membrane_voltage	signal	膜电位	membrane potential	Vm;膜电压
+input_resistance	signal	输入电阻	input resistance	Rin;R_in;膜输入电阻
+membrane_time_constant	signal	膜时间常数	membrane time constant	τm;tau_m;膜充电时间常数
 ionic_current	signal	离子电流	ionic current	膜离子电流
 synaptic_current	signal	突触电流	synaptic current	EPSC;IPSC
 ap_waveform	signal	动作电位波形	action potential waveform	AP waveform;spike shape

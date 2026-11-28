@@ -114,9 +114,22 @@
 - [Multimodal EEG-fNIRS data from patients undergoing general anesthesia](records.md#r_openneuro_clinical)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
 
+## 电流钳 · current clamp
+
+- [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
+
 ## 膜电位 · membrane potential
 
 - [膜电位与放电模式 · 图 1a–d](records.md#o_wilson_modes)　观测与模拟结果
+- [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
+
+## 输入电阻 · input resistance
+
+- [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
+
+## 膜时间常数 · membrane time constant
+
+- [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
 
 ## 发放率 · firing rate
 
