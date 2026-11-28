@@ -1724,7 +1724,7 @@ processed · 41593_2019_417_MOESM5_ESM.xlsx，工作表 Data · 版本 2019 年�
 
 ### r_cell_allen_mouse_raw
 
-**[小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](https://api.brain-map.org/api/v2/well_known_file_download/491200821)**　首条可以复算的单细胞阶跃。60 个扫次内有 20 个 Long Square；Sweep_35 以 200 kHz 采样，输入在阶跃内约 150 pA，刺激前后为 0 pA。读 /analysis/spike_times/Sweep_35 可重算指标。 同一细胞第 23–27 扫依次为 −90、−70、−50、−30、−10 pA 的长阶跃。刺激与膜电位在同一 200 kHz 时钟，以 A、V 储存。可从原始波形估计有效输入电阻和膜时间常数，并按整档电流留出预测。
+**[小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](https://api.brain-map.org/api/v2/well_known_file_download/491200821)**　首条可以复算的单细胞阶跃。60 个扫次内有 20 个 Long Square；Sweep_35 以 200 kHz 采样，输入在阶跃内约 150 pA，刺激前后为 0 pA。读 /analysis/spike_times/Sweep_35 可重算指标。 同一细胞第 22–27 扫依次为 −110、−90、−70、−50、−30、−10 pA 的长阶跃。Sweep_22 可用于冻结后检查更强超极化注流的预测。刺激与膜电位在同一 200 kHz 时钟，以 A、V 储存。可从原始波形估计有效输入电阻和膜时间常数，并按整档电流留出预测。
 
 raw · specimen 313861794；well-known file 491200821；donor 313401484 · 版本 NWB-1.0.5，IVSCC 1.0 · public · 许可 Allen Institute Terms of Use 与 Citation Policy；学术/非商业使用按条款，其他使用须审查。未核实独立 CC 许可。 · 核实于 2026-11-28 · 共同来源 `allen_ctdb_mouse`。[依据](https://api.brain-map.org/api/v2/data/Specimen/313861794.json?include=donor,structure)
 

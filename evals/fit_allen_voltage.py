@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -98,16 +99,24 @@ def fit(training, tau_grid):
     return best
 
 
-def evaluate(sweep, model):
+def evaluate(sweep, model, *, include_windows=False):
     predicted = model["R_Mohm"] * mv_per_mohm(sweep, model["tau_ms"])
     residual = predicted - sweep.delta_mv
-    return {
+    metrics = {
         "sweep": sweep.number, "step_pa": sweep.current_pa, "prestep_mv": sweep.baseline_mv,
         "early_rmse_mv": float(np.sqrt(np.mean(residual[:-1] ** 2))),
         "late_measured_delta_mv": float(sweep.delta_mv[-1]), "late_predicted_delta_mv": float(predicted[-1]),
         "late_model_minus_measured_mv": float(residual[-1]),
         "weighted_rmse_mv": float(np.sqrt(np.sum(WEIGHTS * residual ** 2))),
     }
+    if include_windows:
+        metrics["windows"] = [
+            {"start_ms": int(start), "stop_ms": int(stop),
+             "measured_delta_mv": float(observed), "predicted_delta_mv": float(estimate),
+             "model_minus_measured_mv": float(error)}
+            for (start, stop), observed, estimate, error in zip(BINS_MS, sweep.delta_mv, predicted, residual)
+        ]
+    return metrics
 
 
 def plot_comparison(sweep, models, destination):
@@ -145,7 +154,8 @@ def plot_comparison(sweep, models, destination):
         plt.close(fig)
 
 
-def run(path, figure=None):
+@contextmanager
+def open_specimen(path):
     digest = hashlib.sha256()
     with path.open("rb") as source:
         for block in iter(lambda: source.read(1024 * 1024), b""):
@@ -155,6 +165,11 @@ def run(path, figure=None):
     with h5py.File(path, "r") as nwb:
         if int(nwb["general/aibs_specimen_id"][()]) != SPECIMEN:
             raise ValueError("Unexpected specimen")
+        yield nwb
+
+
+def run(path, figure=None):
+    with open_specimen(path) as nwb:
         training = [read_sweep(nwb, number, current) for number, current in TRAIN.items()]
         models = {"ohmic": fit(training, [0]), "RC": fit(training, range(1, 81))}
         held_out = [read_sweep(nwb, number, current) for number, current in HELD_OUT.items()]

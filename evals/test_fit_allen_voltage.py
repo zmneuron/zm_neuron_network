@@ -1,7 +1,10 @@
 import unittest
+from contextlib import nullcontext
+from unittest.mock import patch
 
 import numpy as np
 
+import fit_allen_joint_grid as joint_grid
 from fit_allen_voltage import BINS_MS, Sweep, evaluate, fit
 
 
@@ -28,6 +31,42 @@ class VoltageFitTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["early_rmse_mv"], 2)
         self.assertAlmostEqual(metrics["late_model_minus_measured_mv"], 2)
         self.assertAlmostEqual(metrics["weighted_rmse_mv"], 2)
+
+    def test_joint_grid_and_frozen_predictions(self):
+        fs = 20_000
+        times = 1000 * np.arange(fs) / fs
+        unit_response = 0.2 * (1 - np.exp(-times / 16))  # 200 MΩ, 80 pF, in mV per pA.
+        edges = np.rint(BINS_MS * fs / 1000).astype(int)
+        bins = np.array([unit_response[start:stop].mean() for start, stop in edges])
+
+        def compare(offset):
+            def read(_nwb, number, current):
+                measured = current * bins
+                if number == joint_grid.NEW_SWEEP:
+                    measured = measured + offset
+                return Sweep(number, current, fs, -75, measured)
+
+            with patch.object(joint_grid, "open_specimen", return_value=nullcontext(None)), \
+                    patch.object(joint_grid, "read_sweep", side_effect=read):
+                return joint_grid.run(None)
+
+        clean, shifted = compare(0), compare(5)
+        self.assertEqual(clean["frozen_models"], shifted["frozen_models"])
+        self.assertEqual(clean["frozen_models"]["joint_RC"], {"R_Mohm": 200, "C_pF": 80, "tau_ms": 16})
+        rows = clean["development_grid"]
+        self.assertEqual(len({(r["parameters"]["R_Mohm"], r["parameters"]["C_pF"]) for r in rows}), 9)
+        self.assertEqual(clean["grid_condition_evaluations"], 36)
+        for row in rows:
+            p = row["parameters"]
+            self.assertEqual(p["tau_ms"], p["R_Mohm"] * p["C_pF"] / 1000)
+            self.assertEqual({s["sweep"] for s in row["sweeps"]}, {23, 24, 26, 27})
+        final = shifted["held_out"]["joint_RC"]
+        self.assertEqual(final["sweep"], 22)
+        self.assertEqual(len(final["windows"]), len(BINS_MS))
+        self.assertAlmostEqual(final["weighted_rmse_mv"], 5)
+        for window in final["windows"]:
+            self.assertAlmostEqual(window["predicted_delta_mv"] - window["measured_delta_mv"], -5)
+            self.assertAlmostEqual(window["model_minus_measured_mv"], -5)
 
 
 if __name__ == "__main__":

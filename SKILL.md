@@ -86,7 +86,7 @@ description: 用于计算神经科学建模、复现与优化。从科学问题�
 | 扰动后的调控、改善、补偿或恢复 | [方法选择与调控设计](references/regulation-design.md) | 衔接基础、扰动及作用接口；区分模型校准与调控选参，保存时间匹配比较、有效/无效窗口及完整协议先例，按结果收束。 |
 | 多来源调研、分模块实现或重要交付复核 | [动态分工](references/delegation.md) | 按实际并发能力与依赖派发；明确允许改动的文件，主 agent 独占当前决定与发布，独立复核读取原要求和实际产物。 |
 | 修改或检查指定工程 | 受影响规范、[版本规则](references/versioning.md) | 继承有效工作，只重查受影响部分；只读审查不自动修改、运行或迁移目录。 |
-| 数据辅助构建或参数估计 | [来源与参数对应](references/construction-methods.md) · [估计方法选择](references/run-compare-optimize.md#按数据和问题选择参数估计方法) · [真实记录拟合与留出比较](references/fit-recordings.md) | 按实测条件和读数选取可约束的模型量。分清刺激重放、响应拟合和冻结后的检验，给出原单位下的预测误差。 |
+| 数据辅助构建或参数估计 | [来源与参数对应](references/construction-methods.md) · [估计方法选择](references/run-compare-optimize.md#按数据和问题选择参数估计方法) · [真实记录与多参数联合拟合提示词](references/fit-recordings.md#多参数联合拟合的可用提示词) | 新拟合首轮联合考虑所有影响主要预测且取值未定的参数。按实测读数选参，冻结后评价。已定续跑沿用原参数、预算与判据。 |
 | 实验约束校准、失配修正或模型群体筛选 | [校准与相容模型集合](references/calibration.md) · [脑电幅度与谱形算例](references/multiscale-examples.md#脑电幅度与谱形) | 逐项核对实测约束、数据用途和累计预算，保留相容参数组合。按失配原因处理模型、观测或数据，冻结后评价。最低误差仅用于排序，采用样本极值须说明其适用范围。 |
 | 正式批量计算、后台或中断续接 | [执行管理](references/execution-management.md)、[版本规则](references/versioning.md) | 先测全过程成本；核实已有任务，明确继续、重试与结束条件，不重复运行或跨版本误用保存状态。 |
 | 完成后继续优化、运行比较或结果重分析 | [新优化讨论入口](references/interview.md#完成模型后继续优化)、[运行与优化](references/run-compare-optimize.md)、[结果交付](references/result-delivery.md)、[文献图](references/literature-figures.md)、[输出记录](references/output-manifest.md) | 分清重分析与新仿真；候选经实际运行评价，最终比较支持相应科学结论。 |
