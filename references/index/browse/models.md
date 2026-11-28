@@ -78,7 +78,15 @@
 - [Coincidence detection in aspiny interneuron dendrites](records.md#p_pmid_43039696)　文献
 - [A biophysically grounded model of glutamatergic synaptic transmission integrating glutamate transport, receptor kinetics, and electrotonic effects](records.md#p_pmid_42126468)　文献
 - [Neuronal wiring diagram of an adult brain](records.md#p_breadth_dorkenwald2024)　文献
+- [Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](records.md#p_amina_chandelier)　文献
+- [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
+- [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
+- [A petavoxel fragment of human cerebral cortex reconstructed at nanoscale resolution](records.md#p_shapson_coe_h01)　文献
 - [膜与突触电导的联合后验 · Figure 5c 与 Appendix 1—figure 11](records.md#o_sbi_params)　观测与模拟结果
+- [GAT1 阳性 chandelier 末梢串数 · Figure 4B，BA46 supragranular](records.md#o_amina_ba46_cartridges)　观测与模拟结果
+- [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
+- [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
+- [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
 
 ## 胶质与神经元 · glia–neuron interaction
 
@@ -107,9 +115,12 @@
 - [A microcircuit model of astrocytic potassium buffering and neural synchronization](records.md#p_pmid_43057562)　文献
 - [Computational modeling of speed microcircuits in larval zebrafish spinal cord with SiliFish](records.md#p_pmid_41056431)　文献
 - [Symmetries and continuous attractors in disordered neural circuits](records.md#p_pmid_42875514)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
 - [周期、相位延迟与间隙、簇持续时间 · Figure 5b；原实验 Haddad & Marder 2018](records.md#o_sbi_exp)　观测与模拟结果
 - [膜与突触电导的联合后验 · Figure 5c 与 Appendix 1—figure 11](records.md#o_sbi_params)　观测与模拟结果
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
 - [Open Source Brain 小脑颗粒层网络](records.md#r_granule_osb)　资源
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
 
 ## 神经群体 · neuronal population
 
@@ -226,7 +237,11 @@
 - [Kernel-based LFP estimation in detailed large-scale spiking network model of mouse visual cortex](records.md#p_pmid_40694892)　文献
 - [A spiking network model of the cerebellum for predicting movements with diverse complex spikes](records.md#p_pmid_40845564)　文献
 - [Decodable Spectral Structure of Input Noise in a Layered Cortical Spiking Network](records.md#p_pmid_42939370)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [Neuronal spiking in the mammalian forebrain is dominated by a heterogeneous ground state](records.md#p_levenstein_ground_state)　文献
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
 - [Open Source Brain 小脑颗粒层网络](records.md#r_granule_osb)　资源
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
 
 ## 神经群体模型 · neural mass
 

@@ -125,6 +125,30 @@ class ModelChecks(unittest.TestCase):
         self.rows[2]["model_value"] = "0.020"
         self.assert_issue(self.check(), "parameter")
 
+    def test_indexed_bounds_inherit_the_explicit_unit(self):
+        self.config["target"] = {"bounds": [1, 3], "unit": "Hz"}
+        for i, value in enumerate(self.config["target"]["bounds"]):
+            self.rows.append(dict(self.rows[7], parameter_id=f"limit{i}", config_path=f"/target/bounds/{i}",
+                                  method="assumption", model_value=str(value), model_unit="mV"))
+        report = self.check(False)
+        self.assertEqual(sum("Config declares Hz" in issue.get("detail", "") for issue in report["issues"]), 2)
+        for row in self.rows[-2:]:
+            row["model_unit"] = "Hz"
+        self.assertEqual(self.check(False)["status"], "passed")
+
+    def test_explicit_target_unit_and_dimensionless_fallback_on_nested_weights(self):
+        self.config["target"] = {"lower": 1, "unit": "Hz"}
+        self.config["synapses"]["q_nS"] = {"pv_pyr": 5}
+        for path, value in (("/target/lower", 1), ("/synapses/q_nS/pv_pyr", 5)):
+            self.rows.append(dict(self.rows[7], parameter_id=path, config_path=path, method="assumption",
+                                  model_value=str(value), model_unit="1"))
+        result = self.check(False)
+        self.assert_issue(result, "parameter")
+        self.assertIn("/synapses/q_nS/pv_pyr", [item.get("config_path") for item in result["manual_review"]])
+        self.rows[-2]["model_unit"] = "Hz"
+        self.rows[-1]["model_unit"] = "nS"
+        self.assertEqual(self.check(False)["status"], "passed")
+
     def test_psp_cannot_be_relabeled_as_conductance(self):
         self.rows[7].update(method="unit_conversion", source_value="1", source_unit="mV")
         self.assert_issue(self.check(), "parameter")

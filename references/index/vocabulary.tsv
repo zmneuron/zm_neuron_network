@@ -172,3 +172,10 @@ layer3	layer	皮层第三层	cortical layer 3	L3;layer III
 layer4	layer	皮层第四层	cortical layer 4	L4;layer IV
 adult	stage	成年	adult	成体;adulthood
 larval	stage	幼体	larval stage	larva;larvae
+autism	state	孤独症谱系	autism spectrum disorder	孤独症;自闭症;自閉症;autism;autistic;ASD
+prefrontal	anatomy	前额叶皮层	prefrontal cortex	前额叶;前額葉;PFC;prefrontal;背外侧前额叶;DLPFC;medial prefrontal cortex;mPFC
+pv_interneuron	cell	小清蛋白中间神经元	parvalbumin interneuron	PV;parvalbumin;PV interneuron;parvalbumin-expressing interneuron;Pvalb;PV中间神经元
+aperiodic	signal	非周期谱斜率	aperiodic spectral slope	非周期;非周期指数;1/f;aperiodic;spectral slope;spectral exponent;1/f slope
+immunolabel	related	免疫组织标记	immunohistochemistry	免疫组织化学;免疫染色;PV免疫阳性;immunolabeling;immunoreactivity
+frontal_electrodes	recording	额区头皮导联	frontal scalp electrodes	额区导联;额区;frontal electrodes;frontal scalp EEG;frontal montage
+circuit_inhibition	topic	回路抑制	circuit inhibition	抑制;inhibition;inhibitory transmission;GABAergic inhibition

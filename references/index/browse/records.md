@@ -1004,6 +1004,302 @@ Nathan W. Gouwens 等 · 2019-06-17 · published · experiment, data, method · 
 
 本条 ← [r_neurotycho_protocol](#r_neurotycho_protocol) · documents_protocol · 固定版本的实验室协议引用原始论文，并分列药物、睡眠和恢复。。[出处](https://wiki.neurotycho.org/index.php?title=Anesthesia_and_Sleep_Task_Details&oldid=86113)
 
+### p_hashemi_pv_pfc
+
+**[The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](https://doi.org/10.1093/cercor/bhw021)**　按供体、层和脑区比较 PV 阳性标记在染色中间神经元中的比例，约束前额叶组织观测。
+
+Hashemi E 等 · 2016-02-27 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+早期关联文献。期刊页面与 Crossref published-online 均列 2016-02-27；作者存档 PDF 页眉另列 2016-03-11 Advance Access。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+[Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](#o_hashemi_pv_ba46) · measured_here · PV 阳性在所计标记中间神经元中的比例
+
+[Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](#o_hashemi_pv_ba9) · measured_here · PV 阳性在所计标记中间神经元中的比例
+
+[Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](#o_hashemi_pv_ba47) · measured_here · PV 阳性在所计标记中间神经元中的比例
+
+本条 → [o_hashemi_pv_ba46](#o_hashemi_pv_ba46) · reported_measurement · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+本条 → [o_hashemi_pv_ba9](#o_hashemi_pv_ba9) · reported_measurement · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+本条 → [o_hashemi_pv_ba47](#o_hashemi_pv_ba47) · reported_measurement · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+本条 ← [p_hashemi_pv_correction](#p_hashemi_pv_correction) · corrects · 更正题名及讨论中的解剖定位名称，删除 medial。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6790539/)
+
+本条 ← [p_ariza_pv_pfc](#p_ariza_pv_pfc) · overlapping_samples · 两篇原文 Table 1 的脑库供体编号重叠。亚型标记带来新读数，不能计作完全独立的供体样本。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/)
+
+本条 ← [p_amina_chandelier](#p_amina_chandelier) · independent_cohort · 作者说明组织供体与先前 PV 研究不同，另用 GAT1 末梢串计数。实测单位也不同。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/)
+
+### p_hashemi_pv_correction
+
+**[The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](https://doi.org/10.1093/cercor/bhx063)**　作者更正题名和讨论的解剖名称，将范围改为前额叶。使用原论文数值时采用更正后的脑区。
+
+Hashemi E 等 · 2017-03-13 · correction · experiment · 数据 not_applicable。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC6790539/)
+
+窗口内实验与技术支持。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、回路抑制
+
+本条 → [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · corrects · 更正题名及讨论中的解剖定位名称，删除 medial。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6790539/)
+
+### p_ariza_pv_pfc
+
+**[The Number of Chandelier and Basket Cells Are Differentially Decreased in Prefrontal Cortex in Autism](https://doi.org/10.1093/cercor/bhw349)**　比较 PV/VVA 双染色下两种细胞亚型，按亚型判断组织证据适用于哪种投射。
+
+Ariza J 等 · 2016-11-19 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/)
+
+早期关联文献。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+[Figure 4A、D，BA46；Supplementary Table 2](#o_ariza_chandelier_subtypes) · measured_here · 两类标记细胞各自所占的比例
+
+本条 → [o_ariza_chandelier_subtypes](#o_ariza_chandelier_subtypes) · reported_measurement · Figure 4A、D，BA46；Supplementary Table 2。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/)
+
+本条 → [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · overlapping_samples · 两篇原文 Table 1 的脑库供体编号重叠。亚型标记带来新读数，不能计作完全独立的供体样本。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/)
+
+### p_amina_chandelier
+
+**[Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](https://doi.org/10.1093/cercor/bhaa402)**　在另一组人体供体计数 GAT1 标记的轴突末梢串，估计不同前额叶层的组织结构变化。
+
+Amina S 等 · 2021-02-01 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/)
+
+窗口内实验与技术支持。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、突触、回路抑制
+
+[Figure 4B，BA46 supragranular](#o_amina_ba46_cartridges) · measured_here · GAT1 阳性 chandelier 末梢串数
+
+本条 → [o_amina_ba46_cartridges](#o_amina_ba46_cartridges) · reported_measurement · Figure 4B，BA46 supragranular。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/)
+
+本条 → [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · independent_cohort · 作者说明组织供体与先前 PV 研究不同，另用 GAT1 末梢串计数。实测单位也不同。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/)
+
+### p_manyukhina_meg
+
+**[Globally elevated excitation–inhibition ratio in children with autism spectrum disorder and below-average intelligence](https://doi.org/10.1186/s13229-022-00498-2)**　检验儿童静息 MEG 源空间谱斜率在认知水平亚组及不同估计方法之间的差别。
+
+Manyukhina VO 等 · 2022-05-12 · published · experiment · 数据 linked。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+窗口内实验与技术支持。
+
+标签　孤独症谱系、人类、大脑皮层、磁场或脑磁、非周期谱斜率、功率谱、静息、清醒、在体
+
+[Figure 3A 及 Table 1；Methods 的 Source-space analysis](#o_manyukhina_35_45) · measured_here · 35–45 Hz 对数功率–对数频率的回归斜率
+
+[Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](#o_manyukhina_broadband) · measured_here · 使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应
+
+本条 → [o_manyukhina_35_45](#o_manyukhina_35_45) · reported_measurement · Figure 3A 及 Table 1；Methods 的 Source-space analysis。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+本条 → [o_manyukhina_broadband](#o_manyukhina_broadband) · reported_measurement · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://static-content.springer.com/esm/art%3A10.1186%2Fs13229-022-00498-2/MediaObjects/13229_2022_498_MOESM1_ESM.docx)
+
+本条 ← [p_manyukhina_meg_pre](#p_manyukhina_meg_pre) · preprint_of · 同一 MEG 队列的初版与正式版。。[出处](https://www.medrxiv.org/content/10.1101/2021.11.10.21266171v1)
+
+本条 → [r_manyukhina_meg_request](#r_manyukhina_meg_request) · collected · 原研究数据按论文 Data availability 的方式申请。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+### p_chien_frontal_eeg
+
+**[Altered spectral patterns of aperiodic electroencephalography in autism](https://doi.org/10.1111/pcn.70044)**　提供青少年及成人额区头皮 EEG 的分条件组均值和标准差，供具有相应观测转换的谱预测比较。
+
+Chien YL 等 · 2026-03-13 · published · experiment · 数据 linked。[来源](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+窗口内实验与技术支持。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、功率谱、静息、清醒、在体、额区头皮导联
+
+[Table 1；Figure 2a，frontal，睁眼注视十字](#o_chien_frontal_eyes_open) · measured_here · 额区有符号非周期斜率
+
+[Table 1；Figure 2a，frontal，闭眼](#o_chien_frontal_eyes_closed) · measured_here · 额区有符号非周期斜率
+
+本条 → [o_chien_frontal_eyes_open](#o_chien_frontal_eyes_open) · reported_measurement · Table 1；Figure 2a，frontal，睁眼注视十字。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 → [o_chien_frontal_eyes_closed](#o_chien_frontal_eyes_closed) · reported_measurement · Table 1；Figure 2a，frontal，闭眼。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 → [r_chien_frontal_eeg_request](#r_chien_frontal_eeg_request) · collected · 额区和后部头皮 EEG 的资料按作者声明申请。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+### p_dede_resting_eeg
+
+**[Exploring EEG resting state differences in autism: sparse findings from a large cohort](https://doi.org/10.1186/s13229-025-00647-3)**　检验五份静息脑电合并后的按年龄和信号特征的可重复组间差异，定位公开的逐人特征表。
+
+Dede AJO 等 · 2025-02-24 · published · data, method · 数据 linked。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+窗口内实验与技术支持。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、功率谱、静息、在体、复现与互操作
+
+[Figure 2b、2e，Tables 3–4](#o_dede_diag_features) · published_aggregate · 726 个 EEG 特征各自的效应量与复现率，含 36 个 1/f 特征
+
+本条 → [o_dede_diag_features](#o_dede_diag_features) · reanalyzed_result · Figure 2b、2e，Tables 3–4。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+本条 ← [p_dede_eeg_pre](#p_dede_eeg_pre) · preprint_of · 同五个来源队列；初版与正式版所列分析特征总数不同。。[出处](https://www.medrxiv.org/content/10.1101/2023.05.21.23290300v1)
+
+本条 → [r_dede_nda_study](#r_dede_nda_study) · reanalyzed · 作者从既有的多个原始记录集合取样再分析。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+本条 ← [r_dede_eeg_analysis](#r_dede_eeg_analysis) · analysis_for · 源码提供 FOOOF 的设置。论文与原始数据入口共同用于查核适用版本。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+### p_wagatsuma_ei_v1
+
+**[Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](https://doi.org/10.1371/journal.pcbi.1013306)**　考查保持总数而改变细胞组成时，视觉刺激下模拟放电的频率结构与时序。
+
+Wagatsuma N 等 · 2025-08-06 · published · model · 数据 not_applicable。[来源](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013306)
+
+窗口内建模与理论。
+
+标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制
+
+[Figure 3B–D，Figure 5A](#o_wagatsuma_v1_spectrum) · simulation · 锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序
+
+本条 → [o_wagatsuma_v1_spectrum](#o_wagatsuma_v1_spectrum) · simulated_result · Figure 3B–D，Figure 5A。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013306)
+
+### p_meyer_barrel_inhibition
+
+**[Inhibitory interneurons in a cortical column form hot zones of inhibition in layers 2 and 5A](https://doi.org/10.1073/pnas.1113648108)**　提供大鼠桶状皮层的分层抑制性细胞组成参照，使物种、脑区与发育期的外推有明确范围。
+
+Meyer HS 等 · 2011-09-26 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC3189020/)
+
+早期关联文献。
+
+标签　大鼠、大脑皮层、细胞类型分类、免疫组织标记、离体组织、结构测量、回路抑制
+
+[Table 1，central column 的 IN-to-neuron ratio，layers 2、3](#o_meyer_barrel_layers) · measured_here · 抑制性中间神经元占全部神经元比例
+
+本条 → [o_meyer_barrel_layers](#o_meyer_barrel_layers) · reported_measurement · Table 1，central column 的 IN-to-neuron ratio，layers 2、3。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC3189020/)
+
+### p_stimpson_frontal_anatomy
+
+**[Evolutionary scaling and cognitive correlates of primate frontal cortex microstructure](https://doi.org/10.1007/s00429-023-02719-7)**　提供原始物种分组表中的前额叶 PV 免疫阳性密度参照，可与物理体积和取样一致的模型核对。
+
+Stimpson CD 等 · 2023-10-27 · published · experiment, data · 数据 linked。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+窗口内实验与技术支持。
+
+标签　人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、结构测量、回路抑制
+
+[Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列](#o_stimpson_ba46_density) · measured_here · PV 免疫阳性细胞体积密度
+
+本条 → [o_stimpson_ba46_density](#o_stimpson_ba46_density) · reported_measurement · Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+### p_levenstein_ground_state
+
+**[Neuronal spiking in the mammalian forebrain is dominated by a heterogeneous ground state](https://doi.org/10.1016/j.neuron.2025.12.018)**　由啮齿类多个前脑区的尖峰间隔估计各神经元的低速活动状态，比较记录与平衡网络。
+
+Levenstein D 等 · 2026-02-18 · published · model, method · 数据 linked。[来源](https://pubmed.ncbi.nlm.nih.gov/41713414/)
+
+窗口内建模与理论。
+
+标签　大脑皮层、发放率、放电间隔、胞外单单位、清醒、睡眠、脉冲网络
+
+本条 → [r_crcns_fcx1_rat](#r_crcns_fcx1_rat) · reanalyzed · 正式文章 Key resources table 指向 fcx-1；该份资料是多区域研究的额叶成分。。[出处](https://pubmed.ncbi.nlm.nih.gov/41713414/)
+
+### p_filice_pv_expression
+
+**[Reduction in parvalbumin expression not loss of the parvalbumin-expressing GABA interneuron subpopulation in genetic parvalbumin and shank mouse models of autism](https://doi.org/10.1186/s13041-016-0192-8)**　联合 PV 与组织外基质标记计数以及表达量，检验小鼠中特定标记数下降有哪些相容机制。
+
+Filice F 等 · 2016-01-27 · published · experiment · 数据 not_located。[来源](https://link.springer.com/article/10.1186/s13041-016-0192-8)
+
+早期关联文献。
+
+标签　小鼠、孤独症谱系、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、细胞类型分类、离体组织、回路抑制
+
+[Figure 3a，Table 3，mPFC](#o_filice_pv_detect) · measured_here · PV 或 VVA 阳性细胞计数
+
+本条 → [o_filice_pv_detect](#o_filice_pv_detect) · reported_measurement · Figure 3a，Table 3，mPFC。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://link.springer.com/article/10.1186/s13041-016-0192-8)
+
+### p_caballero_pv_inhibition
+
+**[Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](https://doi.org/10.1038/s41386-020-0709-9)**　以大鼠前额叶锥体细胞的实测突触电流频率、幅度和双脉冲反应，比较单一强度倍率与释放动力学的预测。
+
+Caballero A 等 · 2020-05-13 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/)
+
+窗口内实验与技术支持。
+
+标签　大鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、发育、回路抑制
+
+[Figure 1d 及 Results 的 IPSC 振幅比较](#o_caballero_pv_ipsc) · measured_here · 自发 IPSC 平均事件幅度及事件频率
+
+[Figure 1e，50 ms paired-pulse](#o_caballero_pv_paired) · measured_here · 第二/第一次 IPSC 振幅
+
+本条 → [o_caballero_pv_ipsc](#o_caballero_pv_ipsc) · reported_measurement · Figure 1d 及 Results 的 IPSC 振幅比较。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/)
+
+本条 → [o_caballero_pv_paired](#o_caballero_pv_paired) · reported_measurement · Figure 1e，50 ms paired-pulse。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/)
+
+### p_canetta_pv_mia
+
+**[Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](https://doi.org/10.1038/mp.2015.222)**　成年子代小鼠的细胞类型特异诱发抑制与组织计数可检验数量和功能变化是否同向。
+
+Canetta S 等 · 2016-02-02 · published · experiment · 数据 not_located。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC4914410/)
+
+早期关联文献。
+
+标签　小鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、免疫组织标记、回路抑制
+
+[Figure 2C–F；Figure 3 为同研究结构对照](#o_canetta_pv_ipsc) · measured_here · 诱发 IPSC 振幅、可检出反应细胞比例
+
+本条 → [o_canetta_pv_ipsc](#o_canetta_pv_ipsc) · reported_measurement · Figure 2C–F；Figure 3 为同研究结构对照。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC4914410/)
+
+### p_vanneau_sfari_alpha_pre
+
+**[Instability of Alpha Oscillatory States in Autism and Familial Liability: Evidence from Burst-Resolved High-Density Electroencephalography (EEG)](https://doi.org/10.64898/2026.04.03.716324)**　定位儿童静息睁眼高密度脑电原始归档与已有 alpha 分析，供另行计算同一协议的其他预注册指标。
+
+Vanneau T 等 · 2026-04-07 · preprint · data, method · 数据 linked。[来源](https://www.biorxiv.org/content/10.64898/2026.04.03.716324v1)
+
+预印本。
+
+标签　孤独症谱系、人类、头皮脑电、静息、清醒、网络节律、功率谱、在体
+
+本条 → [r_sfari_eeg_bids](#r_sfari_eeg_bids) · reanalyzed · 作者预印本通过该公开版本追溯其 8–14 岁儿童清醒睁眼脑电记录。。[出处](https://www.biorxiv.org/content/10.64898/2026.04.03.716324v1)
+
+本条 ← [r_sfari_eeg_alpha_code](#r_sfari_eeg_alpha_code) · analysis_for · 作者提供 alpha 簇发分析代码。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC13082062/)
+
+### p_manyukhina_meg_pre
+
+**[Globally elevated excitation-inhibition ratio in children with autism spectrum disorder and below-average intelligence](https://doi.org/10.1101/2021.11.10.21266171)**　保留儿童 MEG 研究初版及其与正式发表版本的关系。
+
+Manyukhina VO 等 · 2021-11-11 · preprint · experiment · 数据 unchecked。[来源](https://www.medrxiv.org/content/10.1101/2021.11.10.21266171v1)
+
+预印本。
+
+标签　孤独症谱系、人类、磁场或脑磁、非周期谱斜率、静息
+
+本条 → [p_manyukhina_meg](#p_manyukhina_meg) · preprint_of · 同一 MEG 队列的初版与正式版。。[出处](https://www.medrxiv.org/content/10.1101/2021.11.10.21266171v1)
+
+### p_dede_eeg_pre
+
+**[Lack of univariate, clinically-relevant biomarkers of autism in resting state EEG: a study of 776 participants](https://doi.org/10.1101/2023.05.21.23290300)**　对照数百项 EEG 特征分析的预印本与正式稿，核实使用哪版方法及变量清单。
+
+Dede AJO 等 · 2023-05-23 · preprint · data, method · 数据 linked。[来源](https://www.medrxiv.org/content/10.1101/2023.05.21.23290300v1)
+
+预印本。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、静息
+
+本条 → [p_dede_resting_eeg](#p_dede_resting_eeg) · preprint_of · 同五个来源队列；初版与正式版所列分析特征总数不同。。[出处](https://www.medrxiv.org/content/10.1101/2023.05.21.23290300v1)
+
+### p_shapson_coe_h01
+
+**[A petavoxel fragment of human cerebral cortex reconstructed at nanoscale resolution](https://doi.org/10.1126/science.adk4858)**　查看人颞叶手术组织中的细胞和突触重建，为局部网络结构提供区域与供体明确的参照。
+
+Shapson-Coe A 等 · 2024-05-10 · published · data, experiment · 数据 linked。[来源](https://pmc.ncbi.nlm.nih.gov/articles/PMC11718559/)
+
+窗口内实验与技术支持。PubMed PMID 38723085，ArticleDate 的 Electronic 日期。
+
+标签　人类、大脑皮层、连接组、电子显微成像、离体组织、突触
+
+本条 → [r_h01_temporal](#r_h01_temporal) · collected · 单供体组织块的电镜及重建。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11718559/)
+
+### p_watson_fcx1
+
+**[Network Homeostasis and State Dynamics of Neocortical Sleep](https://doi.org/10.1016/j.neuron.2016.03.036)**　提供大鼠额叶自由行为下的清醒与睡眠状态、单位分类和局部场背景。
+
+Watson BO 等 · 2016-04-28 · published · experiment · 数据 linked。[来源](https://pubmed.ncbi.nlm.nih.gov/27133462/)
+
+早期关联文献。采用 PMID 27133462 的 Electronic 日期；归档的书目字符串列出前一天。
+
+标签　大鼠、大脑皮层、前额叶皮层、睡眠、清醒、局部场电位记录、胞外单单位、发放率
+
+本条 → [r_crcns_fcx1_rat](#r_crcns_fcx1_rat) · collected · 原采集实验与额叶睡眠/清醒档案。。[出处](https://crcns.org/data-sets/fcx/fcx-1/about-fcx-1)
+
 ### o_sbi_exp
 
 **周期、相位延迟与间隙、簇持续时间**　图示三相节律，不从示意轨迹估读总体均值。[Figure 5b；原实验 Haddad & Marder 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC7581433/) · [所属论文](#p_sbi)
@@ -1425,6 +1721,262 @@ Mus musculus | 外侧视觉区 VISl 第 4 层，有棘细胞 | 急性脑片，�
 标签　镇静、头皮脑电、神经群体、人类、在体、丙泊酚、行为观测、静息
 
 本条 ← [r_bajwa_openneuro](#r_bajwa_openneuro) · archives_study · 同一深镇静实验归档；按原文报告类别和唤醒前的时间窗解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC12460656/)
+
+### o_hashemi_pv_ba46
+
+**PV 阳性在所计标记中间神经元中的比例**　对照与自闭症分别为 33±4% 对 11±3%，P=0.0004。[Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/) · [所属论文](#p_hashemi_pv_pfc)
+
+人 | 前额叶 BA46 II–III 层 | 死亡后组织切片，免疫染色 | 自闭症与年龄匹配对照。
+
+刺激/对照为 在规定组织带内按 PV、CB、CR 三种中间神经元标记计数 / 同区同层对照供体。单位 %，均值±SEM，时窗 组织取样，无动态时间窗，分组 按供体、脑区及浅层分组，独立单位 供体；整项研究 11 例自闭症和 10 例对照，脑区、层与重复取样带均在供体内。
+
+原研究用途为 定位皮层分区及浅层标记差异。建模用途为 分母为作者定义的标记细胞集合；约束免疫阳性比例。细胞数、标记表达和功能效能应分别建模。。来源类别 `measured_here`，共同来源 `ucd_pfc_pv_hashemi_ariza`。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+本条 ← [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · reported_measurement · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+### o_hashemi_pv_ba9
+
+**PV 阳性在所计标记中间神经元中的比例**　对照与自闭症分别为 31±9% 对 11±2%，P=0.04。[Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/) · [所属论文](#p_hashemi_pv_pfc)
+
+人 | 前额叶 BA9 II–III 层 | 死亡后组织切片，免疫染色 | 自闭症与年龄匹配对照。
+
+刺激/对照为 在规定组织带内按 PV、CB、CR 三种中间神经元标记计数 / 同区同层对照供体。单位 %，均值±SEM，时窗 组织取样，无动态时间窗，分组 按供体、脑区及浅层分组，独立单位 供体；整项研究 11 例自闭症和 10 例对照，脑区、层与重复取样带均在供体内。
+
+原研究用途为 定位皮层分区及浅层标记差异。建模用途为 分母为作者定义的标记细胞集合；约束免疫阳性比例。细胞数、标记表达和功能效能应分别建模。。来源类别 `measured_here`，共同来源 `ucd_pfc_pv_hashemi_ariza`。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+本条 ← [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · reported_measurement · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+### o_hashemi_pv_ba47
+
+**PV 阳性在所计标记中间神经元中的比例**　对照与自闭症分别为 16±1% 对 10±2%，P=0.03。[Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/) · [所属论文](#p_hashemi_pv_pfc)
+
+人 | 前额叶 BA47 II–III 层 | 死亡后组织切片，免疫染色 | 自闭症与年龄匹配对照。
+
+刺激/对照为 在规定组织带内按 PV、CB、CR 三种中间神经元标记计数 / 同区同层对照供体。单位 %，均值±SEM，时窗 组织取样，无动态时间窗，分组 按供体、脑区及浅层分组，独立单位 供体；整项研究 11 例自闭症和 10 例对照，脑区、层与重复取样带均在供体内。
+
+原研究用途为 定位皮层分区及浅层标记差异。建模用途为 分母为作者定义的标记细胞集合；约束免疫阳性比例。细胞数、标记表达和功能效能应分别建模。。来源类别 `measured_here`，共同来源 `ucd_pfc_pv_hashemi_ariza`。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+本条 ← [p_hashemi_pv_pfc](#p_hashemi_pv_pfc) · reported_measurement · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6074948/)
+
+### o_ariza_chandelier_subtypes
+
+**两类标记细胞各自所占的比例**　Ch 比例比对照低 65.1%（P=0.05），basket 组间 P=0.10。[Figure 4A、D，BA46；Supplementary Table 2](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/) · [所属论文](#p_ariza_pv_pfc)
+
+人 | 前额叶 BA46，皮层全厚 | 死亡后组织切片 | 自闭症与匹配对照。
+
+刺激/对照为 在 PV/VVA 双染切片计数 PV+/VVA−（Ch）与 PV+/VVA+（basket），以至少一种标记阳性的细胞为分母 / 对照组同脑区、同细胞定义。单位 相对于对照的百分比变化，时窗 组织取样，无动态时间窗，分组 层合并，按供体和细胞亚型比较，独立单位 每组 10 名供体；两篇 Table 1 有供体重叠。
+
+原研究用途为 分别比较两类抑制中间神经元的改变。建模用途为 Ch 与 basket 是染色操作定义，含探测阈值的不确定性。支持分投射比较，不给每次突触事件电导。。来源类别 `measured_here`，共同来源 `ucd_pfc_pv_hashemi_ariza`。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、细胞类型分类、回路抑制
+
+本条 ← [p_ariza_pv_pfc](#p_ariza_pv_pfc) · reported_measurement · Figure 4A、D，BA46；Supplementary Table 2。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC6676950/)
+
+### o_amina_ba46_cartridges
+
+**GAT1 阳性 chandelier 末梢串数**　对照 823.8，自闭症 316.4（组均值，P=0.002）。[Figure 4B，BA46 supragranular](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/) · [所属论文](#p_amina_chandelier)
+
+人 | 前额叶 BA46 浅层 | 死亡后组织切片，GAT1 染色 | 自闭症与对照。
+
+刺激/对照为 在宽 3 mm 的径向组织带计数阳性轴突末梢串，另取组织带作重复 / 同脑区、同深度的年龄和性别匹配对照。单位 个/取样带，时窗 组织取样，无动态时间窗，分组 按供体、脑区及浅深层，独立单位 11 名自闭症、11 名对照；作者说明相对于先前 PV 研究为另一队列。
+
+原研究用途为 用不同标记与供体核查结构改变。建模用途为 可约束轴突初段靶向投射的末梢分布。仍需突触生理或逐细胞连接资料约束单位电导、每细胞分支及总抑制。。来源类别 `measured_here`，共同来源 `ucd_pfc_gat1_amina`。
+
+标签　孤独症谱系、人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、突触、回路抑制
+
+本条 ← [p_amina_chandelier](#p_amina_chandelier) · reported_measurement · Figure 4B，BA46 supragranular。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC8107784/)
+
+### o_manyukhina_35_45
+
+**35–45 Hz 对数功率–对数频率的回归斜率**　MPI<85 自闭症比典型发育更平（P=0.009），比 MPI>85 自闭症更平（P=0.0004）；后者与典型发育比较 P=0.098。[Figure 3A 及 Table 1；Methods 的 Source-space analysis](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/) · [所属论文](#p_manyukhina_meg)
+
+人，6–15 岁男孩 | 448 个皮层源分区的均值 | 在体 MEG 与 MRI 源重建 | 清醒静息，睁眼/闭眼。
+
+刺激/对照为 对源重建谱归一、分区内平均，在每名儿童层面比较 / 年龄匹配的典型发育男孩及自闭症 MPI>85 亚组。单位 无量纲，时窗 1 s MEG 分段，谱拟合 35–45 Hz；Fig.3A 合并睁闭眼，分组 按儿童的诊断与 MPI 分组，分析含年龄；全样本睁眼 49+49，闭眼 38+45（自闭症+对照），独立单位 儿童；睁闭眼及多个分区为儿童内测量。
+
+原研究用途为 比较静息皮层全局谱衰减的年龄与认知分组差异。建模用途为 此处测量是源估计的全皮层均值；不单独定位 BA46，也不直接测量 E/I 电导或细胞数。。来源类别 `measured_here`，共同来源 `manyukhina_moscow_child_meg`。
+
+标签　孤独症谱系、人类、大脑皮层、磁场或脑磁、非周期谱斜率、功率谱、静息、清醒、在体
+
+本条 ← [p_manyukhina_meg](#p_manyukhina_meg) · reported_measurement · Figure 3A 及 Table 1；Methods 的 Source-space analysis。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+本条 ← [r_manyukhina_meg_request](#r_manyukhina_meg_request) · supports · 同一研究采集的睁眼和闭眼 MEG，文件须申请。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+本条 → [o_manyukhina_broadband](#o_manyukhina_broadband) · same_recordings · 主要窄带分析和补充宽带分析使用同研究的记录，互为估计方法比较。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+### o_manyukhina_broadband
+
+**使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应**　F(2,80)=0.72，P=0.49，η²=0.018。[Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](https://static-content.springer.com/esm/art%3A10.1186%2Fs13229-022-00498-2/MediaObjects/13229_2022_498_MOESM1_ESM.docx) · [所属论文](#p_manyukhina_meg)
+
+人，6–15 岁男孩 | 448 个皮层源分区的均值 | 在体 MEG 与 MRI 源重建 | 清醒静息，睁眼/闭眼。
+
+刺激/对照为 对源重建谱归一、分区内平均，在每名儿童层面比较 / 年龄匹配的典型发育男孩及自闭症 MPI>85 亚组。单位 F 值、P 值与效应量，时窗 2–45 Hz 频率范围，分组 同一研究的三组，睁闭眼的比较详见补表，独立单位 儿童；与 Figure 3 来自同批参与者。
+
+原研究用途为 检验宽带谱参数化下的组别主效应。建模用途为 该估计口径未检出组别主效应。与窄带结果的差异揭示对拟合频带和算法的依赖，不能当作第二批独立人体数据。。来源类别 `measured_here`，共同来源 `manyukhina_moscow_child_meg`。
+
+标签　孤独症谱系、人类、大脑皮层、磁场或脑磁、非周期谱斜率、功率谱、静息、清醒、在体
+
+本条 ← [p_manyukhina_meg](#p_manyukhina_meg) · reported_measurement · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://static-content.springer.com/esm/art%3A10.1186%2Fs13229-022-00498-2/MediaObjects/13229_2022_498_MOESM1_ESM.docx)
+
+本条 ← [r_manyukhina_meg_supp](#r_manyukhina_meg_supp) · supports · Table S4 给出宽频段估计的效应。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+本条 ← [o_manyukhina_35_45](#o_manyukhina_35_45) · same_recordings · 主要窄带分析和补充宽带分析使用同研究的记录，互为估计方法比较。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+### o_chien_frontal_eyes_open
+
+**额区有符号非周期斜率**　自闭症与对照分别为 −1.18±0.19 与 −1.28±0.22，年龄及性别校正 P=0.0124。[Table 1；Figure 2a，frontal，睁眼注视十字](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044) · [所属论文](#p_chien_frontal_eeg)
+
+人，青少年及成人 | 额区头皮五导联 Fz/F3/F4/F7/F8 | 19 导联头皮 EEG，双耳垂参考 | 清醒静息，睁眼注视十字。
+
+刺激/对照为 分析去除振荡成分后的 35–45 Hz 对数谱斜率 / 同状态的非自闭对照。单位 无量纲，均值±SD，时窗 每种状态 3 分钟；拟合 35–45 Hz，分组 按参与者、诊断、状态及头皮区域汇总，独立单位 参与者，63 名自闭症，53 名对照；两状态共用队列。
+
+原研究用途为 测量额区头皮谱的诊断组差异。建模用途为 此比较约束相同头皮观测及处理后的预测；额区导联混合了多个源，不能唯一检验单一皮层微回路机制。。来源类别 `measured_here`，共同来源 `chien_ntuh_resting_eeg`。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、功率谱、静息、清醒、在体、额区头皮导联
+
+本条 ← [p_chien_frontal_eeg](#p_chien_frontal_eeg) · reported_measurement · Table 1；Figure 2a，frontal，睁眼注视十字。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 ← [r_chien_frontal_eeg_request](#r_chien_frontal_eeg_request) · supports · 睁眼条件的额区汇总。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+### o_chien_frontal_eyes_closed
+
+**额区有符号非周期斜率**　自闭症与对照分别为 −1.35±0.20 与 −1.49±0.19，年龄及性别校正 P=0.0008。[Table 1；Figure 2a，frontal，闭眼](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044) · [所属论文](#p_chien_frontal_eeg)
+
+人，青少年及成人 | 额区头皮五导联 Fz/F3/F4/F7/F8 | 19 导联头皮 EEG，双耳垂参考 | 清醒静息，闭眼。
+
+刺激/对照为 分析去除振荡成分后的 35–45 Hz 对数谱斜率 / 同状态的非自闭对照。单位 无量纲，均值±SD，时窗 每种状态 3 分钟；拟合 35–45 Hz，分组 按参与者、诊断、状态及头皮区域汇总，独立单位 参与者，63 名自闭症，53 名对照；两状态共用队列。
+
+原研究用途为 测量额区头皮谱的诊断组差异。建模用途为 此比较约束相同头皮观测及处理后的预测；额区导联混合了多个源，不能唯一检验单一皮层微回路机制。。来源类别 `measured_here`，共同来源 `chien_ntuh_resting_eeg`。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、功率谱、静息、清醒、在体、额区头皮导联
+
+本条 ← [p_chien_frontal_eeg](#p_chien_frontal_eeg) · reported_measurement · Table 1；Figure 2a，frontal，闭眼。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 ← [r_chien_frontal_eeg_request](#r_chien_frontal_eeg_request) · supports · 闭眼条件的额区汇总；与睁眼为同一研究。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+### o_dede_diag_features
+
+**726 个 EEG 特征各自的效应量与复现率，含 36 个 1/f 特征**　达到作者效应量界值的 174 个诊断系数中，11 个另达到复现率 >0.64；作者报告诊断相关性总体稀少。[Figure 2b、2e，Tables 3–4](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/) · [所属论文](#p_dede_resting_eeg)
+
+人，3–248 月龄 | 头皮 EEG 多区域 | 在体静息脑电，多来源合并 | 清醒静息，睁眼；五个来源的获取方案存在差别。
+
+刺激/对照为 五份既有记录统一处理，按年龄分组并检验分半复现率 / 神经典型参与者。单位 特征个数、比例，时窗 原数据时长因队列而异，按参与者提取特征，分组 按发育年龄分组；726 个变量含 36 个斜率变量，独立单位 776 名参与者，421 名自闭症、355 名神经典型；变量与交叉分样均不增加参与者。
+
+原研究用途为 评估清醒睁眼诊断读数的重现性。作者从五份既有队列再分析，正式论文注明非周期特征采用 FOOOF。。建模用途为 给定待检读数后应核对源队列、频带和个体层级，不可由总体稀疏推得某个指定额区读数在所有人群等效。。来源类别 `published_aggregate`，共同来源 `dede_nda_five_cohorts`。
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、功率谱、静息、在体、复现与互操作
+
+本条 ← [p_dede_resting_eeg](#p_dede_resting_eeg) · reanalyzed_result · Figure 2b、2e，Tables 3–4。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+本条 ← [r_dede_eeg_features](#r_dede_eeg_features) · related_processed · 按参与者与记录的衍生表。当前提交中的表和统计程序仍需与正式纳入清单逐一核对。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+### o_wagatsuma_v1_spectrum
+
+**锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序**　在该配置下 beta 和 gamma 成分增强，PV 活动可领先 Pyr。[Figure 3B–D，Figure 5A](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013306) · [所属论文](#p_wagatsuma_ei_v1)
+
+模拟的 V1 回路 | 视觉皮层 II/III 层 | 模拟 | 视觉刺激。
+
+刺激/对照为 保持细胞总数恒定，同时降低 PV 数与提高 Pyr 数，比较 E/I 组成 / 同类模型的其他预设组成。单位 按原图的谱功率/归一化功率，频率 Hz，时窗 刺激期统计，按 Figure 3 的频带与采样方案，分组 4 组 E/I 数量比；每种设置的功率来自 50 次模拟，独立单位 模拟试次。
+
+原研究用途为 检验不同组成怎样改变受刺激网络活动。建模用途为 与无刺激局部场或电流谱比较时需分别匹配细胞替代规则、输入及观测量。。来源类别 `simulation`，共同来源 `wagatsuma_v1_2025`。
+
+标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制
+
+本条 ← [p_wagatsuma_ei_v1](#p_wagatsuma_ei_v1) · simulated_result · Figure 3B–D，Figure 5A。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013306)
+
+本条 ← [r_wagatsuma_v1_figshare](#r_wagatsuma_v1_figshare) · model_for · 作者指定的模型源代码；结果出自视觉刺激下的群体放电模拟。。[出处](https://api.figshare.com/v2/articles/28715867/versions/1)
+
+### o_stimpson_ba46_density
+
+**PV 免疫阳性细胞体积密度**　人 DLPFC 5123.6 个/mm³，样本均龄 39.8 岁。[Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/) · [所属论文](#p_stimpson_frontal_anatomy)
+
+人 | 背外侧前额叶 II–III 层 | 死亡后固定脑组织，免疫组织化学 | 成人组成的物种对比组。
+
+刺激/对照为 用立体计数比较前额皮层 PV 免疫阳性细胞密度 / 同表列出 OFC、M1 和其他物种的同层值。单位 个/mm³，时窗 解剖取样，无动态时间窗，分组 物种、脑区和层内汇总，独立单位 4 名供体（2 女、2 男）。
+
+原研究用途为 分析灵长类额区微观结构。建模用途为 给出按物理体积的密度参照；换成全体神经元占比须取相同组织的总神经元密度并说明体积缩放。。来源类别 `measured_here`，共同来源 `stimpson_primate_frontal_histology`。
+
+标签　人类、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、离体组织、结构测量、回路抑制
+
+本条 ← [p_stimpson_frontal_anatomy](#p_stimpson_frontal_anatomy) · reported_measurement · Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+本条 ← [r_stimpson_frontal_table](#r_stimpson_frontal_table) · supports · 在人类行、II–III 层及 DLPFC 的 PV-ir 密度列读取。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+### o_meyer_barrel_layers
+
+**抑制性中间神经元占全部神经元比例**　表内皮层柱的 L2 约 17%，L3 约 9%（按原表取整）。[Table 1，central column 的 IN-to-neuron ratio，layers 2、3](https://pmc.ncbi.nlm.nih.gov/articles/PMC3189020/) · [所属论文](#p_meyer_barrel_inhibition)
+
+大鼠 | 胡须桶状躯体感觉皮层 II、III 层 | 组织学重建，按皮层柱与层计数 | 发育期动物。
+
+刺激/对照为 分层计数 GAD67 阳性中间神经元与神经元总量 / 邻层与邻近桶状皮层柱。单位 %，时窗 解剖取样，无动态时间窗，分组 按各层、皮层柱、动物的组织样本，独立单位 动物，切片和同一动物的皮层柱是嵌套测量。
+
+原研究用途为 定义大鼠桶状皮层的层间组成差异。建模用途为 适用大鼠特定感觉脑区及年龄，可作转用先验；人体前额叶仍需目标对象的分层证据。。来源类别 `measured_here`，共同来源 `meyer_rat_barrel_columns`。
+
+标签　大鼠、大脑皮层、细胞类型分类、免疫组织标记、离体组织、结构测量、回路抑制
+
+本条 ← [p_meyer_barrel_inhibition](#p_meyer_barrel_inhibition) · reported_measurement · Table 1，central column 的 IN-to-neuron ratio，layers 2、3。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC3189020/)
+
+### o_filice_pv_detect
+
+**PV 或 VVA 阳性细胞计数**　PV 免疫阳性细胞数下降，三种基因型间未检出 VVA 阳性总数的显著差异。[Figure 3a，Table 3，mPFC](https://link.springer.com/article/10.1186/s13041-016-0192-8) · [所属论文](#p_filice_pv_expression)
+
+小鼠 | 内侧前额叶，另有体感皮层及纹状体 | 固定组织双标记及立体计数 | 基因型比较。
+
+刺激/对照为 分别统计 PV 抗体可见细胞与 VVA 标记细胞 / 野生型与 PV 杂合、纯合基因型。单位 个或同组对照的百分比，时窗 组织取样，无动态时间窗，分组 分脑区、基因型与标记，独立单位 小鼠，切片和多种标记来自同一动物。
+
+原研究用途为 评估 PV 染色计数下降能否反映表达变化。建模用途为 支持将标记检出率与细胞数分开；VVA 的有效性取决于物种与细胞亚型，不能直接替代人类 chandelier 的计数。。来源类别 `measured_here`，共同来源 `filice_pv_mouse_markers`。
+
+标签　小鼠、孤独症谱系、大脑皮层、前额叶皮层、小清蛋白中间神经元、免疫组织标记、细胞类型分类、离体组织、回路抑制
+
+本条 ← [p_filice_pv_expression](#p_filice_pv_expression) · reported_measurement · Figure 3a，Table 3，mPFC。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://link.springer.com/article/10.1186/s13041-016-0192-8)
+
+### o_caballero_pv_ipsc
+
+**自发 IPSC 平均事件幅度及事件频率**　对照 15.9±1.2 pA、表达受扰 15.4±0.8 pA；受扰组频率下降。[Figure 1d 及 Results 的 IPSC 振幅比较](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/) · [所属论文](#p_caballero_pv_inhibition)
+
+大鼠 | 前额叶 V 层锥体细胞 | 急性脑片，全细胞膜片钳 | 青春期 PV 表达受扰后的成年记录。
+
+刺激/对照为 对锥体细胞记录自发性抑制性突触后电流，分别统计事件频率和幅度 / 同龄对照处理。单位 pA；events/min，时窗 具体取样见原研究的成年组，无外加任务，分组 细胞嵌套在大鼠内，两组各 6 只，分别 11 与 12 个细胞，独立单位 大鼠；原研究图中报告细胞层统计，重分析须保留动物层级。
+
+原研究用途为 检验表达变化对锥体细胞抑制输入的作用。建模用途为 事件变少而平均振幅相近可约束备选释放/接触机制。单独依靠群体平均电导无法定位每个接触的强度。。来源类别 `measured_here`，共同来源 `caballero_rat_pfc_slices`。
+
+标签　大鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、发育、回路抑制
+
+本条 ← [p_caballero_pv_inhibition](#p_caballero_pv_inhibition) · reported_measurement · Figure 1d 及 Results 的 IPSC 振幅比较。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/)
+
+### o_caballero_pv_paired
+
+**第二/第一次 IPSC 振幅**　对照组比值 <1，表达受扰组 >1。[Figure 1e，50 ms paired-pulse](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/) · [所属论文](#p_caballero_pv_inhibition)
+
+大鼠 | 前额叶 V 层锥体细胞 | 急性脑片，全细胞膜片钳 | 青春期 PV 表达受扰后的成年记录。
+
+刺激/对照为 以间隔 50 ms 的双脉冲最小刺激观察两次 IPSC / 同龄对照处理，相近首脉冲失败概率。单位 比值，时窗 双刺激间隔 50 ms，分组 按条件及动物/细胞层级，独立单位 大鼠，细胞嵌套于动物；与 Fig.1d 是否同一批细胞未核实。
+
+原研究用途为 比较短时释放动态。建模用途为 可同事件频率/幅度联合区分纯强度乘数与释放概率改变。所查为大鼠前额叶 V 层，推广到人浅层须另验。。来源类别 `measured_here`，共同来源 `caballero_rat_pfc_slices`。
+
+标签　大鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、发育、回路抑制
+
+本条 ← [p_caballero_pv_inhibition](#p_caballero_pv_inhibition) · reported_measurement · Figure 1e，50 ms paired-pulse。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC7360578/)
+
+### o_canetta_pv_ipsc
+
+**诱发 IPSC 振幅、可检出反应细胞比例**　PV 路径诱发电流和有反应锥体细胞比例较低；刺激下 PV 的放电数未见差别。[Figure 2C–F；Figure 3 为同研究结构对照](https://pmc.ncbi.nlm.nih.gov/articles/PMC4914410/) · [所属论文](#p_canetta_pv_mia)
+
+小鼠 | 成年子代内侧前额叶前边缘区锥体细胞 | 急性脑片，膜片钳与细胞类型特异刺激 | 发育暴露对照模型。
+
+刺激/对照为 激活 PV 细胞，测量锥体细胞诱发抑制性电流，并检查实际激发的尖峰 / 匹配对照子代及其他中间神经元类型。单位 pA、%，时窗 Figure 2 的 5 ms 输入，分组 按动物、细胞与投射类型，独立单位 动物/窝与所记录细胞的层级须区分，原文分面另报数量。
+
+原研究用途为 把实际输入、抑制输出以及 Fig.3 组织计数互相对照。建模用途为 说明一个回路的功能改变可以和组织计数分开检验。此为特定小鼠病因条件，不能自动外推到临床诊断组。。来源类别 `measured_here`，共同来源 `canetta_mia_pfc`。
+
+标签　小鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、免疫组织标记、回路抑制
+
+本条 ← [p_canetta_pv_mia](#p_canetta_pv_mia) · reported_measurement · Figure 2C–F；Figure 3 为同研究结构对照。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC4914410/)
 
 ### r_modeldb2488
 
@@ -1899,3 +2451,135 @@ raw · 10.5281/zenodo.806176 · 版本 record 806176，2017-06-12 · application
 标签　清醒、麻醉、网络节律、头皮脑电、功率谱、人类、在体、神经群体、大脑皮层、睡眠、丙泊酚、氯胺酮、氙气、静息
 
 本条 → [o_purdon_frontal](#o_purdon_frontal) · candidate_resting_control · 登记有闭眼清醒与丙泊酚静息记录，访问须申请；未确认原始样本独立性。。[出处](https://zenodo.org/api/records/806176)
+
+### r_manyukhina_meg_request
+
+**[Manyukhina 等儿童静息源空间 MEG 研究的数据申请入口](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)**　原文表明可向通讯作者提出合理请求。申请时明确所需逐受试者 MEG 原信号或源级功率谱、睁闭眼及 MPI 分组，具体交付范围须由作者确认。
+
+raw · PMCID:PMC9102291/Data availability · 版本 论文所用队列，归档版本未报告 · application · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `manyukhina_moscow_child_meg`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+标签　孤独症谱系、人类、静息、磁场或脑磁、非周期谱斜率、资源访问条件
+
+本条 ← [p_manyukhina_meg](#p_manyukhina_meg) · collected · 原研究数据按论文 Data availability 的方式申请。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+本条 → [o_manyukhina_35_45](#o_manyukhina_35_45) · supports · 同一研究采集的睁眼和闭眼 MEG，文件须申请。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+### r_manyukhina_meg_supp
+
+**[Manyukhina 等 Additional file 1，MEG 拟合比较](https://static-content.springer.com/esm/art%3A10.1186%2Fs13229-022-00498-2/MediaObjects/13229_2022_498_MOESM1_ESM.docx)**　下载汇总方法与表格，Table S4 可核查相同队列宽带 FOOOF 的组别效应。
+
+processed · 13229_2022_498_MOESM1_ESM.docx · 版本 与正式论文同步的补充文件 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `manyukhina_moscow_child_meg`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+标签　孤独症谱系、人类、磁场或脑磁、静息、非周期谱斜率、功率谱、处理后资料
+
+本条 → [o_manyukhina_broadband](#o_manyukhina_broadband) · supports · Table S4 给出宽频段估计的效应。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC9102291/)
+
+### r_chien_frontal_eeg_request
+
+**[Chien 等额区与后部静息 EEG 的数据申请说明](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)**　原始资料受隐私或伦理限制，按原文向通讯作者申请；公开表 1 已提供两种睁闭眼状态的额区斜率。
+
+raw · PMID:41821506/Data availability · 版本 正式论文所用样本，未公布文件版本 · application · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `chien_ntuh_resting_eeg`。[依据](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+标签　孤独症谱系、人类、静息、头皮脑电、非周期谱斜率、资源访问条件、额区头皮导联
+
+本条 ← [p_chien_frontal_eeg](#p_chien_frontal_eeg) · collected · 额区和后部头皮 EEG 的资料按作者声明申请。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 → [o_chien_frontal_eyes_open](#o_chien_frontal_eyes_open) · supports · 睁眼条件的额区汇总。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+本条 → [o_chien_frontal_eyes_closed](#o_chien_frontal_eyes_closed) · supports · 闭眼条件的额区汇总；与睁眼为同一研究。。[出处](https://onlinelibrary.wiley.com/doi/full/10.1111/pcn.70044)
+
+### r_dede_nda_study
+
+**[Dede 等合并研究使用的 NIMH Data Archive 数据集合](https://nda.nih.gov/study.html?id=1930)**　研究登记页公开，人体原始记录须取得相应访问权限。核对参与者与原始队列，以避免将再分析视为新增样本。
+
+raw · NDA:Study1930 · 版本 10.15154/1528473 · application · 许可 按 NDA 授权与数据使用条款 · 核实于 2026-11-28 · 共同来源 `dede_nda_five_cohorts`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+标签　孤独症谱系、人类、静息、头皮脑电、非周期谱斜率、资源访问条件
+
+本条 ← [p_dede_resting_eeg](#p_dede_resting_eeg) · reanalyzed · 作者从既有的多个原始记录集合取样再分析。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+本条 → [r_dede_eeg_features](#r_dede_eeg_features) · common_source · 原研究的项目登记和处理后特征来自相同来源队列。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+### r_dede_eeg_features
+
+**[Dede 等按记录生成的静息 EEG 汇总特征表](https://github.com/adede1988/SheffieldAutismBiomarkers/blob/dc92774b7d97236d40c594bbd451570571243444/autismBiomarkersAllData_mostRecent.csv)**　可查多区域、分组、年龄和眼状态。该提交的表含 2755 行，含多记录和状态，需用正式纳入清单核对。logSlope 与旧代码、正式 FOOOF 非周期项的定义应逐列核准。
+
+processed · SheffieldAutismBiomarkers/autismBiomarkersAllData_mostRecent.csv · 版本 dc92774b7d97236d40c594bbd451570571243444 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `dede_nda_five_cohorts`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+标签　孤独症谱系、人类、头皮脑电、静息、非周期谱斜率、处理后资料、额区头皮导联
+
+本条 → [o_dede_diag_features](#o_dede_diag_features) · related_processed · 按参与者与记录的衍生表。当前提交中的表和统计程序仍需与正式纳入清单逐一核对。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+本条 ← [r_dede_nda_study](#r_dede_nda_study) · common_source · 原研究的项目登记和处理后特征来自相同来源队列。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+### r_dede_eeg_analysis
+
+**[Dede 等 EEG 频谱估计代码，作者提交中的 FOOOF 脚本](https://github.com/adede1988/SheffieldAutismBiomarkers/blob/dc92774b7d97236d40c594bbd451570571243444/foofAnalysis.py)**　foofAnalysis.py 以 1–30 Hz 设置拟合，与同仓旧 MATLAB 斜率、额区其他研究的 35–45 Hz 输出需分别登记。
+
+analysis_code · SheffieldAutismBiomarkers/foofAnalysis.py · 版本 dc92774b7d97236d40c594bbd451570571243444 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `dede_nda_five_cohorts`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+标签　孤独症谱系、人类、头皮脑电、非周期谱斜率、软件实现
+
+本条 → [p_dede_resting_eeg](#p_dede_resting_eeg) · analysis_for · 源码提供 FOOOF 的设置。论文与原始数据入口共同用于查核适用版本。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11853566/)
+
+### r_wagatsuma_v1_figshare
+
+**[Wagatsuma 等视觉皮层 E/I 模型源代码](https://doi.org/10.6084/m9.figshare.28715867.v1)**　用固定模型版本复核细胞组成、视觉输入和 PSTH 功率计算。
+
+model_code · 10.6084/m9.figshare.28715867.v1 · 版本 1 · public · 许可 CC BY 4.0 · 核实于 2026-11-28 · 共同来源 `wagatsuma_v1_2025`。[依据](https://api.figshare.com/v2/articles/28715867/versions/1)
+
+标签　大脑皮层、脉冲网络、小清蛋白中间神经元、局部微环路、软件实现、模拟结果、回路抑制
+
+本条 → [o_wagatsuma_v1_spectrum](#o_wagatsuma_v1_spectrum) · model_for · 作者指定的模型源代码；结果出自视觉刺激下的群体放电模拟。。[出处](https://api.figshare.com/v2/articles/28715867/versions/1)
+
+### r_stimpson_frontal_table
+
+**[Stimpson 等 14 种灵长类额叶微结构汇总表](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)**　原研究指明数据在 Table 1；人类行的 DLPFC 浅层同时标有计量单位与供体数，可按物种/层查密度。
+
+processed · PMCID:PMC12442048/Table1 · 版本 正式论文 Table 1 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `stimpson_primate_frontal_histology`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+标签　人类、前额叶皮层、大脑皮层、小清蛋白中间神经元、结构测量、免疫组织标记、处理后资料、回路抑制
+
+本条 → [o_stimpson_ba46_density](#o_stimpson_ba46_density) · supports · 在人类行、II–III 层及 DLPFC 的 PV-ir 密度列读取。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC12442048/)
+
+### r_crcns_fcx1_rat
+
+**[CRCNS fcx-1，大鼠额叶的尖峰和局部场以及睡眠/清醒时段](https://crcns.org/data-sets/fcx/fcx-1/about-fcx-1)**　原平台提供硅探针尖峰、LFP 与记录说明。11 只成年雄性大鼠的 27 次记录中有自发清醒转睡眠时段，分类为推定兴奋/抑制单元。
+
+processed · CRCNS:fcx-1 · 版本 10.6080/K02N506Q · registration · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `watson_rat_fcx1`。[依据](https://crcns.org/data-sets/fcx/fcx-1/about-fcx-1)
+
+标签　大鼠、大脑皮层、前额叶皮层、胞外单单位、局部场电位记录、尖峰时间、发放率、清醒、睡眠
+
+本条 ← [p_watson_fcx1](#p_watson_fcx1) · collected · 原采集实验与额叶睡眠/清醒档案。。[出处](https://crcns.org/data-sets/fcx/fcx-1/about-fcx-1)
+
+本条 ← [p_levenstein_ground_state](#p_levenstein_ground_state) · reanalyzed · 正式文章 Key resources table 指向 fcx-1；该份资料是多区域研究的额叶成分。。[出处](https://pubmed.ncbi.nlm.nih.gov/41713414/)
+
+### r_h01_temporal
+
+**[H01 人颞叶电镜组织块与重建入口](https://h01-release.storage.googleapis.com/landing.html)**　用三维重建定位组织、细胞和多接触投射；单名手术供体同一组织块，不构成正常人前额叶样本。
+
+processed · H01:human-temporal-cortex · 版本 H01 Release，子资源有独立版本 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `shapsoncoe_h01`。[依据](https://research.google/pubs/a-connectomic-study-of-a-petascale-fragment-of-human-cerebral-cortex/)
+
+标签　人类、大脑皮层、连接组、电子显微成像、离体组织、结构测量
+
+本条 ← [p_shapson_coe_h01](#p_shapson_coe_h01) · collected · 单供体组织块的电镜及重建。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC11718559/)
+
+### r_sfari_eeg_bids
+
+**[SFARI_EEG multi-paradigm dataset，睁眼静息与多任务原始脑电](https://openneuro.org/datasets/ds006780/versions/1.0.0)**　静息部分可用于重算儿童睁眼 EEG；结合年龄、分组、额区导联、参照和有效记录时长筛选。相关预印本采用 1 分钟睁眼，检验是同人新指标或新受试者取决于此前的使用。
+
+raw · OpenNeuro:ds006780 · 版本 1.0.0 · public · 许可 CC0 · 核实于 2026-11-28 · 共同来源 `sfari_multisensory_eeg`。[依据](https://raw.githubusercontent.com/OpenNeuroDatasets/ds006780/1.0.0/dataset_description.json)
+
+标签　孤独症谱系、人类、头皮脑电、静息、清醒、功率谱
+
+本条 ← [p_vanneau_sfari_alpha_pre](#p_vanneau_sfari_alpha_pre) · reanalyzed · 作者预印本通过该公开版本追溯其 8–14 岁儿童清醒睁眼脑电记录。。[出处](https://www.biorxiv.org/content/10.64898/2026.04.03.716324v1)
+
+### r_sfari_eeg_alpha_code
+
+**[SFARI 儿童 EEG alpha 分析作者代码](https://github.com/tvanneau/SFARI-Alpha)**　复核同一公开队列的静息分段、周期活动处理和提示的混杂因素。
+
+analysis_code · GitHub:tvanneau/SFARI-Alpha · 版本 未核实 · public · 许可 未核实 · 核实于 2026-11-28 · 共同来源 `sfari_multisensory_eeg`。[依据](https://pmc.ncbi.nlm.nih.gov/articles/PMC13082062/)
+
+标签　孤独症谱系、人类、头皮脑电、静息、网络节律、软件实现
+
+本条 → [p_vanneau_sfari_alpha_pre](#p_vanneau_sfari_alpha_pre) · analysis_for · 作者提供 alpha 簇发分析代码。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC13082062/)

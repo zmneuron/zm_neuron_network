@@ -4,29 +4,12 @@ from __future__ import annotations
 import csv
 import math
 from pathlib import Path
-from statistics import mean, stdev
 
 from check_records import local, require, verify_run
+from paired_readout import paired_summary
 
 
 BASE_COLUMNS = {"unit_id", "arm", "background_id", "window_id", "schedule_id", "delivered"}
-
-
-def paired_summary(differences):
-    values = list(differences.values())
-    estimate = mean(values)
-    interval = None
-    if len(values) >= 2:
-        try:
-            from scipy.special import stdtrit
-        except ImportError as exc:
-            raise ValueError("SciPy is required for the paired Student t interval") from exc
-        critical = float(stdtrit(len(values) - 1, 0.975))
-        radius = critical * stdev(values) / math.sqrt(len(values))
-        interval = [estimate - radius, estimate + radius]
-    require(math.isfinite(estimate) and (interval is None or all(map(math.isfinite, interval))),
-            "Paired differences or interval overflow")
-    return {"differences": differences, "n": len(values), "mean": estimate, "ci95": interval}
 
 
 def number(value):

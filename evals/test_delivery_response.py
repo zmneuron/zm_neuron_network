@@ -15,7 +15,7 @@ SKILL = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent))
 from check_records import fingerprint, read
-from delivery_response import check_presentation, check_reproduction, normalize_response, verify_response_file
+from delivery_response import check_presentation, check_reproduction, displays_value, normalize_response, verify_response_file
 import workflow_case
 
 
@@ -326,6 +326,64 @@ class ModelFigureCoverageTests(unittest.TestCase):
         review["regulation"]["mode"] = "implementation"
         with self.assertRaisesRegex(ValueError, "完整调控研究"):
             self.check()
+
+    def test_question_led_baseline_uses_original_readout_and_actual_condition(self):
+        roles = self.study_figures(names={"baseline": "rest"})
+        review = self.plan["review"]
+        design = review["study_design"]
+        design["entry"] = "question"
+        design["conditions"]["regulation"] = ""
+        review.update(model_components=["baseline"], regulation={"mode": "not_requested",
+                      "reason": "仅比较正常活动。", "source_ref": "docs/figure_reading.md"})
+        claim = next(c for c in self.delivery["claims"] if c["id"] == "mean")
+        source = dict(csv_ref=claim["csv_ref"], column=claim["column"], where={}, operation="mean")
+        choice = dict(question_id="Q1", selected="由背景输入驱动的环形网络", observable="细胞发放率与静默比例",
+                      primary_readouts={"mean": source})
+        design["model_choices"] = [choice]
+        for field in ("report_excerpt", "response_excerpt"):
+            self.parts["methods"][field] += "\n\n采用由背景输入驱动的环形网络。"
+            self.parts["questions"][field] += "\n\n比较细胞发放率与静默比例，平均值为 " + claim["text"] + "。"
+        self.assertEqual(self.check()["figure_roles"], roles)
+        for key, wrong in (("column", "wide_band"), ("where", {"band": "broad"}), ("operation", "sum")):
+            with self.subTest(key=key):
+                claim[key] = wrong
+                with self.assertRaisesRegex(ValueError, "原定条件与指标"):
+                    self.check()
+                claim[key] = source[key]
+        questions = self.parts["questions"]
+        genuine = {k: questions[k] for k in ("report_excerpt", "response_excerpt")}
+        for field, original in genuine.items():
+            questions[field] = original.replace(claim["text"], "1" + claim["text"])
+        with self.assertRaisesRegex(ValueError, "数值须同时出现在"):
+            self.check()
+        with self.assertRaisesRegex(ValueError, "数值须同时出现在"):
+            verify_response_file(self.root, self.publish_response(), self.delivery, self.plan, self.analysis)
+        questions.update(genuine)
+        self.plot.setdefault("condition_labels", {})["invented_condition"] = "静息条件"
+        design["conditions"]["baseline"] = "invented_condition"
+        with self.assertRaisesRegex(ValueError, "登记条件没有对应"):
+            self.check()
+        design["conditions"]["baseline"] = "rest"
+        second = dict(questions["question_groups"][0], question_id="Q2", interpretation="另一问题比较峰频率。")
+        questions["question_groups"].append(second)
+        self.plan["review"]["questions"].append(dict(id="Q2", required=True))
+        for field, original in genuine.items():
+            questions[field] = original.replace(claim["text"], "本题尚未给值") + "\n\n### Q2\n\n" + second["interpretation"] + claim["text"]
+        with self.assertRaisesRegex(ValueError, "数值须同时出现在"):
+            self.check()
+        questions.update(genuine)
+        questions["question_groups"].pop()
+        self.plan["review"]["questions"].pop()
+        group = self.parts["questions"]["question_groups"][0]
+        group["claim_ids"] = [key for key in group["claim_ids"] if key != "mean"]
+        with self.assertRaisesRegex(ValueError, "原定条件与指标"):
+            self.check()
+
+    def test_visible_value_uses_signed_numeric_tokens(self):
+        for wrong in ("130 Hz", "−30 Hz", "1.30 Hz", "1e30 Hz", "30 Hz/ms", "<!-- 30 Hz -->"):
+            self.assertFalse(displays_value(wrong, "30 Hz"), wrong)
+        self.assertTrue(displays_value("均值为 −1.3e-2 nS。", "-1.3e-2 nS"))
+        self.assertTrue(displays_value("| +30 Hz |", "30 Hz"))
 
     def test_version_two_cannot_fall_back_to_historical_figures_or_response_checks(self):
         self.plan["schema_version"] = 2

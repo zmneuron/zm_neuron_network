@@ -32,10 +32,11 @@
     "questions": [],
     "study_design": {
       "entry": "question",
+      "readout_registration": "per_question",
       "tier": "",
       "decisions": [],
       "model_choices": [],
-      "conditions": {"baseline": "", "adverse": "", "regulation": ""}
+      "conditions": {"baseline": ""}
     },
     "required_axes": [
       "execution",
@@ -48,12 +49,10 @@
     "independent_evidence": "biological",
     "independent_goal": "test_prediction",
     "component_calibration": {
-      "baseline": {"mode": "targets"},
-      "adverse": {"mode": ""},
-      "regulation": {"mode": ""}
+      "baseline": {"mode": "targets"}
     },
     "regulation": {
-      "mode": "implementation",
+      "mode": "",
       "design_status": "pending",
       "question_id": "",
       "authorization_ref": "",
@@ -71,7 +70,7 @@
       "auto_open": true
     },
     "model_components": [
-      "baseline", "adverse", "regulation"
+      "baseline"
     ],
     "followup_questions": [],
     "skill_files": [

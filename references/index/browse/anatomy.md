@@ -32,6 +32,20 @@
 - [Propofol-mediated loss of consciousness disrupts predictive routing and local field phase modulation of neural activity](records.md#p_xiong2024)　文献
 - [Simultaneous Two-Photon Voltage or Calcium Imaging and Multi-Channel Local Field Potential Recordings in Barrel Cortex of Awake and Anesthetized Mice](records.md#p_cecchetto2021)　文献
 - [Large-Scale Information Flow in Conscious and Unconscious States: an ECoG Study in Monkeys](records.md#p_yanagawa2013)　文献
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_pfc)　文献
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_correction)　文献
+- [The Number of Chandelier and Basket Cells Are Differentially Decreased in Prefrontal Cortex in Autism](records.md#p_ariza_pv_pfc)　文献
+- [Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](records.md#p_amina_chandelier)　文献
+- [Globally elevated excitation–inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [Inhibitory interneurons in a cortical column form hot zones of inhibition in layers 2 and 5A](records.md#p_meyer_barrel_inhibition)　文献
+- [Evolutionary scaling and cognitive correlates of primate frontal cortex microstructure](records.md#p_stimpson_frontal_anatomy)　文献
+- [Neuronal spiking in the mammalian forebrain is dominated by a heterogeneous ground state](records.md#p_levenstein_ground_state)　文献
+- [Reduction in parvalbumin expression not loss of the parvalbumin-expressing GABA interneuron subpopulation in genetic parvalbumin and shank mouse models of autism](records.md#p_filice_pv_expression)　文献
+- [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
+- [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
+- [A petavoxel fragment of human cerebral cortex reconstructed at nanoscale resolution](records.md#p_shapson_coe_h01)　文献
+- [Network Homeostasis and State Dynamics of Neocortical Sleep](records.md#p_watson_fcx1)　文献
 - [膜电位与放电模式 · 图 1a–d](records.md#o_wilson_modes)　观测与模拟结果
 - [基础发放率 · Figure 7E，左面板](records.md#o_claar_rate_cortex)　观测与模拟结果
 - [第一 jPCA 平面解释的总方差 · Figure 3；main text；Methods, Electrophysiological recordings](records.md#o_breadth_rotation_variance)　观测与模拟结果
@@ -51,6 +65,20 @@
 - [诱发 LFP 的相序、分量持续时间 · Fig. 3D–F、4D–F、5D–F 及其结果段；运行速度见 Fig. 3J–L](records.md#o_cecchetto_lfp)　观测与模拟结果
 - [基于频域 Granger 指标的线性分类器权重随频率分布 · Fig. 2B–C；Results 的频率域分类权重；Methods 的条件样本构造](records.md#o_yanagawa_weights)　观测与模拟结果
 - [相邻放电间隔归一化差的均值（Allen adaptation） · Allen 标本 486940963，EphysSweep 486941688（Sweep_39），NWB /analysis/spike_times/Sweep_39，EphysFeature 486943542。](records.md#o_allen_human_s39)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba46)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba9)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba47)　观测与模拟结果
+- [两类标记细胞各自所占的比例 · Figure 4A、D，BA46；Supplementary Table 2](records.md#o_ariza_chandelier_subtypes)　观测与模拟结果
+- [GAT1 阳性 chandelier 末梢串数 · Figure 4B，BA46 supragranular](records.md#o_amina_ba46_cartridges)　观测与模拟结果
+- [35–45 Hz 对数功率–对数频率的回归斜率 · Figure 3A 及 Table 1；Methods 的 Source-space analysis](records.md#o_manyukhina_35_45)　观测与模拟结果
+- [使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应 · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](records.md#o_manyukhina_broadband)　观测与模拟结果
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
+- [PV 免疫阳性细胞体积密度 · Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列](records.md#o_stimpson_ba46_density)　观测与模拟结果
+- [抑制性中间神经元占全部神经元比例 · Table 1，central column 的 IN-to-neuron ratio，layers 2、3](records.md#o_meyer_barrel_layers)　观测与模拟结果
+- [PV 或 VVA 阳性细胞计数 · Figure 3a，Table 3，mPFC](records.md#o_filice_pv_detect)　观测与模拟结果
+- [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
+- [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
+- [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
 - [Mainen–Sejnowski 的四种重建新皮层神经元](records.md#r_modeldb2488)　资源
 - [层级异质性脑网络模型](records.md#r_hier_code)　资源
 - [Electrophysiology data from thalamic and cortical neurons during somatosensation](records.md#r_dandi000005)　资源
@@ -73,6 +101,10 @@
 - [Data from: Simultaneous two-photon voltage or calcium imaging and multi-channel LFP recordings in barrel cortex of awake and anesthetized mice](records.md#r_cecchetto_dryad)　资源
 - [NeuroTycho Anesthesia and Sleep Task Details](records.md#r_neurotycho_protocol)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
+- [Stimpson 等 14 种灵长类额叶微结构汇总表](records.md#r_stimpson_frontal_table)　资源
+- [CRCNS fcx-1，大鼠额叶的尖峰和局部场以及睡眠/清醒时段](records.md#r_crcns_fcx1_rat)　资源
+- [H01 人颞叶电镜组织块与重建入口](records.md#r_h01_temporal)　资源
 
 ## 海马 · hippocampus
 
@@ -154,3 +186,27 @@
 
 - [The preoptic area and dorsal habenula jointly support homeostatic navigation in larval zebrafish](records.md#p_breadth_palieri2024)　文献
 - [感觉条件对转向概率调制的方向 · Results, Figure 5A–C；Figure S6D–E；STAR Methods](records.md#o_breadth_fish_poa)　观测与模拟结果
+
+## 前额叶皮层 · prefrontal cortex
+
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_pfc)　文献
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_correction)　文献
+- [The Number of Chandelier and Basket Cells Are Differentially Decreased in Prefrontal Cortex in Autism](records.md#p_ariza_pv_pfc)　文献
+- [Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](records.md#p_amina_chandelier)　文献
+- [Evolutionary scaling and cognitive correlates of primate frontal cortex microstructure](records.md#p_stimpson_frontal_anatomy)　文献
+- [Reduction in parvalbumin expression not loss of the parvalbumin-expressing GABA interneuron subpopulation in genetic parvalbumin and shank mouse models of autism](records.md#p_filice_pv_expression)　文献
+- [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
+- [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
+- [Network Homeostasis and State Dynamics of Neocortical Sleep](records.md#p_watson_fcx1)　文献
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba46)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba9)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba47)　观测与模拟结果
+- [两类标记细胞各自所占的比例 · Figure 4A、D，BA46；Supplementary Table 2](records.md#o_ariza_chandelier_subtypes)　观测与模拟结果
+- [GAT1 阳性 chandelier 末梢串数 · Figure 4B，BA46 supragranular](records.md#o_amina_ba46_cartridges)　观测与模拟结果
+- [PV 免疫阳性细胞体积密度 · Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列](records.md#o_stimpson_ba46_density)　观测与模拟结果
+- [PV 或 VVA 阳性细胞计数 · Figure 3a，Table 3，mPFC](records.md#o_filice_pv_detect)　观测与模拟结果
+- [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
+- [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
+- [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
+- [Stimpson 等 14 种灵长类额叶微结构汇总表](records.md#r_stimpson_frontal_table)　资源
+- [CRCNS fcx-1，大鼠额叶的尖峰和局部场以及睡眠/清醒时段](records.md#r_crcns_fcx1_rat)　资源

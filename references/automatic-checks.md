@@ -16,6 +16,7 @@
 | `source_ref, source_value, source_unit` | 来源定位与原值。值使用 JSON 标量或数组；来源真实性、原文定位与适用条件需要研究者和 AI 根据原始材料核对。 |
 | `method` | `direct` 原值原单位采用；`unit_conversion` 有限种类单位换算；`derived` 推导；`fitted` 拟合；`assumption` 建模假设；`numerical_setting` 数值或运行设置。 |
 | `model_value, model_unit` | 本模型采用值与明确单位。默认相对容差 `1e-9`、绝对容差 `0`，可逐行填写非负有限的 `rtol, atol`。容差应服务于数值表示，不能掩盖单位错误。 |
+| 配置中的单位 | 对同一对象明确写有受支持 `unit` 的 `value/lower/upper/bounds`，复核参数表的量纲与倍率。参数或其直接父键含物理单位、参数表却填 `1` 时，列入人工复核。以方程和实际接口查明嵌套投射权重及电流增量的含义。 |
 | `derivation_ref` | 推导与拟合必须指向项目内真实存在的计算或说明文件，可带 `#` 定位。单独检查对应表时仅核对文件并列入 `manual_review`；另提供 `--runtime` 推导记录可复算下面支持的运算，其他公式、拟合与来源适用性仍需专门检查。 |
 | `code_ref, rationale` | 实际代码文件及可选 `#函数`，和采用理由。工具检查文件存在，不声称已验证函数语义。只写方案而未实现时，不运行此实施检查。 |
 | `lower_bound, upper_bound, integer` | 可选的逐元素范围和整数约束。概率可设 0–1，数量可设非负整数；实际限制由本模型定义，不靠字段名称猜测。 |

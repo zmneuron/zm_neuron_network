@@ -25,13 +25,17 @@ class StudyDesignChecks(unittest.TestCase):
         (self.root / self.source).write_text("按匹配输入比较干预前后的刺激诱发放电率。", encoding="utf-8")
         self.plan = json.loads((SKILL / "assets/task_plan.json").read_text(encoding="utf-8-sig"))
         self.review = self.plan["review"]
+        self.review["regulation"]["mode"] = "implementation"
+        self.review["model_components"] = ["baseline", "adverse", "regulation"]
+        self.review["component_calibration"].update(adverse={"mode": ""}, regulation={"mode": ""})
         self.review["questions"] = [dict(id="Q", required=True, text="抑制改变是否能解释诱发反应下降？")]
         self.design = self.review["study_design"]
         self.design.update(tier="exploratory", conditions=dict(baseline="rest", adverse="weak", regulation="treated"))
         self.choices = self.design["model_choices"]
         self.choices.append(dict(question_id="Q", selected="含兴奋与抑制单元的网络", alternative="固定响应增益的群体模型",
                                  observable="匹配刺激后的放电率", reason="两种机制在输入匹配时预期不同",
-                                 source_ref=self.source))
+                                 source_ref=self.source, primary_readouts={"rate": {"csv_ref": "analysis/contrasts.csv",
+                                 "column": "mean_rate", "where": {"condition": "rest"}, "operation": "first"}}))
         for topic in ("scientific_question", "model", "control", "readout"):
             self.add_row(topic)
 
@@ -41,6 +45,17 @@ class StudyDesignChecks(unittest.TestCase):
                    answer=f"已确定的设计 {index}", source_ref=self.source, critical=False)
         self.design["decisions"].append(row)
         return row
+
+    def test_new_plan_requires_a_readout_or_a_traceable_non_scalar_method(self):
+        choice = self.choices[0]
+        choice.pop("primary_readouts")
+        self.assertIn("须登记主要数值", " ".join(self.check()["issues"]))
+        choice["non_scalar_readout"] = {"kind": "trajectory", "description": "比较刺激后 100 ms 的响应轨迹",
+                                        "method_ref": self.source}
+        self.assertEqual(self.check()["status"], "ready")
+        choice.pop("non_scalar_readout")
+        self.design.pop("readout_registration")
+        self.assertEqual(self.check()["status"], "ready")
 
     def check(self):
         return check_study_design(self.root, self.plan)
@@ -84,16 +99,28 @@ class StudyDesignChecks(unittest.TestCase):
         result = self.check()
         self.assertEqual((result["coverage_percent"], result["status"]), (95, "incomplete"))
 
-    def test_question_led_or_historical_plan_cannot_silently_remove_conditions(self):
+    def test_question_led_physiology_and_perturbation_follow_recorded_scope(self):
         self.use_materials()
         self.design.pop("material_intake")
-        for entry in ("question", None, "unknown"):
-            with self.subTest(entry=entry):
-                if entry is None:
-                    self.design.pop("entry", None)
-                else:
-                    self.design["entry"] = entry
-                self.assertEqual(self.check()["status"], "incomplete")
+        self.design["entry"] = "question"
+        self.assertEqual(self.check()["status"], "ready")
+        self.review["model_components"].append("adverse")
+        self.design["conditions"].update(adverse="reduced", regulation="")
+        self.save()
+        checked = check_project.check_project(self.root, phase="plan")["checks"]["study_design"]
+        self.assertEqual(checked["status"], "ready")
+        self.design.pop("entry")
+        self.assertEqual(self.check()["status"], "ready")
+        self.design["entry"] = "unknown"
+        self.assertEqual(self.check()["status"], "incomplete")
+        self.design["entry"] = "question"
+        self.design["conditions"]["regulation"] = "treated"
+        self.assertEqual(self.check()["status"], "incomplete")
+        self.design["conditions"]["regulation"] = ""
+        self.review["regulation"]["source_ref"] = "unrecorded.md"
+        self.assertEqual(self.check()["status"], "incomplete")
+        self.review["regulation"]["mode"] = "implementation"
+        self.assertEqual(self.check()["status"], "incomplete")
 
     def test_material_led_study_captures_selected_scope_and_preserves_five_axes(self):
         self.use_materials()

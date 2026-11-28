@@ -23,7 +23,7 @@ from xml.etree import ElementTree
 from check_model import pointer
 from check_records import fingerprint, local, read, require, verify_run
 from recovery_fraction import recovery_columns
-from study_design import ROLES, check_material_intake, study_component_roles
+from study_design import ROLES, check_material_intake, primary_readouts, study_conditions
 
 CONTRACT = "zm-neuron-review/2"
 DEPICTIONS = {"schematic", "actual_model", "data_result"}
@@ -52,6 +52,26 @@ def _visible(value):
     value = re.sub(r"(?m)^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$", "", value)
     value = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", value)
     return re.sub(r"<[^>]*>", "", value)
+
+
+_NUMBER = re.compile(r"[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def displays_value(passage, rendered):
+    """Match a visible, complete signed value and its unit, including in a table."""
+    body = unicodedata.normalize("NFKC", _visible(passage)).replace("−", "-")
+    expected = unicodedata.normalize("NFKC", rendered).replace("−", "-")
+    number = _NUMBER.match(expected)
+    if number is None:
+        return False
+    suffix = expected[number.end():]
+    for token in _NUMBER.finditer(body):
+        if token.group().lstrip("+") != number.group().lstrip("+"):
+            continue
+        tail = body[token.end():]
+        if tail.startswith(suffix) and not (suffix and re.match(r"[A-Za-z0-9_/^μ]", tail[len(suffix):])):
+            return True
+    return False
 
 
 def _study_presentation(plan):
@@ -287,6 +307,11 @@ def _observed_columns(source):
 
 def _question_source(root, source, used, plotted, selections, qid):
     """When the cited figures select rows in one table, verify that the claim uses the displayed observations."""
+    if source.get("operation") in {"paired_mean", "paired_ci95_low", "paired_ci95_high"}:
+        for name in (source["left"], source["right"]):
+            filters = {**source.get("where", {}), source["arm"]: name}
+            _question_source(root, dict(source, operation="mean", where=filters), used, plotted, selections, qid)
+        return
     ref = source["csv_ref"]
     paths = [selections[fid] for fid in used if ref in plotted[fid][1]]
     by_figure = [[s for s, _ in items.values() if s["csv_ref"] == ref] for items in paths]
@@ -306,15 +331,39 @@ def _question_source(root, source, used, plotted, selections, qid):
                 "科学问题引用的图未展示该题定量结论所用的原始行列：" + qid)
 
 
-def _question_text(group, answer, choice, parts, used, descriptions):
+def _question_text(group, answers, choice, parts, used, descriptions):
     qid = group["question_id"]
-    interpretation = _text(group.get("interpretation"), "科学问题的直接回答 " + qid)
-    statements = [_folded(t) for t in (interpretation, answer.get("conclusion")) if isinstance(t, str) and t.strip()]
     questions = parts["questions"]
+    groups = questions["question_groups"]
+    statements = {}
+    for item in groups:
+        key = item["question_id"]
+        answer = _text(item.get("interpretation"), "科学问题的直接回答 " + key)
+        conclusion = answers.get(key, {}).get("conclusion")
+        statements[key] = [_folded(t) for t in (answer, conclusion) if isinstance(t, str) and t.strip()]
+    passages = {}
     for field in ("report_excerpt", "response_excerpt"):
         paragraphs = [_visible(p) for p in re.split(r"\n\s*\n", questions[field])]
-        answered = [p for p in paragraphs if any(s in _folded(p) for s in statements)]
+        answered = [p for p in paragraphs if any(s in _folded(p) for s in statements[qid])]
         require(answered, "科学问题的直接回答须出现在报告和答复的结果段：" + qid)
+        if len(groups) == 1:
+            passages[field] = paragraphs
+        else:
+            passages[field] = []
+            active = False
+            for paragraph in paragraphs:
+                folded = _folded(paragraph)
+                owners = {key for key, phrases in statements.items() if any(s in folded for s in phrases)}
+                # An explicit question heading owns the following paragraphs and tables.
+                heading = re.match(r"^[ \t]*(?:#{1,6}[ \t]+|\*\*)([^\n]+)", paragraph)
+                if heading:
+                    marked = {key for key in statements if re.search(
+                        r"(?<![A-Za-z0-9_])" + re.escape(key) + r"(?![A-Za-z0-9_])", heading[1])}
+                    owners = marked or owners
+                if owners:
+                    active = owners == {qid}
+                if active:
+                    passages[field].append(paragraph)
         if choice is not None:
             # Only this question's answer and figures provide its local context; the methods may be shared.
             methods = [_visible(p) for p in re.split(r"\n\s*\n", parts["methods"][field])]
@@ -327,6 +376,7 @@ def _question_text(group, answer, choice, parts, used, descriptions):
                 term = _text(choice.get(key), qid + " " + title)
                 require(any(_names_term(term, p) for p in (*methods, *answered, *labels)),
                         f"{qid} 的{title}在{field}的方法或该题图文中无法定位：{term}")
+    return passages
 
 
 def _question_figures(root, parts, delivery, analysis, plotted, *, required_questions=None, selections=None,
@@ -347,7 +397,17 @@ def _question_figures(root, parts, delivery, analysis, plotted, *, required_ques
         if required_questions is not None:
             used &= set(questions.get("figure_ids", []))
             require(used, "科学问题须在结果段引用回答该题的实算数据图：" + qid)
-            _question_text(group, answers.get(qid, {}), choices.get(qid), parts, used, descriptions)
+            passages = _question_text(group, answers, choices.get(qid), parts, used, descriptions)
+            for cid, source in primary_readouts(choices.get(qid, {})).items():
+                claim = claims.get(cid, {})
+                require(cid in group.get("claim_ids", []) and claim and
+                        claim.get("csv_ref") == source["csv_ref"] and claim.get("column") == source["column"]
+                        and claim.get("operation", "mean") == source["operation"]
+                        and claim.get("where", {}) == source["where"],
+                        "该题正文缺少按原定条件与指标取数的主要结果：" + qid + "/" + cid)
+                value_text = _text(claim.get("text"), qid + " 主要结果的数值")
+                require(all(any(displays_value(p, value_text) for p in section) for section in passages.values()),
+                        "主要结果的数值须同时出现在报告和答复的结果段：" + qid + "/" + cid)
         require(used, "科学问题只引用了示意图或没有本轮实算数据的图：" + qid)
         for rid in answers.get(qid, {}).get("result_ids", []):
             result = results.get(rid, {})
@@ -586,9 +646,10 @@ def _figure_measurements(root, figure, observed, plotted):
     return result
 
 
-def _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw):
+def _study_figure_roles(root, delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw):
     roles = delivery.get("figure_roles")
-    names = study_component_roles(review)
+    declared = study_conditions(root, review)
+    names = tuple(declared)
     keys = ("model_figure", *names)
     require(isinstance(roles, dict) and all(isinstance(roles.get(k), str) and roles[k] in embedded for k in keys),
             "完整交付须分别登记并在两份正文中嵌入模型图和各适用条件的实算图")
@@ -603,10 +664,6 @@ def _study_figure_roles(delivery, review, analysis, figures, embedded, captions,
         fingerprints = {fingerprint(path) for path in embedded[roles[key]]}
         require(not previous & fingerprints, "模型图和各条件结果图不能重复使用同一张成图：" + key)
         previous.update(fingerprints)
-    declared = review["study_design"].get("conditions", {})
-    require(isinstance(declared, dict) and set(declared) == set(names)
-            and all(isinstance(declared.get(k), str) and declared[k].strip() for k in names)
-            and len({declared[k].strip() for k in names}) == len(names), "完整研究须注明各适用部分对应的实际条件")
     formal = _regulation_role_runs(review, analysis.get("completion_review", {}))
     datasets = {d["id"]: d for d in analysis.get("datasets", [])}
     expected = {}
@@ -614,7 +671,11 @@ def _study_figure_roles(delivery, review, analysis, figures, embedded, captions,
         dids = {d for s in analysis.get("construction_steps", []) if s.get("component") == role and s.get("status") == "complete"
                 for d in s.get("data_ids", []) if lineage[d][0]}
         runs, files = conditions.get(declared[role], (set(), set()))
-        refs = formal.get(role) or runs or set().union(*(lineage[d][0] for d in dids))
+        traceable = set().union(*(lineage[d][0] for d in dids))
+        known_runs = {r for recorded_runs, _ in conditions.values() for r in recorded_runs}
+        require(runs or not (formal.get(role, set()) | traceable) & known_runs,
+                "该模型部分的登记条件没有对应的实际运行或分条件观测：" + role + " / " + declared[role])
+        refs = formal.get(role) or runs or traceable
         expected[role] = refs, files | {datasets[d]["path"] for d in dids if refs & lineage[d][0]}
     signatures = set()
     for role in names:
@@ -674,7 +735,7 @@ def _result_figures(root, delivery, plan, analysis, figures, captions, embedded,
             check_material_intake(root, review)
         raw = {path for ref, record in run_records.items() if ref not in history and record.get("stage") == "simulation"
                for path in record.get("output_sha256", {})}
-        roles = _study_figure_roles(delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw)
+        roles = _study_figure_roles(root, delivery, review, analysis, figures, embedded, captions, conditions, selections, lineage, plotted, raw)
         from figure_reading import check_figure_reading
         extra.update(figure_roles=roles, figure_reading=check_figure_reading(root, delivery, figures, embedded, roles["model_figure"]))
     _check_condition_plots(conditions, plotted, figures, data_figures, captions)

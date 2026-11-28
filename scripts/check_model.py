@@ -118,6 +118,32 @@ def pointer(config, path):
     return value
 
 
+def check_config_unit(config, path, model_unit, identity, review):
+    parent_path, _, leaf = path.rpartition("/")
+    parent = pointer(config, parent_path) if parent_path else config
+    # An indexed item has the same explicit unit as its array (including nested bounds).
+    while isinstance(parent, list):
+        parent_path, _, leaf = parent_path.rpartition("/")
+        parent = pointer(config, parent_path) if parent_path else config
+        if not parent_path and isinstance(parent, list):
+            break
+    declared = parent.get("unit") if isinstance(parent, dict) else None
+    unit = unit_name(model_unit)
+    if leaf in {"value", "lower", "upper", "bounds"} and isinstance(declared, str):
+        expected = unit_scale(unit_name(declared))
+        if expected is not None and expected != unit_scale(unit):
+            raise ValueError(f"Config declares {declared} for {leaf}, mapping declares {model_unit}")
+        return
+    # A name is a clue, not a schema. Keep a dimensionless fallback visible for manual review.
+    if unit != "1":
+        return
+    for token in (leaf, parent_path.rsplit("/", 1)[-1]):
+        _, separator, suffix = token.rpartition("_")
+        if separator and "_per_" not in token and suffix in UNITS and suffix not in {"1", "count"}:
+            review.append(dict(parameter_id=identity, config_path=path, reason=f"配置名称含单位 {suffix}，参数表填 1。请对照方程或接口核实。"))
+            break
+
+
 def numeric_paths(value, prefix=""):
     if isinstance(value, dict):
         for key, item in value.items():
@@ -191,6 +217,7 @@ def check_project(project, config_path, parameters_path, network_path=None, runt
             if expected is None or isinstance(expected, dict):
                 raise ValueError("Use a scalar/list value; map distribution fields separately")
             actual = pointer(config, path)
+            check_config_unit(config, path, row["model_unit"], identity, report["manual_review"])
             rtol = number(float(row.get("rtol") or "1e-9"))
             atol = number(float(row.get("atol") or "0"))
             if rtol < 0 or atol < 0:

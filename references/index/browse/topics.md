@@ -10,6 +10,11 @@
 - [Propofol-mediated loss of consciousness disrupts predictive routing and local field phase modulation of neural activity](records.md#p_xiong2024)　文献
 - [Simultaneous Two-Photon Voltage or Calcium Imaging and Multi-Channel Local Field Potential Recordings in Barrel Cortex of Awake and Anesthetized Mice](records.md#p_cecchetto2021)　文献
 - [Large-Scale Information Flow in Conscious and Unconscious States: an ECoG Study in Monkeys](records.md#p_yanagawa2013)　文献
+- [Globally elevated excitation–inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg)　文献
+- [Altered spectral patterns of aperiodic electroencephalography in autism](records.md#p_chien_frontal_eeg)　文献
+- [Neuronal spiking in the mammalian forebrain is dominated by a heterogeneous ground state](records.md#p_levenstein_ground_state)　文献
+- [Instability of Alpha Oscillatory States in Autism and Familial Liability: Evidence from Burst-Resolved High-Density Electroencephalography (EEG)](records.md#p_vanneau_sfari_alpha_pre)　文献
+- [Network Homeostasis and State Dynamics of Neocortical Sleep](records.md#p_watson_fcx1)　文献
 - [基础发放率 · Figure 7E，左面板](records.md#o_claar_rate_cortex)　观测与模拟结果
 - [基础发放率 · Figure 7E，右面板](records.md#o_claar_rate_thalamus)　观测与模拟结果
 - [单导 Lempel–Ziv 复杂度（LZc）的状态均值与标准差 · Results：Differences in measures between wakefulness and sedation；Table 4；方法及补充 Fig. S3](records.md#o_bajwa_lzc)　观测与模拟结果
@@ -18,6 +23,10 @@
 - [Tpt 局部 oddball 相对 regular 的功率变化峰之中心频率 · Fig. 3A–C，Results 的 Tpt 局部 oddball 频率峰](records.md#o_xiong_tpt_peak)　观测与模拟结果
 - [诱发 LFP 的相序、分量持续时间 · Fig. 3D–F、4D–F、5D–F 及其结果段；运行速度见 Fig. 3J–L](records.md#o_cecchetto_lfp)　观测与模拟结果
 - [基于频域 Granger 指标的线性分类器权重随频率分布 · Fig. 2B–C；Results 的频率域分类权重；Methods 的条件样本构造](records.md#o_yanagawa_weights)　观测与模拟结果
+- [35–45 Hz 对数功率–对数频率的回归斜率 · Figure 3A 及 Table 1；Methods 的 Source-space analysis](records.md#o_manyukhina_35_45)　观测与模拟结果
+- [使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应 · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](records.md#o_manyukhina_broadband)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，睁眼注视十字](records.md#o_chien_frontal_eyes_open)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，闭眼](records.md#o_chien_frontal_eyes_closed)　观测与模拟结果
 - [Simultaneous electroencephalography, extracellular electrophysiology, and cortical electrical stimulation in head-fixed mice](records.md#r_dandi000458)　资源
 - [A repeated awakening study exploring the capacity of complexity measures to capture dreaming during propofol sedation](records.md#r_bajwa_openneuro)　资源
 - [EEG Anesthesia Dataset（单一被试的归档电位矩阵）](records.md#r_purdon_dandi)　资源
@@ -26,6 +35,8 @@
 - [Data from: Simultaneous two-photon voltage or calcium imaging and multi-channel LFP recordings in barrel cortex of awake and anesthetized mice](records.md#r_cecchetto_dryad)　资源
 - [NeuroTycho Anesthesia and Sleep Task Details](records.md#r_neurotycho_protocol)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+- [CRCNS fcx-1，大鼠额叶的尖峰和局部场以及睡眠/清醒时段](records.md#r_crcns_fcx1_rat)　资源
+- [SFARI_EEG multi-paradigm dataset，睁眼静息与多任务原始脑电](records.md#r_sfari_eeg_bids)　资源
 
 ## 麻醉 · anesthesia
 
@@ -60,18 +71,39 @@
 ## 睡眠 · sleep
 
 - [Large-Scale Information Flow in Conscious and Unconscious States: an ECoG Study in Monkeys](records.md#p_yanagawa2013)　文献
+- [Neuronal spiking in the mammalian forebrain is dominated by a heterogeneous ground state](records.md#p_levenstein_ground_state)　文献
+- [Network Homeostasis and State Dynamics of Neocortical Sleep](records.md#p_watson_fcx1)　文献
 - [NeuroTycho Anesthesia and Sleep Task Details](records.md#r_neurotycho_protocol)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+- [CRCNS fcx-1，大鼠额叶的尖峰和局部场以及睡眠/清醒时段](records.md#r_crcns_fcx1_rat)　资源
 
 ## 静息 · resting
 
 - [A multi-scale layer-resolved spiking network model of resting-state dynamics in macaque visual cortical areas](records.md#p_pmid_30335761)　文献
 - [Evaluation of Resting Spatio-Temporal Dynamics of a Neural Mass Model Using Resting fMRI Connectivity and EEG Microstates](records.md#p_pmid_32009922)　文献
 - [A repeated awakening study exploring the capacity of complexity measures to capture dreaming during propofol sedation](records.md#p_bajwa2025)　文献
+- [Globally elevated excitation–inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg)　文献
+- [Altered spectral patterns of aperiodic electroencephalography in autism](records.md#p_chien_frontal_eeg)　文献
+- [Exploring EEG resting state differences in autism: sparse findings from a large cohort](records.md#p_dede_resting_eeg)　文献
+- [Instability of Alpha Oscillatory States in Autism and Familial Liability: Evidence from Burst-Resolved High-Density Electroencephalography (EEG)](records.md#p_vanneau_sfari_alpha_pre)　文献
+- [Globally elevated excitation-inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg_pre)　文献
+- [Lack of univariate, clinically-relevant biomarkers of autism in resting state EEG: a study of 776 participants](records.md#p_dede_eeg_pre)　文献
 - [单导 Lempel–Ziv 复杂度（LZc）的状态均值与标准差 · Results：Differences in measures between wakefulness and sedation；Table 4；方法及补充 Fig. S3](records.md#o_bajwa_lzc)　观测与模拟结果
 - [唤醒前单导 Lempel–Ziv 复杂度与体验报告类别的关联 · Figure 2b 与 Results 中深镇静内报告类别比较，分组见 Table 3。](records.md#o_bajwa_experience)　观测与模拟结果
+- [35–45 Hz 对数功率–对数频率的回归斜率 · Figure 3A 及 Table 1；Methods 的 Source-space analysis](records.md#o_manyukhina_35_45)　观测与模拟结果
+- [使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应 · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](records.md#o_manyukhina_broadband)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，睁眼注视十字](records.md#o_chien_frontal_eyes_open)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，闭眼](records.md#o_chien_frontal_eyes_closed)　观测与模拟结果
+- [726 个 EEG 特征各自的效应量与复现率，含 36 个 1/f 特征 · Figure 2b、2e，Tables 3–4](records.md#o_dede_diag_features)　观测与模拟结果
 - [A repeated awakening study exploring the capacity of complexity measures to capture dreaming during propofol sedation](records.md#r_bajwa_openneuro)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+- [Manyukhina 等儿童静息源空间 MEG 研究的数据申请入口](records.md#r_manyukhina_meg_request)　资源
+- [Manyukhina 等 Additional file 1，MEG 拟合比较](records.md#r_manyukhina_meg_supp)　资源
+- [Chien 等额区与后部静息 EEG 的数据申请说明](records.md#r_chien_frontal_eeg_request)　资源
+- [Dede 等合并研究使用的 NIMH Data Archive 数据集合](records.md#r_dede_nda_study)　资源
+- [Dede 等按记录生成的静息 EEG 汇总特征表](records.md#r_dede_eeg_features)　资源
+- [SFARI_EEG multi-paradigm dataset，睁眼静息与多任务原始脑电](records.md#r_sfari_eeg_bids)　资源
+- [SFARI 儿童 EEG alpha 分析作者代码](records.md#r_sfari_eeg_alpha_code)　资源
 
 ## 任务态 · task-engaged
 
@@ -83,6 +115,12 @@
 
 - [Untangling Basal Ganglia Network Dynamics and Function: Role of Dopamine Depletion and Inhibition Investigated in a Spiking Network Model](records.md#p_pmid_28101525)　文献
 - [Patient-Specific Network Connectivity Combined With a Next Generation Neural Mass Model to Test Clinical Hypothesis of Seizure Propagation](records.md#p_pmid_34539355)　文献
+
+## 发育 · development
+
+- [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
+- [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
+- [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
 
 ## 衰老 · aging
 
@@ -152,6 +190,8 @@
 - [Electroencephalogram signatures of loss and recovery of consciousness from propofol](records.md#p_purdon2013)　文献
 - [Propofol-mediated loss of consciousness disrupts predictive routing and local field phase modulation of neural activity](records.md#p_xiong2024)　文献
 - [Large-Scale Information Flow in Conscious and Unconscious States: an ECoG Study in Monkeys](records.md#p_yanagawa2013)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [Instability of Alpha Oscillatory States in Autism and Familial Liability: Evidence from Burst-Resolved High-Density Electroencephalography (EEG)](records.md#p_vanneau_sfari_alpha_pre)　文献
 - [周期、相位延迟与间隙、簇持续时间 · Figure 5b；原实验 Haddad & Marder 2018](records.md#o_sbi_exp)　观测与模拟结果
 - [膜与突触电导的联合后验 · Figure 5c 与 Appendix 1—figure 11](records.md#o_sbi_params)　观测与模拟结果
 - [单导 Lempel–Ziv 复杂度（LZc）的状态均值与标准差 · Results：Differences in measures between wakefulness and sedation；Table 4；方法及补充 Fig. S3](records.md#o_bajwa_lzc)　观测与模拟结果
@@ -159,17 +199,21 @@
 - [2–40 Hz 中位频率；第 75 与第 25 百分位之差 · Fig. 3A 额部频谱中位数和四分位带宽；Results：time course of the traveling peak](records.md#o_purdon_peak)　观测与模拟结果
 - [Tpt 局部 oddball 相对 regular 的功率变化峰之中心频率 · Fig. 3A–C，Results 的 Tpt 局部 oddball 频率峰](records.md#o_xiong_tpt_peak)　观测与模拟结果
 - [基于频域 Granger 指标的线性分类器权重随频率分布 · Fig. 2B–C；Results 的频率域分类权重；Methods 的条件样本构造](records.md#o_yanagawa_weights)　观测与模拟结果
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
 - [A repeated awakening study exploring the capacity of complexity measures to capture dreaming during propofol sedation](records.md#r_bajwa_openneuro)　资源
 - [EEG Anesthesia Dataset（单一被试的归档电位矩阵）](records.md#r_purdon_dandi)　资源
 - [Local/global propofol oddball](records.md#r_xiong_tfr)　资源
 - [Multimodal EEG-fNIRS data from patients undergoing general anesthesia](records.md#r_openneuro_clinical)　资源
 - [NeuroTycho Anesthesia and Sleep Task Details](records.md#r_neurotycho_protocol)　资源
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+- [SFARI 儿童 EEG alpha 分析作者代码](records.md#r_sfari_eeg_alpha_code)　资源
 
 ## 同步 · synchrony
 
 - [Synchronization of Golgi and Granule Cell Firing in a Detailed Network Model of the Cerebellar Granule Cell Layer](records.md#p_maex)　文献
 - [A microcircuit model of astrocytic potassium buffering and neural synchronization](records.md#p_pmid_43057562)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
 
 ## 感觉编码 · sensory coding
 
@@ -232,6 +276,8 @@
 - [The Neurodata Without Borders ecosystem for neurophysiological data science](records.md#p_nwb_pre)　文献
 - [Open Source Brain: A Collaborative Resource for Visualizing, Analyzing, Simulating, and Developing Standardized Models of Neurons and Circuits](records.md#p_osb)　文献
 - [Reproducing Polychronization: A Guide to Maximizing the Reproducibility of Spiking Network Models](records.md#p_pmid_30123121)　文献
+- [Exploring EEG resting state differences in autism: sparse findings from a large cohort](records.md#p_dede_resting_eeg)　文献
+- [726 个 EEG 特征各自的效应量与复现率，含 36 个 1/f 特征 · Figure 2b、2e，Tables 3–4](records.md#o_dede_diag_features)　观测与模拟结果
 - [Neurodata Without Borders 格式规范](records.md#r_nwb_spec)　资源
 
 ## 阶跃电流 · current step
@@ -280,6 +326,11 @@
 - [诱发 LFP 的相序、分量持续时间 · Fig. 3D–F、4D–F、5D–F 及其结果段；运行速度见 Fig. 3J–L](records.md#o_cecchetto_lfp)　观测与模拟结果
 - [Simultaneous electroencephalography, extracellular electrophysiology, and cortical electrical stimulation in head-fixed mice](records.md#r_dandi000458)　资源
 - [Data from: Simultaneous two-photon voltage or calcium imaging and multi-channel LFP recordings in barrel cortex of awake and anesthetized mice](records.md#r_cecchetto_dryad)　资源
+
+## 感觉刺激 · sensory stimulation
+
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
 
 ## 消融实验 · ablation
 
@@ -361,3 +412,65 @@
 ## 氙气 · xenon
 
 - [Rest EEG recordings in healthy subjects during wakefulness, sleep and anesthesia with ketamine, propofol, and xenon](records.md#r_zenodo_rest)　资源
+
+## 孤独症谱系 · autism spectrum disorder
+
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_pfc)　文献
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_correction)　文献
+- [The Number of Chandelier and Basket Cells Are Differentially Decreased in Prefrontal Cortex in Autism](records.md#p_ariza_pv_pfc)　文献
+- [Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](records.md#p_amina_chandelier)　文献
+- [Globally elevated excitation–inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg)　文献
+- [Altered spectral patterns of aperiodic electroencephalography in autism](records.md#p_chien_frontal_eeg)　文献
+- [Exploring EEG resting state differences in autism: sparse findings from a large cohort](records.md#p_dede_resting_eeg)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [Reduction in parvalbumin expression not loss of the parvalbumin-expressing GABA interneuron subpopulation in genetic parvalbumin and shank mouse models of autism](records.md#p_filice_pv_expression)　文献
+- [Instability of Alpha Oscillatory States in Autism and Familial Liability: Evidence from Burst-Resolved High-Density Electroencephalography (EEG)](records.md#p_vanneau_sfari_alpha_pre)　文献
+- [Globally elevated excitation-inhibition ratio in children with autism spectrum disorder and below-average intelligence](records.md#p_manyukhina_meg_pre)　文献
+- [Lack of univariate, clinically-relevant biomarkers of autism in resting state EEG: a study of 776 participants](records.md#p_dede_eeg_pre)　文献
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba46)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba9)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba47)　观测与模拟结果
+- [两类标记细胞各自所占的比例 · Figure 4A、D，BA46；Supplementary Table 2](records.md#o_ariza_chandelier_subtypes)　观测与模拟结果
+- [GAT1 阳性 chandelier 末梢串数 · Figure 4B，BA46 supragranular](records.md#o_amina_ba46_cartridges)　观测与模拟结果
+- [35–45 Hz 对数功率–对数频率的回归斜率 · Figure 3A 及 Table 1；Methods 的 Source-space analysis](records.md#o_manyukhina_35_45)　观测与模拟结果
+- [使用 FOOOF 估计 2–45 Hz 非周期斜率的组别主效应 · Additional file 1（13229_2022_498_MOESM1_ESM.docx），Table S4](records.md#o_manyukhina_broadband)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，睁眼注视十字](records.md#o_chien_frontal_eyes_open)　观测与模拟结果
+- [额区有符号非周期斜率 · Table 1；Figure 2a，frontal，闭眼](records.md#o_chien_frontal_eyes_closed)　观测与模拟结果
+- [726 个 EEG 特征各自的效应量与复现率，含 36 个 1/f 特征 · Figure 2b、2e，Tables 3–4](records.md#o_dede_diag_features)　观测与模拟结果
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
+- [PV 或 VVA 阳性细胞计数 · Figure 3a，Table 3，mPFC](records.md#o_filice_pv_detect)　观测与模拟结果
+- [Manyukhina 等儿童静息源空间 MEG 研究的数据申请入口](records.md#r_manyukhina_meg_request)　资源
+- [Manyukhina 等 Additional file 1，MEG 拟合比较](records.md#r_manyukhina_meg_supp)　资源
+- [Chien 等额区与后部静息 EEG 的数据申请说明](records.md#r_chien_frontal_eeg_request)　资源
+- [Dede 等合并研究使用的 NIMH Data Archive 数据集合](records.md#r_dede_nda_study)　资源
+- [Dede 等按记录生成的静息 EEG 汇总特征表](records.md#r_dede_eeg_features)　资源
+- [Dede 等 EEG 频谱估计代码，作者提交中的 FOOOF 脚本](records.md#r_dede_eeg_analysis)　资源
+- [SFARI_EEG multi-paradigm dataset，睁眼静息与多任务原始脑电](records.md#r_sfari_eeg_bids)　资源
+- [SFARI 儿童 EEG alpha 分析作者代码](records.md#r_sfari_eeg_alpha_code)　资源
+
+## 回路抑制 · circuit inhibition
+
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_pfc)　文献
+- [The Number of Parvalbumin-Expressing Interneurons Is Decreased in the Prefrontal Cortex in Autism](records.md#p_hashemi_pv_correction)　文献
+- [The Number of Chandelier and Basket Cells Are Differentially Decreased in Prefrontal Cortex in Autism](records.md#p_ariza_pv_pfc)　文献
+- [Chandelier Cartridge Density Is Reduced in the Prefrontal Cortex in Autism](records.md#p_amina_chandelier)　文献
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [Inhibitory interneurons in a cortical column form hot zones of inhibition in layers 2 and 5A](records.md#p_meyer_barrel_inhibition)　文献
+- [Evolutionary scaling and cognitive correlates of primate frontal cortex microstructure](records.md#p_stimpson_frontal_anatomy)　文献
+- [Reduction in parvalbumin expression not loss of the parvalbumin-expressing GABA interneuron subpopulation in genetic parvalbumin and shank mouse models of autism](records.md#p_filice_pv_expression)　文献
+- [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
+- [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA46；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba46)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA9；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba9)　观测与模拟结果
+- [PV 阳性在所计标记中间神经元中的比例 · Figure 4，supragranular 组，BA47；原文 Results 及所引 Supplementary Tables 3–5](records.md#o_hashemi_pv_ba47)　观测与模拟结果
+- [两类标记细胞各自所占的比例 · Figure 4A、D，BA46；Supplementary Table 2](records.md#o_ariza_chandelier_subtypes)　观测与模拟结果
+- [GAT1 阳性 chandelier 末梢串数 · Figure 4B，BA46 supragranular](records.md#o_amina_ba46_cartridges)　观测与模拟结果
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
+- [PV 免疫阳性细胞体积密度 · Table 1，Homo sapiens，II–III，PV-ir neuron density，DLPFC 列](records.md#o_stimpson_ba46_density)　观测与模拟结果
+- [抑制性中间神经元占全部神经元比例 · Table 1，central column 的 IN-to-neuron ratio，layers 2、3](records.md#o_meyer_barrel_layers)　观测与模拟结果
+- [PV 或 VVA 阳性细胞计数 · Figure 3a，Table 3，mPFC](records.md#o_filice_pv_detect)　观测与模拟结果
+- [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
+- [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
+- [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
+- [Stimpson 等 14 种灵长类额叶微结构汇总表](records.md#r_stimpson_frontal_table)　资源

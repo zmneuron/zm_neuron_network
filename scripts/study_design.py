@@ -14,8 +14,25 @@ def filled(value):
     return isinstance(value, str) and bool(value.strip())
 
 
+def primary_readouts(choice):
+    """Bind a planned report value to its column and experimental stratum."""
+    if "primary_readouts" not in choice:
+        return {}
+    rows = choice["primary_readouts"]
+    require(isinstance(rows, dict) and rows, "请登记已确定的主要读数与取数位置")
+    for claim_id, source in rows.items():
+        require(filled(claim_id) and isinstance(source, dict)
+                and set(source) == {"csv_ref", "column", "where", "operation"}
+                and all(filled(source[key]) for key in ("csv_ref", "column"))
+                and source["operation"] in {"first", "mean", "median", "sum", "zero_fraction"}
+                and isinstance(source["where"], dict)
+                and all(filled(k) and filled(v) for k, v in source["where"].items()),
+                "主要数值请注明表、指标列、条件选择和标量算法，行选择使用实际表内文字")
+    return rows
+
+
 def study_component_roles(review):
-    """Use the agreed biological scope for material-led studies; preserve existing study contracts."""
+    """Determine the biological components from the agreed regulation scope."""
     design = review["study_design"]
     entry = design.get("entry", "question")
     require(entry in {"question", "materials"}, "请注明从科学问题或实验材料进入研究设计")
@@ -24,12 +41,30 @@ def study_component_roles(review):
             and len(set(components)) == len(components) and set(components) <= set(ROLES),
             "请逐一登记模型实际包含的部分")
     mode = review.get("regulation", {}).get("mode")
-    if entry == "materials" and mode in {"not_requested", "scoped"}:
+    if mode in {"not_requested", "scoped"}:
         require("baseline" in components and "regulation" not in components,
-                "材料选模须保留参照；实施调控时须登记完整调控研究")
+                "请保留实际参照条件；实施调控时须登记完整调控研究")
     else:
         require(set(components) == set(ROLES), "完整调控研究须保留基线、负面影响和调控三个组成部分")
     return tuple(role for role in ROLES if role in components)
+
+
+def study_conditions(root, review):
+    """Validate the same scope and condition identities at design and delivery."""
+    components = study_component_roles(review)
+    scope = review.get("regulation", {})
+    if scope.get("mode") in {"not_requested", "scoped"}:
+        require(filled(scope.get("reason")), "请写明本轮研究范围的依据")
+        local(root, scope.get("source_ref"))
+    conditions = review["study_design"].get("conditions")
+    require(isinstance(conditions, dict) and set(conditions) <= set(ROLES)
+            and all(filled(conditions.get(role)) for role in components)
+            and all(value == "" for role, value in conditions.items() if role not in components),
+            "为每个适用部分登记一个实际条件，未采用部分可省略或留空")
+    active = {role: conditions[role] for role in components}
+    require(len({value.strip() for value in active.values()}) == len(active),
+            "为每个适用部分登记一个可区别的实际条件标识")
+    return active
 
 
 def check_material_intake(root, review):
@@ -42,11 +77,6 @@ def check_material_intake(root, review):
     local(root, intake.get("inventory_ref"))
     require(intake.get("selected_by") in {"user", "delegated"}, "正式构建前须有研究者选择或明确委托的方向")
     local(root, intake.get("selection_ref"))
-    regulation = review.get("regulation", {})
-    require(regulation.get("mode") in {"not_requested", "scoped", "implementation"}, "请按已选方向登记调控范围")
-    if regulation["mode"] != "implementation":
-        require(filled(regulation.get("reason")), "请写明适用条件以及本轮为何只研究这些条件")
-        local(root, regulation.get("source_ref"))
 
 
 def check_study_design(root, plan):
@@ -120,6 +150,8 @@ def check_study_design(root, plan):
         if core_topics - topics:
             report["issues"].append("缺少必要的研究设计决定 " + ", ".join(sorted(core_topics - topics)))
         choices = design.get("model_choices")
+        registration = design.get("readout_registration")
+        require(registration in (None, "per_question"), "主读数登记方式无效")
         require(isinstance(choices, list), "请逐题登记科学选模依据")
         seen = set()
         for choice in choices:
@@ -127,6 +159,13 @@ def check_study_design(root, plan):
             qid = choice.get("question_id")
             require(qid in questions and qid not in seen, "模型选择所指主问题无效或重复")
             seen.add(qid)
+            primary = primary_readouts(choice)
+            if registration == "per_question" and not primary:
+                method = choice.get("non_scalar_readout", {})
+                require(isinstance(method, dict) and method.get("kind") in {"trajectory", "distribution", "other"}
+                        and filled(method.get("description")) and filled(method.get("method_ref")),
+                        f"{qid} 须登记主要数值，或说明非标量读数与原比较方法")
+                local(root, method["method_ref"])
             if not all(filled(choice.get(k)) for k in ("selected", "alternative", "observable", "reason", "source_ref")):
                 report["issues"].append(f"{qid} 缺少采用模型、备选或固定复现的边界、判别读数、选择理由或资料")
                 continue
@@ -138,15 +177,9 @@ def check_study_design(root, plan):
                 report["issues"].append(f"{qid} 的选模出处须指向项目内已保存的文献或方法记录")
         if questions - seen:
             report["issues"].append("缺少选模依据的主问题 " + ", ".join(sorted(questions - seen)))
-        conditions = design.get("conditions")
-        roles = study_component_roles(review)
-        require(isinstance(conditions, dict) and set(conditions) == set(roles)
-                and all(filled(value) for value in conditions.values())
-                and len({value.strip() for value in conditions.values()}) == len(roles),
-                "为每个适用部分登记一个可区别的实际条件标识")
-        if not material_led:
-            require(review.get("regulation", {}).get("mode") == "implementation",
-                    "完整研究须保留基线、负面影响和调控三个组成部分；按材料约定的研究使用材料选模入口")
+        require(review.get("regulation", {}).get("mode") in {"not_requested", "scoped", "implementation"},
+                "请按本次委托登记调控范围")
+        study_conditions(root, review)
         if not report["issues"]:
             report["status"] = "ready"
     except (ValueError, KeyError, TypeError, OSError, AttributeError) as error:

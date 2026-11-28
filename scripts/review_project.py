@@ -16,7 +16,7 @@ import re
 from check_reuse import check_reuse
 from check_regulation import check_regulation, regulation_scope
 from current_project import resolve_current_plan, check_current_artifacts
-from delivery_response import check_presentation, check_reproduction, verify_response_file, _visible as visible_text
+from delivery_response import check_presentation, check_reproduction, displays_value, verify_response_file, _visible as visible_text
 from recovery_fraction import FRACTION_UNITS, recovery_from_rows
 from scientific_review import check_scientific_review, unavailable_findings
 from study_design import check_study_design
@@ -122,6 +122,15 @@ def scope_state(plan):
         text(budget.get("unit"), "simulation budget unit")
     component_plan = review.get("component_calibration")
     if component_plan is not None:
+        if (isinstance(component_plan, dict) and "regulation" in component_plan and "regulation" not in components
+                and (regulation or {}).get("mode") in {"not_requested", "scoped"}):
+            # An older template may explicitly document the unused arm alongside the active ones.
+            unused = component_plan["regulation"]
+            require(isinstance(unused, dict) and unused.get("mode") == "not_requested"
+                    and unused.get("source_ref") == regulation.get("source_ref") and unused.get("source_ref")
+                    and isinstance(unused.get("reason"), str) and unused["reason"].strip(),
+                    "An inactive regulation row must identify the existing scope decision")
+            component_plan = {key: row for key, row in component_plan.items() if key != "regulation"}
         require(isinstance(component_plan, dict) and set(component_plan) == set(components),
                 "Declare calibration applicability separately for each in-scope model component")
         for item in component_plan.values():
@@ -984,6 +993,14 @@ def _csv_statistic(root, claim, allowed):
     where = claim.get("where", {})
     require(isinstance(where, dict), "Invalid claim row selector")
     operation = claim.get("operation", "mean")
+    if operation in {"paired_mean", "paired_ci95_low", "paired_ci95_high"}:
+        from paired_readout import contrast
+        result = contrast(path, claim["unit_id"], claim["arm"], claim["column"], claim["left"], claim["right"],
+                          unit=claim["unit"], expected_ids=claim.get("expected_ids"), where=where)
+        if operation == "paired_mean":
+            return result["mean"]
+        require(result["ci95"] is not None, "A paired confidence interval requires at least two independent units")
+        return result["ci95"][0 if operation == "paired_ci95_low" else 1]
     with path.open(encoding="utf-8-sig", newline="") as handle:
         if operation == "recovery_fraction":
             try:
@@ -1024,6 +1041,8 @@ def _claim(root, claim, allowed=None, raw_paths=None):
             derived = _csv_statistic(root, raw["left"], permitted) - _csv_statistic(root, raw["right"], permitted)
         else:
             derived = _csv_statistic(root, raw, permitted)
+            if raw.get("operation") in {"paired_mean", "paired_ci95_low", "paired_ci95_high"}:
+                require((claim.get("unit") or "1") == raw["unit"], "Paired result and underlying readout units differ")
         require(math.isclose(derived, actual, rel_tol=0, abs_tol=1e-9),
                 "Reported statistic disagrees with recomputation from its underlying observations")
     elif raw_paths is not None:
@@ -1210,7 +1229,8 @@ def _delivery(root, delivery, plan, analysis, axes):
         if full and part["kind"] in {"abstract", "questions"}:
             require(bool(ids), "Abstract/question results lack a data-backed quantitative claim")
         for identity in ids:
-            require(rendered[identity] in part["report_excerpt"] and rendered[identity] in part["response_excerpt"], "Core quantitative result absent from report/final response part")
+            require(all(displays_value(part[field], rendered[identity]) for field in ("report_excerpt", "response_excerpt")),
+                    "Core quantitative result absent from report/final response part")
         figure_ids = part.get("figure_ids", [])
         require(set(figure_ids) <= set(figures), "Part links an unknown figure")
         if full and part["kind"] in {"methods", "questions"}:
