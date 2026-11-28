@@ -11,8 +11,10 @@ from copy import deepcopy
 from datetime import datetime
 from functools import partial
 import json
+import math
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
+import statistics
 
 import calibration
 import precision
@@ -140,7 +142,14 @@ def _selector(rule, *, raw=False):
         for side in ("left", "right"):
             child = _mapping(rule.get(side), side)
             require(child.get("operation") != "difference" and "raw_calculation" not in child, "差值须直接读取两个原始统计量")
-            _selector(child, raw=True)
+            if side == "right" and "dataset_id" in child:
+                require(child.keys() == {"dataset_id", "column", "column_unit", "operation", "where"}
+                        and child.get("operation") in {"first", "mean"}, "实测差值的右项须登记实验来源、数值列、单位和取数条件")
+                for key in ("dataset_id", "column", "column_unit"):
+                    _text(child[key], "实测差值右项 " + key)
+                _where(child["where"], "实测差值右项 where")
+            else:
+                _selector(child, raw=True)
         return
     require(op in {"first", "mean", "sum", "median", "count", "zero_fraction", "pearson", "recovery_fraction"}, "未知取数运算 " + op)
     allowed = {"file", "column", "column_unit", "operation", "where", "where_units", "row_key"}
@@ -238,12 +247,56 @@ def _expected_config(base, changes):
     return expected
 
 
+def _evaluation_sources(root, target, selected, *, allow_planned=False):
+    """Identify the reserved response table for this endpoint, before examining its values."""
+    ref = target["source_ref"]
+    matches = [d for d in selected if ref == (d.get("observations_ref") or d.get("source_ref"))
+               and (not target.get("source_id") or target["source_id"] == d.get("source_id"))]
+    if not matches or calibration._diagnostic_kind(target["evidence_type"]):
+        raise Pending("该目标缺少可定位的独立实测响应表 " + ref)
+    for data in matches:
+        planned = allow_planned and data.get("available") is False
+        comparable = data.get("comparable")
+        if (data.get("source_class") != "measured_record" or data.get("kind") != "biological"
+                or calibration.diagnostic_source(data) or data.get("role") != "evaluation"
+                or data.get("used_for_selection") is not False or type(comparable) is not bool or not planned and not comparable
+                or not planned and (data.get("available") is not True or not calibration._registered_origin(root, data))):
+            raise Pending("须登记可比且未用于选参的独立实验记录 " + ref)
+        files = {data["source_ref"], *data.get("files", [])}
+        path = (root / ref.partition("#")[0]).resolve() if planned else _path(root, ref, "留出响应表")
+        require(ref in files and path.is_relative_to(root) and path.suffix.lower() in TABLE_DELIMITERS,
+                "目标须引用已登记、可读取的实测响应表 " + ref)
+        if data.get("unit_join", {}).get("axis") == "columns":
+            index = data["unit_join"]["index_column"]
+            _text(data.get("unit_where", {}).get(index), "按列存放的实测表中该目标的行标识")
+            value_column = None
+        else:
+            value_column = _text(data.get("value_column"), "实测响应的 value_column")
+            require(value_column not in {data.get("unit_column"), data["context"]["statistical_unit"]},
+                    "实测数值与实验单位编号须分别取列 " + ref)
+        units = [u for u in (data["context"].get("unit"), data.get("fields", {}).get(value_column, {}).get("unit")) if u]
+        if data.get("measurement_ref"):
+            from claim_sources import measurement
+            method = data["measurement_ref"]
+            require(method.partition("#")[0] in {s.partition("#")[0] for s in files}, "实测读数定义须随数据登记")
+            units.append(measurement(root, method)["unit"])
+        if not units:
+            raise Pending("待补独立实测响应列的单位 " + ref)
+        require(len(set(units)) == 1, "独立实测响应列的单位登记互相冲突 " + ref)
+        yield data, units[0]
+
+
 class _Plan:
     def __init__(self, root, plan):
         self.root = root
         self.plan = _mapping(plan, "plan")
         self.review = _mapping(plan.get("review"), "review")
         self.empirical = calibration.requires_empirical(plan)
+        design = self.review.get("study_design") or {}
+        from review_project import full_model_task
+        self.measured_evaluation = (self.empirical and full_model_task(plan)
+                                    and design.get("independent_observations") == "measured_record/1")
+        self.awaiting_independent_data = {}
         self.ready = set()
         self.requirements = _rows(_need(plan.get("requirements"), "requirements"), "requirements")
         for row in self.requirements.values():
@@ -259,6 +312,30 @@ class _Plan:
             self.targets[ref] = _rows(records.get("targets", []) if isinstance(records, dict) else records, ref)
         self.options = _mapping(self.review.get("final_model", {}), "review.final_model")
         self.variants = _mapping(self.options.get("variants", {}), "review.final_model.variants")
+
+    def planned_sample(self, data):
+        """Only a documented, prospectively separate acquisition can await its records during development."""
+        for field in ("source_id", "source_ref", "conditions", "unavailable_reason"):
+            if calibration._missing_identity(data.get(field)):
+                raise Pending("待取得的独立样本需说明来源、纳入或分组方法及未取得原因：" + field)
+        primary = PurePosixPath(data["source_ref"].partition("#")[0])
+        if (data["source_id"] in {data["id"], data["source_ref"], primary.name, primary.stem}
+                or calibration._diagnostic_kind(data["source_id"])):
+            raise Pending("须写明拟留出的实验或采集来源 " + data["id"])
+        ids = set(_ids(data.get("observation_ids", []), "拟留出 observation_ids"))
+        for other in self.datasets.values():
+            if other.get("role") != "calibration" and not other.get("used_for_selection"):
+                continue
+            table = data.get("observations_ref") or data["source_ref"]
+            other_table = other.get("observations_ref") or other.get("source_ref")
+            shared = (data["source_id"] == other.get("source_id") or
+                      other_table and (self.root / table.partition("#")[0]).resolve()
+                      == (self.root / other_table.partition("#")[0]).resolve())
+            members = set(other.get("observation_ids", []))
+            if shared and not (ids and members and ids.isdisjoint(members)):
+                raise Pending("拟留出数据与开发资料同源，尚无可确认分开的独立单位 " + data["id"])
+        if any(s.get("dataset_id") == data["id"] for s in self.review.get("selection_uses", [])):
+            raise Pending("拟留出来源参与了开发选择 " + data["id"])
 
     def model_config(self):
         model = _mapping(self.plan.get("current_model"), "current_model")
@@ -358,7 +435,10 @@ class _Plan:
             refs.update([dataset.get("source_ref"), *dataset.get("files", [])])
             if dataset["role"] == "evaluation":
                 _text(dataset.get("source_id"), "独立观测来源 source_id")
-                _ids(_need(dataset.get("observation_ids"), "实际留出 observation_ids"), "observation_ids")
+                if self.measured_evaluation and dataset.get("available") is False:
+                    self.planned_sample(dataset)
+                else:
+                    _ids(_need(dataset.get("observation_ids"), "实际留出 observation_ids"), "observation_ids")
                 _where(dataset.get("unit_where", {}), "留出 unit_where")
                 if dataset.get("units_ref") and dataset["units_ref"] != dataset.get("source_ref"):
                     require(dataset["units_ref"] in dataset.get("files", []), "留出单位附表未随观测数据登记")
@@ -382,13 +462,25 @@ class _Plan:
             if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
                 precision.check_unit(context, target["precision"]["unit_id"])
                 if target["precision"]["operation"] == "paired_error":
-                    precision.reference_definition(target, {d["id"]: d for d in declared})
+                    precision.reference_definition(target, {d["id"]: d for d in declared}, prospective=self.measured_evaluation)
             else:
                 _statistical_rows(binding["selectors"][identity], target["unit"])
             require(target["data_role"] in roles, "目标与指定数据用途不符")
             if self.empirical and target["required"] and target["data_role"] == "calibration":
                 if not calibration.has_empirical_target(self.root, target, declared):
                     source_gaps.append(f"{binding['id']}/{identity} · 待补该目标可定位的实测校准来源 {target['source_ref']}")
+            elif self.measured_evaluation and target["required"] and target["data_role"] == "evaluation":
+                try:
+                    for data, _ in _evaluation_sources(self.root, target, declared, allow_planned=True):
+                        if data.get("available") is False:
+                            waiting = self.awaiting_independent_data.setdefault(data["id"], dict(dataset_id=data["id"],
+                                source_id=data["source_id"], source_ref=target["source_ref"], conditions=data["conditions"],
+                                reason=data["unavailable_reason"], targets=[]))
+                            endpoint = {"targets_ref": ref, "target_id": identity}
+                            if endpoint not in waiting["targets"]:
+                                waiting["targets"].append(endpoint)
+                except Pending as error:
+                    source_gaps.append(f"{binding['id']}/{identity} · {error}")
             else:
                 require(target["source_ref"] in refs, "目标与指定数据来源或用途不符")
             require(target["condition"] == binding.get("condition", acc["condition"]),
@@ -463,6 +555,14 @@ class _Plan:
             if not any(t.get("required") and t.get("data_role") == "calibration" for targets in self.targets.values()
                        for t in targets.values()):
                 raise Pending("至少登记一个必需的实测校准目标及其来源")
+        if self.measured_evaluation:
+            if "independent_evaluation" not in self.review.get("required_axes", []):
+                raise Pending("完整生物模型须保留独立实测评价轴 independent_evaluation")
+            if self.review.get("independent_evidence", "biological") != "biological":
+                raise Pending("完整生物模型的独立评价须采用 biological 实测记录")
+            if not any(t.get("required") and t.get("data_role") == "evaluation" for targets in self.targets.values()
+                       for t in targets.values()):
+                raise Pending("至少登记一个必需的独立实测评价目标及其来源")
         missing = [f"{ref}#{key}" for ref, targets in self.targets.items() for key, t in targets.items()
                    if t.get("required") and (ref, key) not in covered_targets]
         missing.extend(key for key, c in self.science.items() if c.get("required") and
@@ -481,6 +581,7 @@ def _check_plan(root, plan):
     report = _report()
     declared = _check(report, "事前计划", lambda: _Plan(root, plan))
     if declared is not None:
+        report["empirical_evaluation_required"] = declared.measured_evaluation
         from check_records import module_output_rules
         _check(report, "关键模块的运行读数", lambda: module_output_rules(plan))
         _check(report, "条件与种子", declared.check_variants)
@@ -500,6 +601,8 @@ def _check_plan(root, plan):
         # Malformed rows have their own diagnosis and cannot pass through coverage.
         if not report["issues"]:
             _check(report, "必需目标与机制", declared.coverage)
+        if declared.awaiting_independent_data:
+            report["awaiting_independent_data"] = list(declared.awaiting_independent_data.values())
     return _status(report), declared
 
 
@@ -708,6 +811,11 @@ class _Runs:
                 "事前记录与本轮计划不符")
         scope = _mapping(self.saved.get("scope"), "已保存的事前范围")
         require(_same_config(scope.get("final_model", {}), spec.options), "运行后改变了允许的配置差异")
+        require(self.saved.get("final_plan", {}).get("empirical_evaluation_required", False) == spec.measured_evaluation,
+                "采用模型的独立实测约定与运行前不同")
+        if spec.measured_evaluation:
+            require(scope.get("independent_goal", "require_support") == review.get("independent_goal", "require_support"),
+                    "冻结后的独立实测须沿用原先登记的目标")
         self.frozen = _mapping(scope.get("requirements"), "事前 requirements")
         require({k for k, r in self.frozen.items() if r.get("required", True)} <= spec.required.keys(),
                 "最终核对遗漏了事前登记的必需要求")
@@ -1043,6 +1151,10 @@ class _Evidence:
         for key in ("kind", "role", "source_ref", "source_id", "files", "context", "observation_ids",
                     "unit_column", "units_ref", "unit_where", "unit_join"):
             require(_same_config(frozen.get(key), data.get(key)), f"{dataset_id} 的 {key} 与事前记录不同")
+        if role == "evaluation" and self.spec.measured_evaluation:
+            for key in ("source_class", "evidence_type", "origin", "value_column", "observations_ref",
+                        "available", "comparable", "conditions", "fields", "measurement_ref"):
+                require(_same_config(frozen.get(key), data.get(key)), f"独立实测 {dataset_id} 的 {key} 在登记后改变")
         if data.get("available") is not True or role != "reference" and data.get("comparable") is not True:
             raise Pending("缺少可用且适于该比较的数据 " + dataset_id)
         ref = data["source_ref"]
@@ -1101,6 +1213,90 @@ class _Evidence:
             if (item.get("origin", "model") == "model" and item.get("run_ids") and item.get("path")
                     and (self.root / item["path"]).resolve() == path):
                 self.dataset(identity)  # Verify the producing run when one is recorded.
+
+    def measured_response(self, target, selected, context, run, owner, rule, source):
+        """Read the reserved experimental values and verify their independence from the prediction."""
+        from claim_sources import check_independence, same_content
+
+        raw_values, reserved_ids = [], set()
+        paired_error = (target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95
+                        and target["precision"]["operation"] == "paired_error")
+        original = rule.get("raw_calculation", {})
+        external = original.get("right", {}) if original.get("operation") == "difference" else {}
+        if external and original["left"] == external:
+            raise Pending("差值的两个操作数来自同一预测，缺少与独立实测的有效比较")
+        reference_paths = set()
+        for data, unit in _evaluation_sources(self.root, target, selected):
+            ref, ids = check_independence(self.root, data, self.runs.saved.get("selection_uses", []),
+                                          self.spec.datasets, repeat=False)
+            require(reserved_ids.isdisjoint(ids), "同一目标的留出响应重复计入同一实验单位 " + ref)
+            reserved_ids.update(ids)
+            path = local(self.root, ref)
+            diagnostic = {p for p in self.diagnostic_paths if isinstance(p, Path)}
+            for other in self.spec.datasets.values():
+                if calibration.diagnostic_source(other) or other.get("source_class") == "measured_summary":
+                    other_ref = other.get("observations_ref") or other.get("source_ref")
+                    if other_ref and ("#" not in other_ref or other_ref == ref):
+                        diagnostic.add((self.root / other_ref.partition("#")[0]).resolve())
+            require(not calibration.excluded_reference(self.root, ref, self.diagnostic_paths)
+                    and not calibration._recorded_simulation(self.root, path) and
+                    not any(same_content(path, p) for p in diagnostic if p.is_file()),
+                    "独立实测响应与已登记的模拟、模型参数或汇总文件相同 " + ref)
+            # A prediction can read the stimulus protocol. The response table may only be used for scoring.
+            digest = fingerprint(path)
+            records, seen = [run], set()
+            while records:
+                record = records.pop()
+                if record["run_id"] in seen:
+                    continue
+                seen.add(record["run_id"])
+                require(digest not in record["input_sha256"].values() and digest not in record["output_sha256"].values(),
+                        "预测或其上游运行读入了留出响应，或该表由运行产生 " + ref)
+                records.extend(read(local(self.root, p["record"])) for p in record["parents"])
+            require(unit == target["unit"], "独立实测响应与直接比较读数的单位不同 " + ref)
+            if "dataset_id" in external:
+                require(external["dataset_id"] == data["id"] and external["column"] == data.get("value_column")
+                        and external["column_unit"] == unit == original["left"]["column_unit"]
+                        and external["where"] == data.get("unit_where", {}) and path.suffix.lower() == ".csv",
+                        "误差所用的实测对象、响应列、单位或筛选条件不同于事前登记")
+                right = source.get("raw_calculation", {}).get("right", {})
+                require(right == dict(csv_ref=ref, column=external["column"], operation=external["operation"],
+                                      where=external["where"]), "预测误差右项须直接读取登记的独立实测响应")
+                scorer = self.runs.record(owner)
+                require(scorer["stage"] == "analysis" and digest in scorer["input_sha256"].values(),
+                        "冻结后的误差分析须读取对应的独立实测响应")
+                reference_paths.add(path)
+            with _table(self.root, ref, context, data.get("unit_where", {})) as (columns, rows):
+                cols = columns[1:] if data.get("unit_join", {}).get("axis") == "columns" else [data["value_column"]]
+                require(set(cols) <= set(columns), "原始留出表中缺少登记的实测响应列 " + ref)
+                for _, observation in rows:
+                    try:
+                        values = [float(observation[k]) for k in cols]
+                    except (ValueError, TypeError):
+                        values = []
+                    if not values or not all(map(math.isfinite, values)):
+                        raise Pending("原始留出记录缺少有限数值响应 " + ref)
+                    if not paired_error:
+                        raw_values.extend(values)
+        if raw_values:
+            # Direct reference intervals describe the experimental observation in its original units.
+            # Paired prediction errors were already recomputed from both tables by precision.RecordedUnits.
+            if len(raw_values) != len(reserved_ids):
+                raise Pending("每个独立单位有多次响应，须按事前方法汇总后比较")
+            if reference_paths:
+                return reference_paths  # _claim recomputes prediction minus this exact recorded response.
+            statistic = target["statistic"].strip().casefold()
+            functions = {"mean": statistics.fmean, "median": statistics.median, "min": min, "max": max,
+                         "均值": statistics.fmean, "中位数": statistics.median}
+            if statistic in functions:
+                observed = functions[statistic](raw_values)
+            elif len(raw_values) == 1 and statistic in {"point", "first", "value", "single", "单值", "单点"}:
+                observed = raw_values[0]
+            else:
+                raise Pending("该派生指标缺少可从独立实测与冻结预测复算的登记方法")
+            if not calibration._within(observed, target["criterion"])[0]:
+                raise Pending(f"实测读数 {observed:g} {target['unit']} 与登记的直接参考范围不符，须核实评价依据")
+        return reference_paths
 
     def negative(self, identity):
         if self.spec.review.get("independent_goal") != "test_prediction":
@@ -1172,7 +1368,7 @@ class _Evidence:
         else:
             _check_table(self.root, relative, context, where, columns, row_key)
 
-    def raw_measurement(self, rule, source, owner, sim_ref, context):
+    def raw_measurement(self, rule, source, owner, sim_ref, context, reference_paths=(), *, direct_prediction=False):
         raw = source.get("raw_calculation")
         if raw is None:
             if "raw_calculation" in rule or owner in self.runs.retained_analyses:
@@ -1182,6 +1378,14 @@ class _Evidence:
                 if parent_file not in self.runs.raw_outputs(self.runs.record(sim_ref)):
                     raise Pending("分析采用另一种输出表时，须事前登记对应的原始 raw_calculation")
                 require(parent_file in self.runs.record(owner)["input_sha256"], "分析的实际输入缺少该目标对应的原始观测")
+                if direct_prediction:
+                    from review_project import _csv_statistic
+                    parent_source = dict(source, csv_ref=parent_file)
+                    self.measurement_source(rule, parent_source, sim_ref, context, rule.get("row_key", []))
+                    original = _csv_statistic(self.root, parent_source, {local(self.root, parent_file)})
+                    reported = _csv_statistic(self.root, source, {local(self.root, source["csv_ref"])})
+                    require(math.isclose(original, reported, rel_tol=0, abs_tol=1e-9),
+                            "分析报告的直接预测与冻结模拟原始输出复算值不同 " + parent_file)
             return
         expected = rule.get("raw_calculation", rule)
         raw = _mapping(raw, "raw_calculation")
@@ -1196,10 +1400,48 @@ class _Evidence:
         for term, claim in terms:
             claim = _mapping(claim, "原始数据取数")
             require("raw_calculation" not in claim, "原始数据取数不能再引用未执行的计算")
+            if "dataset_id" in term:
+                require(local(self.root, claim["csv_ref"]) in reference_paths,
+                        "实测差值的右项须使用本项已核对的独立实验响应")
+                continue
             self.measurement_source(term, claim, sim_ref, context, term.get("row_key", []))
             require(claim["csv_ref"] in original, "计算未读取指定模拟的原始观测")
             if owner != sim_ref:
                 require(claim["csv_ref"] in self.runs.record(owner)["input_sha256"], "分析的实际输入缺少所引原始观测")
+
+    def reserved_prediction(self, raw, binding, requirement_id, run):
+        """A direct prediction for an identified, reserved unit may precede receipt of its response."""
+        previous_ref = run["review_context"]["requirements_ref"]
+        earlier = read(local(self.root, previous_ref))
+        ref = binding["targets_ref"]
+        waiting = {t["target_id"]: data["dataset_id"] for data in earlier.get("final_plan", {}).get("awaiting_independent_data", [])
+                   for t in data["targets"] if t["targets_ref"] == ref and t["target_id"] in binding["target_ids"]}
+        if not waiting:
+            return
+        run_ref = raw["run_ref"]
+        prior = self.prior.get("completion_review", {})
+        if (previous_ref != self.runs.saved["previous_requirements"]["ref"] or raw.get("analysis_run_ref")
+                or len(binding["dataset_ids"]) != 1
+                or run_ref not in earlier["scope"].get("final_model", {}).get("variants", {})
+                or any(c.get("run_ref") == run_ref and c.get("data_role") == "calibration" for c in prior.get("comparisons", []))
+                or any(r.get("run_ref") == run_ref and r.get("role") in {"initial", "candidate"} for r in prior.get("iterations", []))):
+            raise Pending("原运行未单独登记为尚待取得实测的冻结预测，须按新登记的评价单位生成正式预测")
+        before = _rows(earlier["datasets"], "原拟测队列")
+        originally = earlier["scope"]["requirements"][requirement_id]["acceptance"]["comparisons"]
+        original = _lookup(_rows(originally, "原定比较"), binding["id"], "原冻结预测比较")
+        targets = _rows(earlier["criteria"][ref], "原定预测目标")
+        for key, cohort in waiting.items():
+            data = before[cohort]
+            ids = data.get("observation_ids", [])
+            rule = original.get("selectors", {}).get(key, {})
+            unit = data.get("unit_column") or data["context"]["statistical_unit"]
+            if (cohort not in binding["dataset_ids"] or len(ids) != 1 or rule.get("operation") not in {"first", "mean"}
+                    or "raw_calculation" in rule or str(rule.get("where", {}).get(unit, "")) != ids[0]
+                    or rule != binding.get("selectors", {}).get(key) or self.spec.datasets[cohort].get("observation_ids") != ids
+                    or self.spec.datasets[cohort]["source_id"] != data["source_id"]
+                    or any(v != self.spec.targets[ref][key].get(k) for k, v in targets[key].items() if k != "source_ref")
+                    or (PurePosixPath(run_ref).parent / rule["file"]).as_posix() not in self.runs.raw_outputs(run)):
+                raise Pending("原预测缺少可核实的同一保留单位及直接原始读数，须按新登记的评价单位生成正式预测")
 
     def comparison(self, acc, binding, row, report, requirement_id):
         from review_project import _claim
@@ -1218,6 +1460,8 @@ class _Evidence:
         role = raw["data_role"]
         require(checked["axis"] == raw["axis"] == {"calibration": "calibration", "evaluation": "independent_evaluation",
                 "reference": "reference"}[role], "比较轴与数据用途不符")
+        if role == "evaluation" and self.spec.measured_evaluation and run_ref in self.runs.preserved:
+            self.reserved_prediction(raw, binding, requirement_id, run)
         target_refs = {self.spec.targets[ref][key]["source_ref"] for key in binding["target_ids"]}
         empirical = self.spec.empirical and role == "calibration"
         selected = [self.spec.datasets[k] for k in binding["dataset_ids"]]
@@ -1245,10 +1489,8 @@ class _Evidence:
         possible = [recomputed]
         if empirical:
             before_manifest = calibration.apply_empirical_sources(self.root, targets, registered, recomputed)
-            excluded = self.diagnostic_paths.intersection((self.root / t["source_ref"].partition("#")[0]).resolve()
-                                                         for t in targets if t["data_role"] == role)
             recomputed = (calibration.apply_empirical_sources(self.root, targets, registered, recomputed,
-                                                              diagnostic_paths=excluded) if excluded else before_manifest)
+                           diagnostic_paths=self.diagnostic_paths) if self.diagnostic_paths else before_manifest)
             # The supplied comparison may precede a newly recorded data origin. Its numbers still
             # have to match; the per-target decision below always uses the current, stricter source check.
             possible = [recomputed, before_manifest]
@@ -1263,9 +1505,10 @@ class _Evidence:
             label = identity + "/" + key
             if empirical:
                 source_path = (self.root / target["source_ref"].partition("#")[0]).resolve()
-                if source_path in self.diagnostic_paths or score.get("reason") == "empirical_calibration_source_missing":
+                excluded = calibration.excluded_reference(self.root, target["source_ref"], self.diagnostic_paths)
+                if excluded or score.get("reason") == "empirical_calibration_source_missing":
                     row["outcomes"][label] = "pending" if target["required"] else "diagnostic"
-                    if source_path in self.diagnostic_paths:
+                    if excluded:
                         self.check_diagnostic_source(source_path)
                     if target["required"]:
                         raise Pending("缺少该目标事前登记的可比实测校准来源 " + target["source_ref"])
@@ -1292,6 +1535,11 @@ class _Evidence:
             self.runs.use(self.runs.family(owners[0]), condition=binding.get("condition", acc["condition"]))
             context = dict(binding["context"], condition=binding.get("condition", acc["condition"]))
             actual = observation["value"]
+            rule = (target["precision"] if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95
+                    else binding["selectors"][key])
+            reference_paths = set()
+            if self.spec.measured_evaluation and role == "evaluation" and target["required"]:
+                reference_paths = self.measured_response(target, selected, context, run, owners[0], rule, source)
             if target.get("uncertainty_rule") == calibration.UNIT_MEAN_CI95:
                 rule = target["precision"]
                 require(owners[0] == run_ref and relative in self.runs.raw_outputs(run),
@@ -1300,8 +1548,10 @@ class _Evidence:
             else:
                 rule = binding["selectors"][key]
                 self.measurement_source(rule, source, owners[0], context, _statistical_rows(rule, target["unit"]))
-                self.raw_measurement(rule, source, owners[0], run_ref, context)
-                raw_paths = {local(self.root, p) for p in self.runs.raw_outputs(run)} if "raw_calculation" in source else None
+                self.raw_measurement(rule, source, owners[0], run_ref, context, reference_paths,
+                                     direct_prediction=self.spec.measured_evaluation and role == "evaluation" and target["required"])
+                raw_paths = ({local(self.root, p) for p in self.runs.raw_outputs(run)} | reference_paths
+                             if "raw_calculation" in source else None)
                 _claim(self.root, dict(source, value=actual, format=".15g", text=format(actual, ".15g"), unit=""), {path}, raw_paths)
             row["outcomes"][label] = state
             if state == "unmet":
@@ -1492,4 +1742,42 @@ def check_final_evidence(root, plan, analysis, comparisons, science):
                 _check(report, identity, lambda: evidence.requirement(identity, declared.required[identity], report, row), row)
         row["run_refs"] = sorted(row["run_refs"])
         _status(row)
+    report["empirical_evaluation"] = _empirical_evaluation(declared, report)
     return _status(report)
+
+
+def _empirical_evaluation(spec, report):
+    """Only predeclared experimental endpoints verified on the adopted model contribute."""
+    if spec is None:
+        return {"status": "not_evaluated", "targets": []}
+    if not spec.measured_evaluation:
+        status = "previous_protocol" if spec.empirical else "not_required"
+        return {"status": status, "targets": []}
+    expected = {(ref, k): t for ref, targets in spec.targets.items() for k, t in targets.items()
+                if t.get("required") and t.get("data_role") == "evaluation"}
+    rows, covered = [], set()
+    state = {"passed": "supported", "unmet": "not_supported", "negative_prediction": "not_supported"}
+    for rid, requirement in spec.required.items():
+        if rid not in spec.ready:
+            continue
+        outcomes = report["requirements"].get(rid, {}).get("outcomes", {})
+        for binding in (requirement.get("acceptance") or {}).get("comparisons", []):
+            ref, cid = binding["targets_ref"], binding["id"]
+            for key in binding["target_ids"]:
+                target = expected.get((ref, key))
+                if not target:
+                    continue
+                covered.add((ref, key))
+                outcome = outcomes.get(cid + "/" + key)
+                sources = [d for d in binding["dataset_ids"] if d in spec.datasets and
+                           (spec.datasets[d].get("observations_ref") or spec.datasets[d].get("source_ref")) == target["source_ref"]]
+                rows.append(dict(requirement_id=rid, comparison_id=cid, targets_ref=ref, target_id=key,
+                                 source_ref=target["source_ref"], dataset_ids=sources,
+                                 status=state.get(outcome, "not_evaluated")))
+    for ref, key in sorted(expected.keys() - covered):
+        rows.append(dict(requirement_id=None, comparison_id=None, targets_ref=ref, target_id=key,
+                         source_ref=expected[ref, key].get("source_ref"), dataset_ids=[], status="not_evaluated"))
+    states = {r["status"] for r in rows}
+    status = ("not_evaluated" if not rows or "not_evaluated" in states or not report.get("run_ref") else
+              "not_supported" if "not_supported" in states else "supported")
+    return {"status": status, "targets": rows}

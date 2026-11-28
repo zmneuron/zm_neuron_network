@@ -144,6 +144,7 @@
 - [Firing Frequency Maxima of Fast-Spiking Neurons in Human, Monkey, and Mouse Neocortex](records.md#p_cell_wang)　文献
 - [Generalized leaky integrate-and-fire models classify multiple neuron types](records.md#p_cell_teeter)　文献
 - [Classification of electrophysiological and morphological neuron types in the mouse visual cortex](records.md#p_cell_gouwens)　文献
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
 - [阶跃内放电频率适应时间常数 · Fig. 2B 及紧随其后的 Results 段，瞬时频率轨迹和拟合时间常数。](records.md#o_cell_velden_tau)　观测与模拟结果
 - [单指数拟合的稳态放电频率 · Fig. 2C 及正文给出的稳态放电频率。](records.md#o_cell_velden_steady)　观测与模拟结果
 - [原作者的适应比（adaptation ratio） · Fig. 1A–C 给出样例记录，Fig. 1D 和 Human neocortical FS neurons 结果段给出适应比组间比较。](records.md#o_cell_wang_human_ratio)　观测与模拟结果
@@ -154,6 +155,7 @@
 - [GLIF1–5 在留出波形上预测的脉冲时刻 · Fig. 4a 彩色 GLIF1–5 脉冲点栅，与黑色实测分开记录。](records.md#o_cell_teeter_fig4_model)　观测与模拟结果
 - [Allen adaptation，相邻放电间隔归一化差的均值 · Supplementary Dataset 3，Data 表第 7 行，标本 313861794；指标来自关联的 Allen EphysFeature 396463405，并依原始 NWB 的 Sweep_35 脉冲时刻复算。](records.md#o_cell_gouwens_mouse_index)　观测与模拟结果
 - [相邻放电间隔归一化差的均值（Allen adaptation） · Allen 标本 486940963，EphysSweep 486941688（Sweep_39），NWB /analysis/spike_times/Sweep_39，EphysFeature 486943542。](records.md#o_allen_human_s39)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
 - [Mensi 等作者提交的 MATLAB 参数拟合和放电模型](records.md#r_cell_mensi_code)　资源
 - [Allen Institute 的 Teeter 等论文章节、主图脚本和拟合配置](records.md#r_cell_teeter_analysis)　资源
 - [AllenSDK 的 GLIF 单细胞仿真实现](records.md#r_cell_allen_glif)　资源

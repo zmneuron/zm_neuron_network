@@ -49,10 +49,21 @@ def requires_empirical(plan):
 
 def _diagnostic_kind(value):
     terms = re.sub(r"[_/-]+", " ", str(value or "").casefold()).strip()
-    return terms in {"model", "published model", "computational model", "surrogate model"} or bool(re.search(
+    return terms in {"model", "published model", "computational model", "surrogate model", "literature model",
+                     "protocol", "protocol only", "method only", "protocol parameter", "protocol parameters",
+                     "experimental settings", "stimulus parameters", "model parameter", "model parameters",
+                     "模型参数", "实验设定", "刺激参数", "方案参数"} or bool(re.search(
                           r"\b(synthetic|artificial|simulat\w*|model (?:output|generated|derived|prediction|result)s?|"
+                          r"(?:published|fitted|assumed) model parameters?|protocol settings?|"
                           r"in silico|assumed|assumption|hypothetical|placeholder|software test)\b|"
-                          r"合成|模拟|仿真|模型输出|模型预测|模型计算结果|人为设定|假设值", terms))
+                          r"合成|模拟|仿真|模型输出|模型预测|模型计算结果|模型(?:拟合|设定|推算)参数|人为设定|假设值", terms))
+
+
+def diagnostic_source(data):
+    """Classify the cited record or panel from its registered origin and use."""
+    return (data.get("kind") in {"synthetic", "model_output", "unverified"} or data.get("origin") == "model"
+            or data.get("source_class") in {"simulation", "simulation_repeat", "literature_model"}
+            or _diagnostic_kind(data.get("evidence_type")))
 
 
 def _missing_identity(value):
@@ -144,8 +155,7 @@ def has_empirical_target(root, target, selected_datasets):
                     (direct if ref == data.get("source_ref") else attached).append(data)
                     break
         matches = direct or attached  # A dataset's own table takes precedence over another's attachment.
-        if any(d.get("kind") in {"synthetic", "model_output", "unverified"} or d.get("origin") == "model"
-               or _diagnostic_kind(d.get("evidence_type")) for d in matches):
+        if any(diagnostic_source(d) for d in matches):
             return False
         if target.get("source_id"):
             matches = [d for d in matches if d.get("source_id") == target["source_id"]]
@@ -159,7 +169,7 @@ def registered_empirical_datasets(selected, captured):
     """A change in the registered origin cannot upgrade an earlier software comparison."""
     selected = selected.values() if isinstance(selected, dict) else selected
     frozen = captured if isinstance(captured, dict) else {d["id"]: d for d in captured}
-    keys = ("kind", "role", "source_ref", "source_id", "files", "evidence_type", "origin", "available", "comparable",
+    keys = ("kind", "role", "source_ref", "source_id", "files", "source_class", "evidence_type", "origin", "available", "comparable",
             "conditions", "context", "observation_ids", "unit_column", "unit_where", "units_ref", "unit_join")
     registered = [d if d.get("id") in frozen and all(d.get(k) == frozen[d["id"]].get(k) for k in keys)
                   else dict(d, kind="unverified", available=False) for d in selected]
@@ -167,7 +177,7 @@ def registered_empirical_datasets(selected, captured):
     linked = {ref.partition("#")[0] for d in registered for ref in [d.get("source_ref"), *d.get("files", [])] if ref}
     # Omitting the owner of an attached technical table does not make that table empirical.
     registered.extend(d for key, d in frozen.items() if key not in ids and
-                      (d.get("kind") in {"synthetic", "model_output"} or _diagnostic_kind(d.get("evidence_type"))) and
+                      diagnostic_source(d) and
                       (d.get("source_ref") or "").partition("#")[0] in linked)
     return registered
 
@@ -179,12 +189,19 @@ def diagnostic_paths(root, analysis_datasets):
     paths = set()
     for row in rows:
         ref = row.get("path")
-        if isinstance(ref, str) and ref.strip() and (row.get("origin", "model") == "model" or
-                                                   _diagnostic_kind(row.get("evidence_type"))):
-            path = (root / ref.partition("#")[0]).resolve()
+        if isinstance(ref, str) and ref.strip() and (row.get("origin", "model") == "model" or diagnostic_source(row)):
+            filename, _, panel = ref.partition("#")
+            path = (root / filename).resolve()
             if path.is_relative_to(root):
-                paths.add(path)
+                paths.add((path, panel) if panel else path)
     return paths
+
+
+def excluded_reference(root, reference, paths):
+    filename, _, panel = reference.partition("#")
+    path = (root / filename).resolve()
+    return path in paths or (path, panel) in paths or (not panel and any(
+        isinstance(entry, tuple) and entry[0] == path for entry in paths))
 
 
 def apply_empirical_sources(root, targets, selected_datasets, score, *, diagnostic_paths=()):
@@ -192,10 +209,10 @@ def apply_empirical_sources(root, targets, selected_datasets, score, *, diagnost
     if score.get("data_role") != "calibration" or not score.get("rows"):
         return score
     root = Path(root).resolve()
-    excluded = {(root / path).resolve() for path in diagnostic_paths}
+    excluded = {p if isinstance(p, tuple) else (root / p).resolve() for p in diagnostic_paths}
     missing = {target["id"] for target in targets if target.get("data_role") == "calibration" and
                (not has_empirical_target(root, target, selected_datasets) or
-                (root / target["source_ref"].partition("#")[0]).resolve() in excluded)}
+                excluded_reference(root, target["source_ref"], excluded))}
     if not missing:
         return score
     rows = [dict(row, state="pending", violation=None, reason="empirical_calibration_source_missing")

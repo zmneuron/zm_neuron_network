@@ -197,6 +197,8 @@ def summarize(report, structure=None):
         action = "修复本次复核错误后从该步骤重新检查：" + str(report["issues"][0])
     elif report.get("next_action"):
         action = report["next_action"]
+    elif checks.get("mismatch_diagnosis", {}).get("next_action") and not stages[3]["gaps"]:
+        action = checks["mismatch_diagnosis"]["next_action"]
     elif suggested:
         action = suggested
     elif report["issues"]:

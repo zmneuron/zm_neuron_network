@@ -9,6 +9,9 @@ from check_records import fingerprint, local, read, require, verify_run
 from paired_readout import contrast, mean_interval, unit_values
 
 
+REGISTERED_OBSERVATIONS = "registered_observation_ids"
+
+
 def validate(target):
     rule = target.get("precision")
     require(isinstance(rule, dict), "95% 区间缺少事前 precision 取数定义")
@@ -26,8 +29,9 @@ def validate(target):
             "precision.file 须为运行目录内的具体 CSV 相对路径")
     require(rule["column_unit"] == target["unit"] and rule["unit_id"] != rule["column"], "独立单位列或读数单位不符")
     ids = rule["expected_ids"]
-    require(isinstance(ids, list) and ids and all(isinstance(x, str) and x and x.strip() == x for x in ids)
-            and len(ids) == len(set(ids)), "须事前登记互不重复的独立单位编号")
+    cohort = op == "paired_error" and ids == REGISTERED_OBSERVATIONS
+    require(cohort or isinstance(ids, list) and ids and all(isinstance(x, str) and x and x.strip() == x for x in ids)
+            and len(ids) == len(set(ids)), "须事前登记互不重复的独立单位编号或使用完整的留出队列")
     where = rule["where"]
     require(isinstance(where, dict) and all(isinstance(k, str) and k.strip() and
             (isinstance(v, str) or type(v) in (int, float) and math.isfinite(v)) for k, v in where.items()) and
@@ -52,23 +56,29 @@ def check_unit(context, column):
             "precision.unit_id 与事前独立统计单位不符，不能把同一对象内的重复当作独立样本")
 
 
-def reference_definition(target, datasets):
+def reference_definition(target, datasets, *, prospective=False):
     rule = target["precision"]
     ref = rule["reference"]
     require(ref["dataset_id"] in datasets, "配对预测误差的留出实测队列未随该比较登记")
     data = datasets[ref["dataset_id"]]
+    waiting = prospective and data.get("available") is False
     require(data.get("kind") == "biological" and data.get("source_class") == "measured_record"
             and data.get("role") == "evaluation" and data.get("used_for_selection") is False
-            and data.get("available") is True and data.get("comparable") is True,
+            and (data.get("available") is True and data.get("comparable") is True
+                 or waiting and type(data.get("comparable")) is bool),
             "配对预测误差需要可比、未用于选择的逐独立单位生物实测")
     actual = data.get("observations_ref") or data.get("source_ref")
     require(actual == target["source_ref"] and actual in {data.get("source_ref"), *data.get("files", [])}
             and PurePosixPath(actual.partition("#")[0]).suffix.lower() == ".csv"
             and data.get("value_column") == ref["column"] and data.get("unit_column") != ref["column"],
             "目标须引用该留出队列的实际逐单位 CSV 及其登记观测列")
-    ids = data.get("observation_ids")
-    require(isinstance(ids, list) and len(ids) == len(set(ids)) and set(ids) == set(rule["expected_ids"]),
-            "预测单位与事前保留的实测单位不一致")
+    ids = data.get("observation_ids", [])
+    require(isinstance(ids, list) and all(isinstance(x, str) and x.strip() == x and x for x in ids)
+            and len(ids) == len(set(ids)), "队列登记须使用可区分的真实单位编号")
+    require(ids or waiting, "正式配对需要冻结的实测单位编号")
+    expected = rule["expected_ids"]
+    if expected != REGISTERED_OBSERVATIONS and (ids or not waiting):
+        require(set(ids) == set(expected), "预测单位与事前保留的实测单位不一致")
     return data
 
 
@@ -191,6 +201,9 @@ class RecordedUnits:
             if op == "paired_error":
                 observed, key, ref, where = self._observed(target, rule, context)
                 args["context"] = {**where, **context}
+                if rule["expected_ids"] == REGISTERED_OBSERVATIONS:
+                    # _observed verified exact membership against the roster captured before this forecast.
+                    args["expected_ids"] = list(observed)
             values = unit_values(path, rule["unit_id"], rule["column"], **args)
             if op == "paired_error":
                 values = {k: v - observed[k] for k, v in values.items()}

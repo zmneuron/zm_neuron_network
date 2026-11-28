@@ -35,6 +35,7 @@
       "readout_registration": "per_question",
       "module_output_contract": "run_csv/1",
       "prediction_precision": "declare_scope",
+      "independent_observations": "measured_record/1",
       "tier": "",
       "decisions": [],
       "model_choices": [],
@@ -49,7 +50,7 @@
     ],
     "calibration_evidence": "biological",
     "independent_evidence": "biological",
-    "independent_goal": "test_prediction",
+    "independent_goal": "require_support",
     "component_calibration": {
       "baseline": {"mode": "targets"}
     },

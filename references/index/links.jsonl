@@ -109,3 +109,6 @@
 {"from": "p_shapson_coe_h01", "to": "r_h01_temporal", "relation": "collected", "detail": "单供体组织块的电镜及重建。", "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11718559/"}
 {"from": "p_vanneau_sfari_alpha_pre", "to": "r_sfari_eeg_bids", "relation": "reanalyzed", "detail": "作者预印本通过该公开版本追溯其 8–14 岁儿童清醒睁眼脑电记录。", "source": "https://www.biorxiv.org/content/10.64898/2026.04.03.716324v1"}
 {"from": "r_sfari_eeg_alpha_code", "to": "p_vanneau_sfari_alpha_pre", "relation": "analysis_for", "detail": "作者提供 alpha 簇发分析代码。", "source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13082062/"}
+{"from": "o_druckmann_ramp_model", "to": "o_druckmann_ramp_measured", "relation": "compared_with", "detail": "同一斜坡输入，冻结电导模型的响应与同一细胞的实验记录配对。", "source": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133"}
+{"from": "p_druckmann_stimuli", "to": "p_druckmann_objectives", "relation": "uses_method", "detail": "2011 年研究引用前作的多目标特征距离并开展跨刺激检验。", "source": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133"}
+{"from": "p_druckmann_stimuli_correction", "to": "p_druckmann_stimuli", "relation": "corrects", "detail": "方法及图 2 图注中的 Figure S1 应为 Figure 1。", "source": "https://journals.plos.org/ploscompbiol/article?id=10.1371/annotation/c002fbe1-712c-4608-9747-f1185f0b7cf4"}

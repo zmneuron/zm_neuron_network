@@ -40,6 +40,9 @@
 - [Firing Frequency Maxima of Fast-Spiking Neurons in Human, Monkey, and Mouse Neocortex](records.md#p_cell_wang)　文献
 - [Generalized leaky integrate-and-fire models classify multiple neuron types](records.md#p_cell_teeter)　文献
 - [Classification of electrophysiological and morphological neuron types in the mouse visual cortex](records.md#p_cell_gouwens)　文献
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
+- [Correction: Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli_correction)　文献
 - [感受野与参数后验能否恢复 · Figure 2g；Appendix 1—figure 5](records.md#o_sbi_negative)　观测与模拟结果
 - [膜电位与放电模式 · 图 1a–d](records.md#o_wilson_modes)　观测与模拟结果
 - [阶跃内放电频率适应时间常数 · Fig. 2B 及紧随其后的 Results 段，瞬时频率轨迹和拟合时间常数。](records.md#o_cell_velden_tau)　观测与模拟结果
@@ -52,6 +55,10 @@
 - [GLIF1–5 在留出波形上预测的脉冲时刻 · Fig. 4a 彩色 GLIF1–5 脉冲点栅，与黑色实测分开记录。](records.md#o_cell_teeter_fig4_model)　观测与模拟结果
 - [Allen adaptation，相邻放电间隔归一化差的均值 · Supplementary Dataset 3，Data 表第 7 行，标本 313861794；指标来自关联的 Allen EphysFeature 396463405，并依原始 NWB 的 Sweep_35 脉冲时刻复算。](records.md#o_cell_gouwens_mouse_index)　观测与模拟结果
 - [相邻放电间隔归一化差的均值（Allen adaptation） · Allen 标本 486940963，EphysSweep 486941688（Sweep_39），NWB /analysis/spike_times/Sweep_39，EphysFeature 486943542。](records.md#o_allen_human_s39)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [Mainen–Sejnowski 的四种重建新皮层神经元](records.md#r_modeldb2488)　资源
 - [Mensi 等作者提交的 MATLAB 参数拟合和放电模型](records.md#r_cell_mensi_code)　资源
 - [Allen Institute 的 Teeter 等论文章节、主图脚本和拟合配置](records.md#r_cell_teeter_analysis)　资源
@@ -194,7 +201,14 @@
 - [A biophysically grounded model of glutamatergic synaptic transmission integrating glutamate transport, receptor kinetics, and electrotonic effects](records.md#p_pmid_42126468)　文献
 - [Ionic mechanisms underlying bistability in spinal motoneurons: insights from a computational model](records.md#p_pmid_41306652)　文献
 - [Genetic Targeting and Conductance-Based Modeling Reveal Novel Diversity within Mouse Type II Spiral Ganglion Neurons](records.md#p_pmid_42476912)　文献
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
+- [Correction: Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli_correction)　文献
 - [膜与突触电导的联合后验 · Figure 5c 与 Appendix 1—figure 11](records.md#o_sbi_params)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [作者的生物物理参数推断实现](records.md#r_sbi_implementation)　资源
 
 ## 霍奇金–赫胥黎模型 · Hodgkin-Huxley

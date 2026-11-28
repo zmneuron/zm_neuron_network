@@ -26,6 +26,7 @@ import tempfile
 import sys
 
 import calibration
+from precision import REGISTERED_OBSERVATIONS
 from check_records import check_captured_design, fingerprint, local, read, require, verify_run
 
 CONTRACT = "zm-neuron-review/2"
@@ -192,7 +193,9 @@ def _target_content(root, reference):
     return targets
 
 
-def _component_results(root, plan, comparisons):
+def _component_results(root, plan, comparisons, *, adopted=None):
+    if adopted is None:
+        adopted = _adopted_comparisons(root, plan, comparisons)
     review = plan["review"]
     components = review.get("model_components", ["baseline"])
     allocation = review.get("component_calibration", {})
@@ -205,8 +208,8 @@ def _component_results(root, plan, comparisons):
             require(component in groups, "Calibration target is outside the declared model components: " + target["id"])
             if allocation and len(components) > 1:
                 require("component" in target, "Assign every required calibration target to an in-scope component")
-            states = [row["state"] for c in comparisons.values() if not c["historical"] and
-                      c["axis"] == "calibration" and c["targets_ref"] == ref for row in c["rows"] if row["id"] == target["id"]]
+            states = [row["state"] for c in adopted.values() if c["axis"] == "calibration" and c["targets_ref"] == ref
+                      for row in c["rows"] if row["id"] == target["id"]]
             state = "unmet" if "unmet" in states else "passed" if states and set(states) == {"passed"} else "not_evaluated"
             groups[component][ref + "#" + target["id"]] = state
     result = {}
@@ -263,7 +266,9 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
     if (plan.get("schema_version") == 2 and plan["review_contract"] == CONTRACT and full_model_task(plan)
             and isinstance(planned_design, dict) and not review.get("previous_analysis_ref")
             and not review.get("previous_requirements_ref")):
-        for key, value in (("module_output_contract", "run_csv/1"), ("prediction_precision", "declare_scope")):
+        review.setdefault("independent_goal", "require_support")
+        for key, value in (("module_output_contract", "run_csv/1"), ("prediction_precision", "declare_scope"),
+                           ("independent_observations", "measured_record/1")):
             require(planned_design.setdefault(key, value) == value, "新完整研究请使用当前构建与精度约定：" + key)
     design = check_study_design(root, plan)
     require(design["status"] != "incomplete", "科学提问与选模尚未完成：" + "；".join(design["issues"]))
@@ -314,8 +319,11 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
         configs = space.get("config_refs") if isinstance(space, dict) else None
         require(isinstance(configs, list) and configs, "Declare a finite set of scientifically justified configurations")
         local(root, space.get("rationale_ref"))
+        from mismatch import contrast_axes
+        configurations = {ref: json_value(root, ref) for ref in configs}
+        contrast_axes(space, configurations)
         baseline["parameter_space"] = dict(ref=space_ref, sha256=fingerprint(local(root, space_ref)),
-            configs={ref: calibration.fingerprint(json_value(root, ref)) for ref in configs})
+            configs={ref: calibration.fingerprint(cfg) for ref, cfg in configurations.items()})
     if review.get("previous_analysis_ref"):
         previous = local(root, review["previous_analysis_ref"])
         previous_analysis = read(previous)
@@ -349,8 +357,12 @@ def capture_review(project, plan_path="docs/task_plan.json", skill=None):
         if parent_ref:
             parent = local(root, parent_ref)
             require(parent != (root / review["baseline_ref"]).resolve(), "Keep earlier requirements in their original file")
-            prior_design = read(parent).get("study_design", {})
-            for key in ("module_output_contract", "prediction_precision"):
+            parent_capture = read(parent)
+            prior_design = parent_capture.get("study_design", {})
+            if "independent_goal" not in review and "independent_goal" in parent_capture["scope"]:
+                review["independent_goal"] = parent_capture["scope"]["independent_goal"]
+                state["independent_goal"] = review["independent_goal"]
+            for key in ("module_output_contract", "prediction_precision", "independent_observations"):
                 if key in prior_design:
                     require((planned_design or {}).get(key) == prior_design[key],
                             "本轮续接须保留已登记的构建与精度约定：" + key)
@@ -522,6 +534,7 @@ def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
     issues, seen = [], set()
     current = {ref: {t["id"]: t for t in _target_content(root, ref)}
                for ref in plan["review"].get("criteria_refs", [])}
+    current_data = {d["id"]: d for d in plan["review"].get("datasets", [])}
     documented = list(plan["review"].get("scope_changes", []))
     while True:
         saved = baseline["scope"]
@@ -549,6 +562,19 @@ def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
         if saved.get("independent_evidence") == "biological" and state["independent_evidence"] != "biological":
             issues.append("Original biological data requirement was relaxed")
         old_data = {d["id"]: d for d in baseline.get("datasets", [])}
+        if len(seen) == 1:
+            for pending in baseline.get("final_plan", {}).get("awaiting_independent_data", []):
+                key = pending["dataset_id"]
+                before, after = old_data[key], current_data.get(key, {})
+                fields = ("source_id", "conditions", "context", "role", "kind", "source_class", "used_for_selection",
+                          "unit_column", "value_column", "unit_where", "unit_join", "fields")
+                same = all(_retains_definition(before[k], after.get(k)) for k in fields if k in before)
+                roster = set(before.get("observation_ids", []))
+                if not same or roster and roster != set(after.get("observation_ids", [])):
+                    msg = "收到的独立资料与原计划的来源、条件、读数或已知单位不符：" + key
+                    issues.append(msg)
+                    if evaluation_gaps is not None:
+                        evaluation_gaps.append(msg)
         independent = {k for k, d in old_data.items() if d.get("role") == "evaluation"}
         pairs = []
         for key, req in saved["requirements"].items():
@@ -561,7 +587,7 @@ def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
                     if evaluation_gaps is not None and any(set(b.get("dataset_ids", [])) & independent
                             for b in req["acceptance"].get("comparisons", [])):
                         evaluation_gaps.append(issues[-1])
-        problem = _retains_comparison_units(root, pairs, old_data, {d["id"]: d for d in plan["review"].get("datasets", [])})
+        problem = _retains_comparison_units(root, pairs, old_data, current_data)
         if problem:
             issues.append(problem)
             if evaluation_gaps is not None and any(set(b.get("dataset_ids", [])) & independent for b, _ in pairs):
@@ -594,6 +620,13 @@ def _original_standards(root, plan, baseline, state, *, evaluation_gaps=None):
                 keys = set(old) - {"criterion", "unavailable_reason"} - ({"source_ref"} if old["data_role"] == "evaluation" else set())
                 if any(target.get(k) != old[k] for k in keys) or not _retains_criterion(old.get("criterion"), target.get("criterion")):
                     issues.append("Original calibration or prediction standard changed: " + ref + "#" + old["id"])
+                rule = old.get("precision", {})
+                if rule.get("operation") == "paired_error" and rule.get("expected_ids") == REGISTERED_OBSERVATIONS:
+                    cohort = rule["reference"]["dataset_id"]
+                    before = set(old_data.get(cohort, {}).get("observation_ids", []))
+                    after = set(current_data.get(cohort, {}).get("observation_ids", []))
+                    if before and before != after and (not after or before & after or not old_data[cohort].get("available")):
+                        issues.append("原定配对评价的独立单位被截取或替换：" + ref + "#" + old["id"])
         link = baseline.get("previous_requirements")
         if not link:
             break
@@ -860,16 +893,133 @@ def _compare(root, item, datasets, plan, baseline, selection_sources, model_file
     return dict(computed, axis=axis, dataset_ids=ids, run_ref=item["run_ref"], targets_ref=item["targets_ref"], historical=item.get("historical", False))
 
 
-def _empirical_calibration(root, plan, comparisons):
+def _adopted_comparisons(root, plan, comparisons, completion=None):
+    """Select verified scores for one parameterization and its frozen experimental conditions."""
+    from delivery_response import _same_config
+    from check_model import pointer
+    from final_model import _adopted_refs, _expected_config, _match_simulation, _Plan
+
+    current = {key: score for key, score in comparisons.items() if not score["historical"]
+               and score["axis"] in {"calibration", "independent_evaluation"}}
+    if not current:
+        return {}
+    completion = completion or {}
+    finals = {row["run_ref"] for row in completion.get("iterations", []) if row.get("role") == "final"}
+    anchor_ref = completion.get("final_model", {}).get("run_ref") or (next(iter(finals)) if len(finals) == 1 else None)
+    config_ref = (plan.get("current_model") or {}).get("config_ref")
+    declared = config_ref or plan.get("files", {}).get("config")
+    if not anchor_ref and not finals and declared and completion.get("axes", {}).get("execution", {}).get("run_refs"):
+        active = _adopted_refs({"completion_review": completion}, root, read(local(root, declared)))
+        anchor_ref = next(iter(active)) if len(active) == 1 else None
+    anchor = None
+    if anchor_ref:
+        anchor = verify_run(root, anchor_ref, require_completed=False, check_current_code=True)
+        if (anchor["status"] != "completed" or anchor["stage"] != "simulation"
+                or anchor["model_version"] != plan.get("model_version")):
+            return {}
+        config_ref = config_ref or anchor["config_ref"]
+    config_ref = config_ref or plan.get("files", {}).get("config")
+    if config_ref is None:
+        # Older scoped studies may record only the scored configuration. Several
+        # distinct configurations without a selection cannot yield one verdict.
+        digests = {score.get("config_fingerprint") for score in current.values()}
+        if (len(digests) != 1 or None in digests or len(finals) > 1 or any(
+                r.get("decision") in {"reject", "rejected", "discard"} for r in completion.get("iterations", []))):
+            return {}
+        config = None
+    else:
+        config = read(local(root, config_ref))
+        if anchor and not _same_config(config, read(local(root, anchor["config_ref"]))):
+            return {}
+
+    review = plan["review"]
+    options = review.get("final_model", {})
+    variants = options.get("variants", {})
+    if variants:
+        # A variant is specific to a run and to the conditions captured before execution.
+        capture = local(root, review["baseline_ref"]) if review.get("baseline_ref") else None
+        if (not capture or fingerprint(capture) != review.get("baseline_sha256") or
+                not _same_config(read(capture).get("scope", {}).get("final_model", {}), options)):
+            variants = {}
+        else:
+            _Plan(root, plan).check_variants()
+
+    def matches_model(ref, digest=None):
+        if config is None:
+            return True  # Only one scored configuration, established above.
+        changes = variants.get(ref, {})
+        if anchor and ref:
+            record = read(local(root, ref))
+            if record["stage"] != "simulation":
+                return False
+            try:
+                _match_simulation(root, record, anchor, config, changes, ref)
+            except ValueError:
+                return False
+            return True
+        expected = _expected_config(config, {p: entry["value"] for p, entry in changes.items()}) if changes else config
+        if digest == calibration.fingerprint(expected):
+            return True
+        if not ref:
+            return False
+        record = read(local(root, ref))
+        return _same_config(read(local(root, record["config_ref"])), expected)
+
+    if any(not matches_model(ref) for ref in finals):
+        return {}
+    bindings = {}
+    for req in plan.get("requirements", []):
+        for binding in (req.get("acceptance") or {}).get("comparisons", []):
+            bindings.setdefault((binding.get("id"), binding.get("targets_ref")), set()).update(binding.get("target_ids", []))
+    adopted = {}
+    for key, score in current.items():
+        ref = score.get("run_ref")
+        changes = variants.get(ref, {})
+        if any(change["role"] == "control" for change in changes.values()) or not matches_model(ref, score["config_fingerprint"]):
+            continue
+        target_ids = bindings.get((key, score["targets_ref"]))
+        conditions = {entry["condition"] for entry in changes.values() if entry["role"] == "condition"}
+        if conditions:
+            condition_ids = {t["id"] for t in _target_content(root, score["targets_ref"]) if {t["condition"]} == conditions}
+            target_ids = condition_ids if target_ids is None else target_ids & condition_ids
+        if target_ids is None:
+            adopted[key] = score
+            continue
+        rows = [r for r in score["rows"] if r["id"] in target_ids]
+        if not rows and score["rows"]:
+            continue
+        states = {r["state"] for r in rows if r["required"]}
+        status = ("invalid_run" if score["status"] == "invalid_run" else "infeasible" if "unmet" in states
+                  else "passed" if states == {"passed"} else "pending")
+        adopted[key] = dict(score, rows=rows, status=status)
+    # With no designated base run, compare the recorded source, parents and inputs
+    # before combining readouts. Undo the first arm's registered changes when
+    # checking another arm so a base-seed run is unnecessary for a stage report.
+    refs = list(dict.fromkeys(score["run_ref"] for score in adopted.values() if score.get("run_ref")))
+    if not anchor and config is not None and len(refs) > 1:
+        first = read(local(root, refs[0]))
+        first_config = read(local(root, first["config_ref"]))
+        reset = {field: {"value": pointer(config, field)} for field in variants.get(refs[0], {})}
+        for ref in refs[1:]:
+            try:
+                _match_simulation(root, read(local(root, ref)), first, first_config, reset | variants.get(ref, {}), ref)
+            except ValueError:
+                return {}  # Multiple model implementations with no unambiguous selection.
+    return adopted
+
+
+def _empirical_calibration(root, plan, comparisons, *, adopted=None):
     """List every prespecified primary metric, including those with no usable comparison."""
     if not calibration.requires_empirical(plan):
         legacy = plan.get("schema_version") != 2 and not plan["review"].get("calibration_evidence")
         return {"status": "previous_protocol" if legacy else "not_required", "all_measured": False, "rows": []}
     targets = {(ref, t["id"]): t for ref in plan["review"].get("criteria_refs", [])
                for t in _target_content(root, ref) if t["required"] and t["data_role"] == "calibration"}
+    if adopted is None:
+        adopted = _adopted_comparisons(root, plan, comparisons)
     observed = {}
-    for name, score in comparisons.items():
-        if score["axis"] == "calibration" and not score["historical"]:
+    for name, score in adopted.items():
+        if score["axis"] == "calibration":
             for row in score["rows"]:
                 observed.setdefault((score["targets_ref"], row["id"]), []).append((name, row))
     rows = []
@@ -886,10 +1036,12 @@ def _empirical_calibration(root, plan, comparisons):
                              reason=row.get("reason") or (None if state else "comparison_missing")))
     states = {row["status"] for row in rows}
     status = "not_satisfied" if "unmet" in states else "satisfied" if states == {"passed"} else "not_evaluated"
-    return {"status": status, "all_measured": bool(rows) and "not_evaluated" not in states, "rows": rows}
+    diagnostics = [key for key, score in comparisons.items() if score["axis"] == "calibration" and key not in adopted]
+    return {"status": status, "all_measured": bool(rows) and "not_evaluated" not in states, "rows": rows,
+            "diagnostic_comparison_ids": diagnostics}
 
 
-def _axis(root, axis, value, comparisons, plan, analysis):
+def _axis(root, axis, value, comparisons, plan, analysis, *, adopted=None):
     assessment(root, value, axis)
     require(value.get("status") in AXES[axis][1], f"Invalid {axis} status")
     success = value["status"] == AXES[axis][0]
@@ -931,20 +1083,30 @@ def _axis(root, axis, value, comparisons, plan, analysis):
     if axis in {"calibration", "independent_evaluation"}:
         linked = value.get("comparison_ids", [])
         require(all(i in comparisons for i in linked), f"Unknown comparison in {axis}")
-        chosen = [comparisons[i] for i in linked]
-        require(all(x["axis"] == axis and not x["historical"] for x in chosen), "Current conclusion uses a historical or wrong-role comparison")
+        current = {i: c for i, c in comparisons.items() if c["axis"] == axis and not c["historical"]}
+        require(all(i in current for i in linked), "Current conclusion uses a historical or wrong-role comparison")
+        completion = analysis.get("completion_review", {})
+        explicit_model = completion.get("final_model") or any(row.get("role") == "final" for row in completion.get("iterations", []))
+        if axis == "calibration" or explicit_model or full_model_task(plan) or calibration.requires_empirical(plan):
+            if adopted is None:
+                adopted = _adopted_comparisons(root, plan, comparisons, completion)
+            relevant = {i: x for i, x in adopted.items() if x["axis"] == axis}
+            require(all(i in relevant for i in linked), f"{axis} includes a comparison from another model or condition")
+        else:
+            relevant = current
+        chosen = [relevant[i] for i in linked]
         negative_test = (axis == "independent_evaluation" and value["status"] == "not_supported"
                          and (plan["review"].get("independent_goal") == "test_prediction" or value.get("evaluation_completed") is True))
         if success:
             require(chosen and all(x["status"] == "passed" for x in chosen), f"{axis} claimed success despite unmet or unmeasured targets")
-        if success or negative_test:
+        if success or negative_test or value["status"] == "not_evaluated":
             role = "calibration" if axis == "calibration" else "evaluation"
             expected = {(ref, t["id"]) for ref in plan["review"].get("criteria_refs", [])
                         for t in _target_content(root, ref) if t["required"] and t["data_role"] == role}
+        if success or negative_test:
             covered = {(x["targets_ref"], row["id"]) for x in chosen for row in x["rows"] if row["required"]}
             require(expected and expected <= covered, f"{axis} omits a predeclared required target set")
-            require(set(linked) == {key for key, x in comparisons.items() if x["axis"] == axis and not x["historical"]},
-                    f"{axis} hides an available current comparison")
+            require(set(linked) == set(relevant), f"{axis} hides an available current comparison")
         if negative_test:
             require(value.get("evaluation_completed") is True, "Negative evaluation needs a completed predeclared test")
             text(value.get("adequacy_reason"), "negative evaluation design and precision assessment")
@@ -960,8 +1122,11 @@ def _axis(root, axis, value, comparisons, plan, analysis):
         if axis == "calibration" and value["status"] == "not_satisfied":
             require(any(x["status"] in {"infeasible", "invalid_run"} for x in chosen), "Calibration failure lacks a failed comparison")
         if value["status"] == "not_evaluated":
-            require(not any(c["axis"] == axis and not c["historical"] and c["status"] in {"passed", "infeasible"}
-                            for c in comparisons.values()), "A measured current comparison cannot be reported as unevaluated")
+            measured = {(c["targets_ref"], r["id"]) for c in relevant.values() for r in c["rows"]
+                        if r["required"] and r["state"] in {"passed", "unmet"}}
+            require(not any(c["status"] == "infeasible" for c in relevant.values()) and
+                    not (expected and expected <= measured and all(c["status"] == "passed" for c in relevant.values())),
+                    "A measured current comparison cannot be reported as unevaluated")
         if axis == "independent_evaluation" and value["status"] == "not_supported":
             require(any(x["status"] == "infeasible" and any(r["required"] and r["state"] == "unmet" for r in x["rows"])
                         for x in chosen), "Independent non-support lacks a measured failed comparison")
@@ -981,6 +1146,9 @@ def _axis(root, axis, value, comparisons, plan, analysis):
                     require(did in data, "Inconclusive evaluation uses unknown data")
                     local(root, data[did].get("path"))
     if axis == "scientific_answer":
+        if adopted is None:
+            adopted = _adopted_comparisons(root, plan, comparisons, analysis.get("completion_review"))
+        assessed = {**comparisons, **adopted}
         answers = unique(value.get("questions", []), "id", "scientific answers")
         required = {q["id"] for q in plan["review"]["questions"] if q["required"]}
         require(not success or required <= set(answers), "A required scientific question has no answer")
@@ -992,7 +1160,8 @@ def _axis(root, axis, value, comparisons, plan, analysis):
                 require(answer.get("comparison_complete") is True, "Scientific conclusion is based on unfinished comparisons")
                 text(answer.get("adequacy_reason"), "comparison adequacy explanation")
                 ids = answer.get("comparison_ids", [])
-                require(all(x in comparisons and comparisons[x]["status"] in {"passed", "infeasible"} for x in ids), "Scientific answer uses missing or invalid comparisons")
+                require(all(x in assessed and assessed[x]["status"] in {"passed", "infeasible"} for x in ids),
+                        "Scientific answer uses missing or invalid comparisons")
                 result_ids = answer.get("result_ids", [])
                 results = unique(analysis.get("results", []), "id", "scientific results")
                 require(all(x in results and results[x].get("status") == "complete" for x in result_ids), "Scientific answer links an incomplete result")
@@ -1302,7 +1471,7 @@ def _delivery(root, delivery, plan, analysis, axes):
             "scope": "Text/artifact relationships checked; assessors remain responsible for scientific substance and the actual sent response."}
 
 
-def _iterations(root, completion, comparisons, plan):
+def _iterations(root, completion, comparisons, plan, *, adopted=None):
     rows = completion.get("iterations", [])
     require(isinstance(rows, list), "Invalid iteration records")
     if completion.get("optimization"):
@@ -1327,17 +1496,17 @@ def _iterations(root, completion, comparisons, plan):
         finals = [r for r in rows if r["role"] == "final"]
         require(finals, "Optimization lacks final keep/adopt decision")
         if plan.get("review_contract") == CONTRACT:
-            adopted = set()
+            if adopted is None:
+                adopted = _adopted_comparisons(root, plan, comparisons, completion)
             for row in finals:
-                scores = [comparisons[i]["candidate_id"] for i in row.get("comparison_ids", [])]
+                ids = row.get("comparison_ids", [])
+                require(all(i in adopted for i in ids if comparisons[i]["data_role"] in {"calibration", "evaluation"}),
+                        "Final iteration uses a comparison outside the adopted model")
+                scores = [comparisons[i]["candidate_id"] for i in ids]
                 identity = row.get("candidate_id")
                 if identity:
                     require(not scores or set(scores) == {identity}, "Adopted candidate ID disagrees with the scored run")
                 require(identity or scores, "Identify the final candidate or link its scored run")
-                adopted.update(scores or [identity])
-            require(all(c["candidate_id"] in adopted for c in comparisons.values()
-                        if not c["historical"] and c["data_role"] in {"calibration", "evaluation"}),
-                    "Current calibration/evaluation scores refer to a candidate outside the adopted set")
 
 
 def _external_pause(root, decision, budget, run_refs):
@@ -1535,23 +1704,8 @@ def _finite_calibration_failure(root, plan, baseline, original, captures, comple
 
     @cache
     def procedures(cid):
-        comp = entries[cid]
-        sample = read(local(root, comp["measurements_ref"]))
-        locations = {}
-        for key in ("run_ref", "analysis_run_ref"):
-            if key in comp:
-                path = local(root, comp[key])
-                for output in read(path).get("output_sha256", {}):
-                    produced = local(root, output)
-                    relative_path = produced.relative_to(path.parent).as_posix() if produced.is_relative_to(path.parent) else output
-                    locations[output] = [key, relative_path]
-        def relative(item):
-            if not isinstance(item, dict):
-                return item
-            return {k: locations.get(v) if k == "csv_ref" else relative(v) for k, v in item.items()}
-        fields = ("condition", "metric", "statistic", "unit", "context")
-        return {tid: {k: row.get(k) for k in fields} | {"source": relative(row["source"])}
-                for tid, row in sample.get("measurements", sample).items() if row.get("status") == "observed"}
+        from mismatch import comparison_procedure
+        return comparison_procedure(root, entries[cid])
 
     expected = {key: procedures(key[0])[key[1]] for key in fit}
     observed = {digest: {} for digest in space["configs"].values()}
@@ -1604,7 +1758,7 @@ def _remaining_alternatives(root, decision, tested_files):
 
 
 def _decision(root, completion, required_pending, datasets, plan, baseline, components, comparisons, runs, verified_negative, science,
-              final_evidence=None, empirical_calibration=None, followup=None):
+              final_evidence=None, empirical_calibration=None, followup=None, *, adopted=None):
     budget = completion.get("budget")
     require(isinstance(budget, dict), "Missing cumulative budget")
     calibration.SimulationBudget(budget.get("limit"), budget.get("consumed"))
@@ -1704,11 +1858,14 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
         required_science = {c["id"] for c in plan["review"].get("scientific_checks", []) if c.get("required")}
         failed_science = {f["id"] for f in science.get("findings", []) if f["id"] in required_science and
                           (f.get("status") == "failed" or f.get("disposition") == "unresolved" or f.get("matches") is False)}
-        failed_evaluation = ("independent_evaluation" in required_pending and
-                             any(c["axis"] == "independent_evaluation" and not c["historical"] and c["status"] == "infeasible"
-                                 for c in comparisons.values()))
         parameter_batch = not full
-        if full and decision["action"] == "continue" and (measured_failure or failed_science or failed_evaluation):
+        continuing_full = full and decision["action"] == "continue"
+        failed = set()
+        if continuing_full:
+            if adopted is None:
+                adopted = _adopted_comparisons(root, plan, comparisons, completion)
+            failed = {key for key, item in adopted.items() if item["status"] == "infeasible" and item["axis"] in required_pending}
+        if continuing_full and (measured_failure or failed_science or failed):
             causes = decision.get("attribution")
             require(isinstance(causes, list) and causes and set(causes) <= {
                 "parameter", "mechanism", "data_comparability", "observation", "control"},
@@ -1721,10 +1878,7 @@ def _decision(root, completion, required_pending, datasets, plan, baseline, comp
             require(isinstance(affected, list) and isinstance(affected_science, list) and (affected or affected_science)
                     and set(affected) <= set(comparisons) and set(affected_science) <= science_ids,
                     "Identify the measured comparisons or scientific checks affected by the correction")
-            if measured_failure or failed_evaluation:
-                failed = {key for key, item in comparisons.items() if not item["historical"] and item["status"] == "infeasible"
-                          and item["axis"] in required_pending}
-                require(failed <= set(affected), "The corrective decision omits an unmet current comparison")
+            require(failed <= set(affected), "The corrective decision omits an unmet current comparison")
             require(failed_science <= set(affected_science), "The corrective decision omits an unresolved scientific check")
         if decision["action"] == "continue" and unfinished and "calibration" in required_pending and parameter_batch:
             require(budget["consumed"] < budget["limit"], "Next calibration batch lacks remaining budget")
@@ -2033,14 +2187,22 @@ def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery
             except (OSError, ValueError, TypeError, KeyError) as error:
                 report["issues"].append(f"comparison {name}: {error}")
         report["checks"]["comparisons"] = comparisons
-        empirical = _empirical_calibration(root, plan, comparisons)
+        adopted = _adopted_comparisons(root, plan, comparisons, completion)
+        empirical = _empirical_calibration(root, plan, comparisons, adopted=adopted)
         report["checks"]["empirical_calibration"] = empirical
-        components = _component_results(root, plan, comparisons)
+        if full:
+            from mismatch import diagnose
+            try:
+                report["checks"]["mismatch_diagnosis"] = diagnose(root, plan, baseline, completion, comparisons, empirical)
+            except (OSError, TypeError, KeyError, IndexError, ValueError) as error:
+                report["checks"]["mismatch_diagnosis"] = {"status": "unassessed", "contrast_issue": str(error)}
+                report["issues"].append("失配对照无法按登记比较：" + str(error))
+        components = _component_results(root, plan, comparisons, adopted=adopted)
         report["checks"]["component_calibration"] = components
         verified_negative = False
         for name in AXES:
             try:
-                _axis(root, name, axes[name], comparisons, plan, analysis)
+                _axis(root, name, axes[name], comparisons, plan, analysis, adopted=adopted)
                 if name == "independent_evaluation":
                     if axes[name]["status"] == "not_supported" and axes[name].get("evaluation_completed") is True:
                         ids = set(axes[name].get("comparison_ids", []))
@@ -2055,7 +2217,7 @@ def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery
                 report["issues"].append(f"{name}: {error}")
                 if name in {"calibration", "independent_evaluation"}:
                     report["axes"][name].update(declared_status=axes[name].get("status"), status="not_evaluated")
-        for label, action in (("iterations", lambda: _iterations(root, completion, comparisons, plan)),):
+        for label, action in (("iterations", lambda: _iterations(root, completion, comparisons, plan, adopted=adopted)),):
             try: action()
             except (OSError, ValueError, TypeError, KeyError) as error: report["issues"].append(f"{label}: {error}")
         if axes["delivery"].get("status") == "complete":
@@ -2077,6 +2239,9 @@ def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery
                 if review["status"] != "passed":
                     additional_pending.extend(review["pending"] or [name])
             _reconcile_measurements(plan, report)
+            from mismatch import add_independent_failures
+            add_independent_failures(report["checks"]["mismatch_diagnosis"],
+                report["checks"]["final_evidence"].get("empirical_evaluation", {}), comparisons, baseline["criteria"])
             verified_negative = verified_negative and report["axes"]["independent_evaluation"]["status"] == "not_supported"
         report["negative_test_completed"] = verified_negative
         negative_complete = verified_negative and plan["review"].get("independent_goal") == "test_prediction"
@@ -2128,7 +2293,7 @@ def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery
             pending.append("regulation_minimum_study")
         try: _decision(root, completion, pending, datasets, plan, baseline, components, comparisons,
                        analysis.get("runs", []), verified_negative, science, report["checks"].get("final_evidence"),
-                       report["checks"].get("empirical_calibration"), report["checks"].get("followup"))
+                       report["checks"].get("empirical_calibration"), report["checks"].get("followup"), adopted=adopted)
         except (OSError, ValueError, TypeError, KeyError) as error:
             report["issues"].append(f"decision: {error}")
             if decision.get("action") == "stop":
@@ -2201,6 +2366,7 @@ def _check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery
 
 def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery", skill=None, *,
                  historical=False, response_file=None, sent_response_file=None, _structure=None):
+    from mismatch import empirical_agreement
     from stage_review import summarize
     report = _check_review(project, plan_path, checkpoint, skill, historical=historical,
                            response_file=response_file, sent_response_file=sent_response_file, _structure=_structure)
@@ -2211,7 +2377,16 @@ def check_review(project, plan_path="docs/task_plan.json", checkpoint="delivery"
         phase = "delivery" if checkpoint == "delivery" and report["status"] == "failed" else "implemented"
         structure = check_structure(project, plan_path, phase)
         report["checks"]["implementation"] = structure
+    if (report.get("final_model_ready") and report["checks"].get("final_plan", {}).get("empirical_evaluation_required")
+            and report.get("scope", {}).get("independent_goal") == "require_support"
+            and not empirical_agreement(report)["matches_real_data"]):
+        report["unmet_requirements"].append("采用版本的必需校准和独立生物预测尚未同时达标")
+        report.update(status="incomplete", work_state="continue_required", final_model_ready=False, goal_complete=False,
+                      ready_to_deliver=False, ready_to_send_final_model=False, ready_to_send=False)
     summarize(report, structure)
+    agreement = empirical_agreement(report)
+    report["checks"]["empirical_agreement"] = agreement
+    report["matches_real_data"] = agreement["matches_real_data"]
     return report
 
 
@@ -2260,6 +2435,19 @@ def stage_report_text(root, plan, report):
                          f" 参照 `{row['source_ref']}`，比较 `{row['comparison_id'] or '待补'}`。")
     if report.get("work_state") == "scientific_failure":
         lines += ["", "在已核实的模型和数据范围内，原定目标未达到。"]
+    diagnosis = report["checks"].get("mismatch_diagnosis", {})
+    if diagnosis.get("next_action"):
+        lines += ["", "## 失配原因与下一项比较", "", diagnosis["next_action"]]
+        for group in diagnosis.get("contrasts", []):
+            if group.get("reason"):
+                lines.append("- " + group["reason"])
+    if diagnosis.get("independent_failures"):
+        lines += ["", "## 冻结后未达到标准的预测", ""]
+        for row in diagnosis["independent_failures"]:
+            value = f"{row['value']:.6g} {row['unit']}" if row["value"] is not None else "所需响应未出现"
+            lines.append(f"- {row['condition']} · {row['metric']}（{row['target_id']}）实算 {value}，实测来源 {row['source_ref']}。")
+        if diagnosis.get("next_action") != diagnosis["independent_next_action"]:
+            lines += ["", diagnosis["independent_next_action"]]
     lines += ["", "## 尚待解决", "", *["- " + x for x in gaps]]
     build = next((row for row in report.get("stage_review", {}).get("stages", []) if row["stage"] == "构建与实际运行"), {})
     if build.get("gaps"):
@@ -2347,7 +2535,7 @@ def main(argv=None):
                 json.dump(result, handle, ensure_ascii=False, indent=2, allow_nan=False)
                 handle.write("\n")
     except (OSError, ValueError, TypeError, KeyError) as error:
-        result = {"status": "failed", "issues": [str(error)], "final_model_ready": False,
+        result = {"status": "failed", "issues": [str(error)], "final_model_ready": False, "matches_real_data": False,
                   "ready_to_send_final_model": False, "stage_report_ready_to_send": False, "ready_to_send": False}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
     return 0 if result["status"] in {"passed", "captured"} else 2 if result["status"] in {"incomplete", "legacy_not_reviewed"} else 1

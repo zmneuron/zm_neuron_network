@@ -235,6 +235,8 @@ class OptimizationRoundChecks(unittest.TestCase):
             self.assertEqual(independent["status"], "not_supported")
             self.assertTrue(independent["evaluation_completed"])
             checks = review["checks"]
+            self.assertEqual(checks["final_evidence"]["empirical_evaluation"]["status"], "not_required")
+            self.assertFalse(checks["empirical_agreement"]["matches_real_data"])
             fit = checks["comparisons"]["calibration"]["rows"]
             self.assertEqual({r["id"]: r["state"] for r in fit}, {"count": "passed", "silent": "passed"})
             score, = checks["comparisons"]["evaluation"]["rows"]

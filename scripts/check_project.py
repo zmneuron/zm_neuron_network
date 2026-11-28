@@ -249,7 +249,7 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
     completion = review_project.check_review(root, str(plan_path), checkpoint, skill, historical=historical, _structure=structure)
     report["checks"]["completion_review"] = completion
     report.update(structure_status=structure["status"], completion_status=completion["status"],
-                  goal_complete=False, ready_to_deliver=False, final_model_ready=False)
+                  goal_complete=False, ready_to_deliver=False, final_model_ready=False, matches_real_data=False)
     if not historical:
         for field in ("stage_review", "work_state", "next_action", "unmet_axes", "unmet_requirements"):
             if field in completion:
@@ -287,6 +287,7 @@ def check_project(project, plan_path="docs/task_plan.json", phase="implemented",
                     report["ready_to_deliver"] and completion.get("goal_complete") is True)
         report.update(goal_complete=complete, status="passed" if complete else "incomplete")
         report["final_model_ready"] = bool(complete and completion.get("final_model_ready"))
+        report["matches_real_data"] = bool(report["final_model_ready"] and completion.get("matches_real_data"))
     return report
 
 
@@ -310,7 +311,7 @@ def main(argv=None):
                 json.dump(report, handle, ensure_ascii=False, indent=2, allow_nan=False)
                 handle.write("\n")
         except (OSError, ValueError) as error:
-            report.update(status="failed", goal_complete=False, ready_to_deliver=False, final_model_ready=False)
+            report.update(status="failed", goal_complete=False, ready_to_deliver=False, final_model_ready=False, matches_real_data=False)
             if report.get("work_state") == "final_model":
                 report.update(work_state="repair_required", next_action=f"Choose a new project-local report path: {error}")
             report["issues"].append(str(error))

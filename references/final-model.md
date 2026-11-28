@@ -93,6 +93,33 @@
 
 事前复核一并保存已有 `requirements[].result_ids` 与 `acceptance.result_ids`，后续逐项检查这些结果。每个必需目标及正式机制、设计检查都要能回到至少一项必需要求。不同条件可在各条 `comparisons[]` 中各写 `condition`。模型和参照的脑区、观测量、处理及统计单位均须与登记的 `context` 一致，实际 CSV 中出现同名条件列时还会逐行核对。原始表格的列名或处理过程另有约定时，用 `comparison_design` 关联相应的真实记录。
 
+## 区分模型符合实测与完成科学假设检验
+
+新版完整生物模型默认采用 `review.independent_goal="require_support"`。运行前至少登记一项必需校准指标和一项独立实测指标。只有采用版本满足全部原定校准标准，且其冻结预测得到保留实测的支持，方可报告该版本在登记条件下符合实测。原委托明确要检验一个可被推翻的预测时，在第一次运行前选择 `test_prediction` 并写明要回答的科学问题。有判别力的实测阴性可完成该检验，同时报告哪条预测失配。已有记录沿用原先登记的目标和比较方法。
+
+独立评价沿用 `review.datasets[]` 的实验登记。填写 `kind="biological"`、`source_class="measured_record"`、实验来源 `source_id`、预留单位 `observation_ids` 及响应列 `value_column`。直接使用逐单位原表时，目标的 `source_ref` 指向该表。原始文件另附导出的响应表时，在 `files` 中登记导出表，用 `observations_ref` 指向它。响应单位可由表的 `fields`、`context.unit` 或与数据一同保存的 `measurement_ref` 指定。需引用同一论文中不同图表时，写明具体图、表或逐单位数据的出处。刺激幅度、拟合参数、实测响应的用途分别按所引原始记录判断。
+
+若开发实测已齐、独立采集尚未交付，在同一数据登记中写明拟采实验、条件与抽样方法、统计单位、预期响应表和列、单位及用途，填写 `available=false`、`used_for_selection=false` 和 `unavailable_reason`。尚待确认可比性时填 `comparable=false`。独立新采集尚无单位编号时，`observation_ids` 可留空。若与开发数据同源，须事先列明两组互不重叠的单位；来源或分组仍不明确时可先做 `diagnostic`。校准来源和比较方法齐备后可正式运行开发和校准，`final_plan.awaiting_independent_data` 会列出仍待取得的样本与目标。此时两个原始目标的独立评价均为 `not_evaluated`。
+
+收到资料后，核对原定条件、统计单位和来源，登记实际响应文件及全部单位编号并确认可比性。在新一轮填写 `previous_analysis_ref`、`previous_requirements_ref` 并另存本轮要求，保留原问题、阈值、读数和模型选择记录。对尚未编号的新采集，先登记适用的样本和标准，再生成正式预测。配对均值误差可事前写 `precision.expected_ids="registered_observation_ids"`，实际评价按本轮登记的整个队列逐单位配对。
+
+若上一轮已为一个已知对象直接做出冻结预测，可在其响应抵达后复核原输出。最初须在 `final_model.variants` 登记这次正式模拟的具体路径，同一采用配置可填 `{}`。在目标的 `selectors.where` 写明该对象的原始编号与读数条件，例如 `{"sweep":"22","start_ms":"800","stop_ms":"900"}`。新一轮沿用紧接的原要求、相同采用模型、专门保留的运行和该 CSV 的 `first` 或 `mean` 读数。用于开发选择的运行、事后指定的对象或更换过的读数继续按开发记录处理。
+
+直接预测的实测参考区间用原单位核对。先按预定条件和统计单位读取实验值。单点、均值、中位数或极值需能从原表重算，再检验冻结预测是否落入规定范围。这一结果适用于该范围，逐对象精度须另算每个预测与对应实测的误差。预定容差、测量方法和模型参数先行固定，留出的响应只在评价时读取。原始记录包含同一对象的多次测量时，先按预定时间窗汇总每个对象，并保留其编号。对预测误差，已有的 `unit_mean_ci95` 配合 `paired_error` 可按留出单位计算均值和 95% 区间。当前只有单个点预测或比较均值时，用评分分析的 `raw_calculation` 登记预测减实测的两个操作数，例如下列单点电位差。
+
+```json
+{
+  "operation": "difference",
+  "left": {"file": "late.csv", "column": "delta_mV", "column_unit": "mV", "operation": "first",
+           "where": {"start_ms": "800", "stop_ms": "900"}, "where_units": {"start_ms": "ms", "stop_ms": "ms"}},
+  "right": {"dataset_id": "holdout", "column": "delta_mV", "column_unit": "mV", "operation": "first", "where": {}}
+}
+```
+
+左项取自采用模拟的原始输出。右项取自登记的留出响应 CSV，列与筛选条件分别对应 `value_column` 和 `unit_where`。测量文件中右项的 `csv_ref` 须指向该实测表，评分分析须在模拟后读取两份输入并产生自己的输出。核对程序重新计算两个操作数与差值，再以事前容许误差判定。由分析表转录直接预测时，还要从模拟原表的相应列、对象和时间窗复算。更复杂的比值、效应差或误差统计量应保留各自的计算定义，缺少可复算的比较时报告待评价。随附的 Allen 历史扫次重放只演示两种原目标的程序判定，其中的容差仅用于软件测试。
+
+最终核对在 `final_evidence.empirical_evaluation` 列出独立目标、数据来源及其支持情况。新版第一次登记完整模型时，研究设计会记录 `independent_observations="measured_record/1"`。旧计划可按原范围完成，其已有结果另注明是否核对过独立实测。
+
 ## 采用模型与不同运行条件
 
 在 `analysis.json` 的 `completion_review.final_model` 中登记 `{"run_ref":"results/run/run.json"}`。该运行须已完成，使用当前计划事前保存的要求、当前模型声明的源码和 `current_model.config_ref` 的完整参数。已有唯一的 `iterations[].role="final"` 时可直接用该条的 `run_ref`。比较、机制、结果和交付涉及的模型数据均需能关联到实际记录。

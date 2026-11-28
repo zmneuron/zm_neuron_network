@@ -32,6 +32,48 @@ class VoltageFitTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["late_model_minus_measured_mv"], 2)
         self.assertAlmostEqual(metrics["weighted_rmse_mv"], 2)
 
+    def test_development_comparison_distinguishes_gain_and_time_course(self):
+        fs = 20_000
+        t_ms = 1000 * np.arange(fs) / fs
+        edges = np.rint(BINS_MS * fs / 1000).astype(int)
+
+        def compare(mv_per_pa):
+            bins = np.array([mv_per_pa[start:stop].mean() for start, stop in edges])
+
+            def read(_nwb, number, current):
+                self.assertIn(number, joint_grid.TRAIN)
+                return Sweep(number, current, fs, -75, current * bins)
+
+            with patch.object(joint_grid, "open_specimen", return_value=nullcontext(None)), \
+                    patch.object(joint_grid, "read_sweep", side_effect=read) as reader:
+                result = joint_grid.run(None, development_only=True)
+            self.assertEqual([c.args[1:] for c in reader.call_args_list], list(joint_grid.TRAIN.items()))
+            self.assertEqual(result["data_use"], "development_only")
+            return result
+
+        constant = compare(np.full(fs, 0.185))
+        ohmic = constant["fitted_models"]["ohmic"]
+        self.assertAlmostEqual(ohmic["parameters"]["R_Mohm"], 185)
+        self.assertAlmostEqual(ohmic["training_rmse_mv"], 0)
+        self.assertGreater(min(row["training_rmse_mv"] for row in constant["fixed_ohmic"]), 0.1)
+        self.assertAlmostEqual(constant["per_sweep_constant_lower_bound"]["training_rmse_mv"], 0)
+
+        dynamic = compare(0.185 * (1 - np.exp(-t_ms / 12)))
+        rc = dynamic["fitted_models"]["RC"]
+        bound = dynamic["per_sweep_constant_lower_bound"]
+        self.assertEqual(rc["parameters"]["tau_ms"], 12)
+        self.assertAlmostEqual(rc["parameters"]["R_Mohm"], 185)
+        self.assertLess(rc["training_rmse_mv"], bound["training_rmse_mv"])
+        self.assertLessEqual(bound["training_rmse_mv"], dynamic["fitted_models"]["ohmic"]["training_rmse_mv"] + 1e-12)
+        for row, sweep in zip(bound["sweeps"], rc["sweeps"]):
+            observed = np.array([window["measured_delta_mv"] for window in sweep["windows"]])
+            best = (observed[:-1].mean() + observed[-1]) / 2
+            mse = (np.mean((observed[:-1] - best) ** 2) + (observed[-1] - best) ** 2) / 2
+            self.assertAlmostEqual(row["best_constant_delta_mv"], best)
+            self.assertAlmostEqual(row["weighted_rmse_mv"], np.sqrt(mse))
+            self.assertEqual(row["constant_late_minus_first_mv"], 0)
+            self.assertAlmostEqual(row["RC_late_minus_first_mv"], row["measured_late_minus_first_mv"])
+
     def test_joint_grid_and_frozen_predictions(self):
         fs = 20_000
         times = 1000 * np.arange(fs) / fs

@@ -94,6 +94,8 @@ python <skill_dir>/scripts/check_project.py --project <project> --phase implemen
 
 完整建模在转阶段、发现失配和准备交付时使用下表。顺查时从研究者原始委托出发，确认本步交给下一步的内容。倒查时另走一条能暴露共同错误的计算路径。例如，用逐细胞脉冲时刻和记录时长重算发放率，再与报告中的群体汇总相对照。重复阅读同一份汇总不能发现它共同使用的错误分母。
 
+以“最终模型符合实测”为目的的新完整生物研究，保留 `independent_goal: require_support`。交付时同时查看 `final_model_ready` 和 `matches_real_data`。后者要求同一采用配置在各项必需开发指标上达标，并由冻结后、未参与选择的必需生物记录支持其预测。综合入口的 `checks.completion_review.checks.empirical_agreement` 列出校准状态、独立评价和采用运行，`final_evidence.empirical_evaluation` 给出评价的原始记录和具体目标。判定限于本次对象、条件、独立层级及预定误差。若原委托只要求检验一条可证伪的预测，可在运行前登记 `test_prediction`。有判别力的阴性可以回答这个问题；此时 `matches_real_data` 仍为假。旧协议、阶段结果和只读审查保留原用途，现有材料达不到这些条件时留待评价。
+
 | 阶段 | 用什么判断这一步做实了 | 发现问题后实际做什么 |
 |---|---|---|
 | 问题与范围 | 从原委托能还原每条必需结论、所需比较、允许改动及总预算。 | 补查已有材料，沿用已定取舍，只有改变研究目标或授权的缺项才交给研究者。 |

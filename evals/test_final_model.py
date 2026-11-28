@@ -3,6 +3,7 @@ import csv
 from copy import deepcopy
 import json
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -129,6 +130,11 @@ class FinalModelTests(unittest.TestCase):
         alternate = folder + "/sub/raw.csv"
         self.table(alternate, columns, rows)
         outputs = [output, alternate]
+        if "step_pA" in config:
+            delta = runpy.run_path(str(self.root / code))["late_voltage"](config)
+            endpoint = folder + "/late.csv"
+            self.table(endpoint, ["sweep", "start_ms", "stop_ms", "delta_mV"], [[config["sweep"], 800, 900, delta]])
+            outputs.append(endpoint)
         if ref == BASE and self.unit_rows is not None:
             units = folder + "/units.csv"
             self.table(units, ["animal", "arm", "phase", "rate"], self.unit_rows)
@@ -136,10 +142,11 @@ class FinalModelTests(unittest.TestCase):
         return finish_run(self.root, ref, outputs)
 
     def prepare(self, *, repeat_config=None, repeat_code="model.py", repeat_rate=2, repeat_region="ring",
-                signal=(0, 2, 2, 2), disposition="accepted"):
-        self.dump("docs/task_plan.json", self.plan)
-        review_project.capture_review(self.root)
-        self.plan = read(self.root / "docs/task_plan.json")
+                signal=(0, 2, 2, 2), disposition="accepted", captured=False):
+        if not captured:
+            self.dump("docs/task_plan.json", self.plan)
+            review_project.capture_review(self.root)
+            self.plan = read(self.root / "docs/task_plan.json")
         base = self.record(BASE, self.config, signal, inputs=getattr(self, "prediction_inputs", ()))
         sham = self.record(SHAM, dict(self.config, protocol=dict(self.config["protocol"], feedback=False)), [0] * 4)
         repeat = self.record(REPEAT, repeat_config or dict(self.config, seed=12), [0] * 4, rate=repeat_rate,
@@ -183,7 +190,8 @@ class FinalModelTests(unittest.TestCase):
             source["csv_ref"] = run_ref.replace("run.json", rule["file"])
             value = (self.reported_value if "precision" in target else
                      review_project._csv_statistic(self.root, source, {self.root / source["csv_ref"]}))
-            measurement.update(context=CONTEXT, value=value, status="observed", source=source)
+            context = self.plan["requirements"][i]["acceptance"]["comparisons"][0]["context"]
+            measurement.update(context=context, value=value, status="observed", source=source)
             raw = dict(id=key, candidate_id="adopted", data_role=target["data_role"],
                        axis="calibration" if key == "fit" else "independent_evaluation", dataset_ids=[sample],
                        targets_ref=TARGETS, measurements_ref=f"{key}.json", score_ref=f"{key}_score.json",
@@ -774,6 +782,367 @@ class FinalModelTests(unittest.TestCase):
         self.plan["review"]["independent_goal"] = "require_support"
         self.prepare()
         self.assertEqual(self.check("incomplete")["requirements"]["test"]["outcomes"]["test/test"], "unmet")
+
+    def allen_step_comparison(self, goal=None, *, tolerance=2, error_operands=None, observed_holdout=None, configure_only=False):
+        # Frozen 200 MΩ, 80 pF from the documented Allen grid. These within-cell sweep means
+        # are a replay of the original NWB, not new animals or a new biological cutoff.
+        method = self.root / METHOD
+        method.write_text(method.read_text(encoding="utf-8") + f"\nReference tolerance ±{tolerance} mV is for this software test.\n"
+                          "Allen cell 313861794, experiment 491200821, Long Square. "
+                          "https://api.brain-map.org/api/v2/well_known_file_download/491200821\n", encoding="utf-8")
+        self.write("model.py", "import math\ndef late_voltage(config):\n"
+                   "    tau_ms = config['R_Mohm'] * config['C_pF'] / 1000\n"
+                   "    decay = tau_ms * (math.exp(-800/tau_ms) - math.exp(-900/tau_ms)) / 100\n"
+                   "    return config['step_pA'] * config['R_Mohm'] / 1000 * (1 - decay)\n")
+        self.config.update(R_Mohm=200, C_pF=80, sweep=22, step_pA=-110.0000021625469)
+        self.dump("config.json", self.config)
+        self.plan["schema_version"] = 2
+        review = self.plan["review"]
+        review.update(calibration_evidence="biological", independent_evidence="biological", model_components=["baseline"],
+            regulation=dict(mode="not_requested", reason="Within-cell current-step response.", source_ref=METHOD),
+            study_design=dict(entry="question", tier="standard", conditions={"baseline": "step"},
+                model_choices=[dict(question_id="Q", selected="passive RC", alternative="instantaneous resistance",
+                    observable="late voltage response", reason="Compare the frozen step prediction.", source_ref=METHOD)],
+                decisions=[dict(id=t, topic=t, question_id="Q", prompt="Establish " + t, answer="Set in original method",
+                                source_ref=METHOD, critical=False) for t in ("scientific_question", "model", "control", "readout")]))
+        if goal is None:
+            review.pop("independent_goal")
+        else:
+            review["independent_goal"] = goal
+        context = dict(region="Allen specimen 313861794", quantity="voltage change from prestep baseline",
+                       processing="mean from 800 to 900 ms", statistical_unit="sweep")
+        for i, (key, ref, condition, number, measured) in enumerate((
+            ("fit", "data/train.csv", "minus_90_pA", 23, -17.62004001215101),
+            ("test", "data/test.csv", "minus_110_pA", 22, -19.39504746384918))):
+            table_value = observed_holdout if key == "test" and observed_holdout is not None else measured
+            self.table(ref, ["sweep", "condition", "delta_mV"], [[number, condition, table_value]])
+            review["datasets"][i].update(source_ref=ref, source_id="Allen Cell Types 313861794", kind="biological",
+                source_class="measured_record", observation_ids=[str(number)], unit_column="sweep", value_column="delta_mV",
+                context=context, fields={"delta_mV": {"unit": "mV"}}, conditions=condition)
+            self.targets[i].update(metric="late_response", condition=condition, unit="mV", statistic="mean",
+                evidence_type="experimental_recording", criterion=dict(kind="interval", bounds=[measured-tolerance, measured+tolerance]))
+            acc = self.plan["requirements"][i]["acceptance"]
+            acc.update(condition=condition, observable="late voltage change", window="800–900 ms",
+                       criterion=f"Within {tolerance} mV of the reserved response.")
+            if key == "test":
+                acc.update(precision_claim="limited", precision_scope="Only this cell's prespecified current step.")
+            link = acc["comparisons"][0]
+            link.update(context=context, selectors={key:dict(file="late.csv", column="delta_mV", column_unit="mV",
+                operation="first", where={"start_ms": "800", "stop_ms": "900"}, where_units={"start_ms":"ms","stop_ms":"ms"})})
+            if error_operands and key == "test":
+                self.targets[i].update(metric="signed_prediction_error", statistic="signed_error",
+                                       criterion=dict(kind="interval", bounds=[-tolerance, tolerance]))
+                selector = link["selectors"][key]
+                prediction = deepcopy(selector)
+                reference = dict(dataset_id="B", column="delta_mV", column_unit="mV", operation="first", where={})
+                selector["raw_calculation"] = dict(operation="difference", left=prediction,
+                    right=reference if error_operands == "prediction_minus_measured" else deepcopy(prediction))
+        self.dump(TARGETS, {"targets": self.targets})
+        for req in self.plan["requirements"][:3]:
+            req["module_ids"] = ["passive"]
+        self.plan["requirements"][0]["acceptance"]["module_metrics"] = [dict(module_id="passive", name="calibration_response",
+            unit="mV", bounds=[-20,-15], source=dict(file="late.csv", run_ref=REPEAT, column="delta_mV",
+                column_unit="mV", operation="first"))]
+        repeat = dict(self.config, seed=12, step_pA=-90.0000005077395, sweep=23)
+        variants = review["final_model"]["variants"][REPEAT]
+        for field in ("sweep", "step_pA"):
+            variants["/" + field] = change("condition", repeat[field], condition="minus_90_pA", reference_condition="minus_110_pA")
+        if configure_only:
+            return repeat
+        self.prepare(repeat_config=repeat)
+        self.register_step_outputs()
+
+    def register_step_outputs(self):
+        fields = {"delta_mV": {"unit": "mV"}, "start_ms": {"unit": "ms"}, "stop_ms": {"unit": "ms"}, "sweep":{"unit":"id"}}
+        for ref in (BASE, REPEAT):
+            run = read(self.root / ref)
+            self.analysis["datasets"].append(dict(id=run["run_id"], origin="model", kind="raw", fields=fields,
+                path=ref.replace("run.json", "late.csv"), run_ids=[run["run_id"]]))
+
+    def plan_future_step(self, *, new_sample=False):
+        repeat = self.allen_step_comparison(configure_only=True)
+        data = self.plan["review"]["datasets"][1]
+        data.update(source_ref="data/reserved-response.csv", available=False, comparable=False,
+                    unavailable_reason="The reserved response table has not yet been delivered.")
+        if new_sample:
+            data.update(source_id="Separate prospective step protocol P82", observation_ids=[],
+                        conditions="First three eligible recordings under P82, minus_110_pA, one sweep per recording.")
+        else:
+            data["conditions"] = "Allen experiment 491200821, reserved sweep 22, minus_110_pA."
+        # This arbitrary absolute interval was fixed before registering either round of this software test.
+        self.targets[1].update(source_ref=data["source_ref"], criterion=dict(kind="interval", bounds=[-21, -19]))
+        self.plan["requirements"][1]["acceptance"]["criterion"] = "Prespecified reference interval [-21, -19] mV."
+        self.dump(TARGETS, {"targets": self.targets})
+        return repeat
+
+    def test_reserved_data_can_arrive_after_development_and_before_new_formal_predictions(self):
+        self.replay_future_step(reserve_prediction=False)
+
+    def test_original_prediction_for_a_prespecified_sweep_can_be_scored_when_its_response_arrives(self):
+        self.replay_future_step(reserve_prediction=True)
+
+    def replay_future_step(self, *, reserve_prediction):
+        repeat = self.plan_future_step()
+        dev_ref, earlier_ref = "results/development/run.json", "results/first-frozen/run.json"
+        if reserve_prediction:
+            self.plan["review"]["final_model"]["variants"][earlier_ref] = {}
+            acc = self.plan["requirements"][1]["acceptance"]
+            selector = acc["comparisons"][0]["selectors"]["test"]
+            selector["where"]["sweep"] = "22"
+            selector["where_units"]["sweep"] = "id"
+            self.targets[1]["criterion"]["bounds"] = [-23, -18]
+            acc["criterion"] = "Prespecified absolute reference interval [-23, -18] mV."
+            self.dump(TARGETS, {"targets":self.targets})
+        self.dump("docs/task_plan.json", self.plan)
+        review_project.capture_review(self.root)
+        self.plan = read(self.root / "docs/task_plan.json")
+        review = self.plan["review"]
+        first = read(self.root / review["baseline_ref"])
+        data, fit = review["datasets"][1], self.targets[0]
+        self.assertFalse((self.root / data["source_ref"]).exists())
+        self.assertEqual(first["final_plan"]["status"], "passed", first["final_plan"])
+        waiting = first["final_plan"]["awaiting_independent_data"]
+        self.assertEqual([(row["dataset_id"], row["targets"]) for row in waiting],
+                         [("B", [{"targets_ref":TARGETS, "target_id":"test"}])])
+        dev = self.record(dev_ref, repeat, [0] * 4)
+        early = self.record(earlier_ref, self.config, [0,2,2,2])
+        endpoint = dev_ref.replace("run.json", "late.csv")
+        self.assertEqual(dev["stage"], "simulation")
+        source = dict(csv_ref=endpoint, column="delta_mV", operation="first", where={"start_ms":"800","stop_ms":"900"})
+        predicted = review_project._csv_statistic(self.root, source, {self.root / endpoint})
+        self.assertAlmostEqual(predicted, -18.0000001015)
+        measurement = {k:fit[k] for k in ("metric", "condition", "unit", "statistic", "data_role")}
+        measurement.update(status="observed", value=predicted, source=source, context=review["datasets"][0]["context"])
+        score = calibration.score_targets(self.targets, {"fit":measurement}, candidate_id="development", config=repeat,
+                                         data_role="calibration")
+        self.dump("dev-measured.json", {"measurements":{"fit":measurement}})
+        self.dump("dev-score.json", score)
+        comparison = dict(id="fit", candidate_id="development", data_role="calibration", axis="calibration", dataset_ids=["A"],
+            targets_ref=TARGETS, measurements_ref="dev-measured.json", score_ref="dev-score.json", config_ref=dev["config_ref"], run_ref=dev_ref)
+        checked = review_project._compare(self.root, comparison, {row["id"]:row for row in review["datasets"]}, self.plan, first, [])
+        self.assertEqual(checked["rows"][0]["state"], "passed", checked)
+        completion = dict(final_model={"run_ref":earlier_ref}, comparisons=[comparison], budget={"consumed":2,"unit":"simulator calls"},
+                          axes={"execution":{"run_refs":[dev_ref, earlier_ref]}},
+                          decision={"action":"continue", "reason":"Await the original response table.", "next_action":"Register the delivered sweeps."})
+        prior = dict(plan_id=self.plan["plan_id"], model_version=self.plan["model_version"], runs=[
+            {"run_id":r["run_id"],"record":ref} for r, ref in ((dev, dev_ref),(early, earlier_ref))], completion_review=completion)
+        final = check_final_evidence(self.root, self.plan, prior, {"fit":checked}, {})
+        self.assertNotEqual(final["status"], "passed")
+        self.assertEqual(final["empirical_evaluation"]["status"], "not_evaluated")
+        self.dump("analysis/preceding.json", prior)
+        review.update(previous_analysis_ref="analysis/preceding.json", previous_requirements_ref=review["baseline_ref"],
+                      baseline_ref="docs/second.json")
+        data.update(available=True, comparable=True)
+        self.table(data["source_ref"], ["sweep","condition","delta_mV"], [[22,"minus_110_pA",-19.39504746384918]])
+        self.plan["current_model"]["changed_parameter_ids"] = []
+        substitute = deepcopy(self.plan)
+        substitute["review"]["baseline_ref"] = "docs/substitution.json"
+        substitute["review"]["datasets"][1]["source_id"] = "Unrelated step acquisition P73"
+        self.dump("docs/task_plan.json", substitute)
+        review_project.capture_review(self.root)
+        self.assertNotEqual(read(self.root/"docs/substitution.json")["final_plan"]["status"], "passed")
+        self.dump("docs/task_plan.json", self.plan)
+        review_project.capture_review(self.root)
+        self.plan = read(self.root / "docs/task_plan.json")
+        current = read(self.root / "docs/second.json")
+        self.assertEqual(current["previous_requirements"]["ref"], "docs/preparation.json")
+        self.assertEqual(current["scope"]["independent_goal"], "require_support")
+        self.assertNotIn("awaiting_independent_data", current["final_plan"])
+        # Score the original raw prediction before executing any second-round simulation.
+        test = self.targets[1]
+        earlier_csv = earlier_ref.replace("run.json", "late.csv")
+        rule = self.plan["requirements"][1]["acceptance"]["comparisons"][0]["selectors"]["test"]
+        source = {k:rule[k] for k in ("column","operation","where")}
+        source["csv_ref"] = earlier_csv
+        value = review_project._csv_statistic(self.root, source, {self.root / earlier_csv})
+        measurement = {k:test[k] for k in ("metric", "condition", "unit", "statistic", "data_role")}
+        measurement.update(status="observed", value=value, source=source, context=data["context"])
+        self.dump("frozen-prediction.json", {"measurements":{"test":measurement}})
+        self.dump("frozen-score.json", calibration.score_targets(self.targets, {"test":measurement}, candidate_id="frozen",
+                  config=self.config, data_role="evaluation"))
+        deferred = dict(id="test", candidate_id="frozen", data_role="evaluation", axis="independent_evaluation", dataset_ids=["B"],
+            targets_ref=TARGETS, measurements_ref="frozen-prediction.json", score_ref="frozen-score.json", config_ref=early["config_ref"], run_ref=earlier_ref)
+        self.analysis = deepcopy(prior)
+        self.completion = self.analysis["completion_review"]
+        self.completion["comparisons"].append(deferred)
+        fields = {"delta_mV":{"unit":"mV"}, "start_ms":{"unit":"ms"}, "stop_ms":{"unit":"ms"}, "sweep":{"unit":"id"}}
+        self.analysis["datasets"] = [dict(id="first_frozen", path=earlier_csv, origin="model", kind="raw", fields=fields,
+                                         run_ids=[early["run_id"]])]
+        self.assertFalse((self.root / BASE).exists())
+        evaluated = check_final_evidence(self.root, self.plan, self.analysis, {"fit":checked, "test":self.repeat_unit_comparison()}, {})
+        self.assertEqual(evaluated["empirical_evaluation"]["status"], "supported" if reserve_prediction else "not_evaluated", evaluated)
+        if not reserve_prediction:
+            self.assertIn("登记的评价单位", str(evaluated["requirements"]["test"]["pending"]))
+        self.prepare(repeat_config=repeat, captured=True)
+        self.register_step_outputs()
+        expected = "supported" if reserve_prediction else "not_supported"
+        self.assertEqual(self.check("passed" if reserve_prediction else "incomplete")["empirical_evaluation"]["status"], expected)
+
+    def test_future_paired_mean_error_can_reserve_the_entire_uncollected_cohort(self):
+        repeat = self.plan_future_step(new_sample=True)
+        acc = self.plan["requirements"][1]["acceptance"]
+        acc["precision_claim"] = "mean_error_95"
+        del acc["comparisons"][0]["selectors"]
+        rule = dict(file="late.csv", column="delta_mV", column_unit="mV", operation="paired_error", unit_id="sweep",
+                    where={}, expected_ids="registered_observation_ids", reference={"dataset_id":"B","column":"delta_mV","column_unit":"mV"})
+        self.targets[1].update(uncertainty_rule="unit_mean_ci95", precision=rule, criterion=dict(kind="interval", bounds=[-2,2]))
+        self.dump(TARGETS, {"targets":self.targets})
+        self.dump("docs/task_plan.json", self.plan)
+        review_project.capture_review(self.root)
+        self.plan = read(self.root / "docs/task_plan.json")
+        result = check_final_plan(self.root, self.plan)
+        self.assertEqual(result["status"], "passed", result)
+        self.assertEqual(result["awaiting_independent_data"][0]["dataset_id"], "B")
+        self.assertEqual(self.record(REPEAT, repeat, [0]*4)["status"], "completed")
+        train, future = self.plan["review"]["datasets"]
+        for change in ({"unavailable_reason":"TBD"}, {"conditions":""}, {"source_id":train["source_id"]},
+                       {"observation_ids":["23"], "source_id":train["source_id"]}, {"source_class":"literature_model"},
+                       {"source_id":"simulated parameter values"}, {"used_for_selection": True}, {"available":True}):
+            with self.subTest(change=change), patch.dict(future, change):
+                self.assertNotEqual(check_final_plan(self.root, self.plan)["status"], "passed")
+        with patch.dict(train, {"available":False}):
+            self.assertNotEqual(check_final_plan(self.root, self.plan)["status"], "passed")
+
+    def test_measured_negative_cannot_complete_default_model_agreement_goal(self):
+        self.allen_step_comparison()
+        saved = read(self.root / self.plan["review"]["baseline_ref"])
+        self.assertEqual(saved["scope"]["independent_goal"], "require_support")
+        self.assertEqual(saved["study_design"]["independent_observations"], "measured_record/1")
+        self.assertTrue(saved["final_plan"]["empirical_evaluation_required"])
+        checked = self.check("incomplete")
+        self.assertEqual(checked["empirical_evaluation"]["status"], "not_supported")
+        self.assertEqual(checked["requirements"]["fit"]["outcomes"]["fit/fit"], "passed")
+        self.assertEqual(checked["requirements"]["test"]["outcomes"]["test/test"], "unmet")
+        self.assertAlmostEqual(self.checked["test"]["rows"][0]["value"], -22.0000004325)
+        self.plan["review"]["independent_goal"] = "test_prediction"
+        self.assertIn("冻结后的独立实测", str(self.check("failed")["issues"]))
+
+    def test_same_measured_negative_completes_preregistered_hypothesis_test(self):
+        self.allen_step_comparison("test_prediction")
+        self.assertTrue(check_final_plan(self.root, self.plan)["empirical_evaluation_required"])
+        checked = self.check("passed")
+        self.assertEqual(checked["empirical_evaluation"], {"status":"not_supported", "targets":[
+            dict(requirement_id="test", comparison_id="test", targets_ref=TARGETS, target_id="test",
+                 source_ref="data/test.csv", dataset_ids=["B"], status="not_supported")]})
+        self.assertAlmostEqual(self.checked["test"]["rows"][0]["value"], -22.0000004325)
+        self.assertEqual(checked["requirements"]["test"]["outcomes"]["test/test"], "negative_prediction")
+
+    def test_measured_support_requires_the_original_observations_to_remain_comparable(self):
+        self.allen_step_comparison(tolerance=3)
+        self.assertEqual(self.check("passed")["empirical_evaluation"]["status"], "supported")
+        data = self.plan["review"]["datasets"][1]
+        for change in ({"comparable": False}, {"available": False}, {"source_class": "literature_model"},
+                       {"evidence_type": "experimental settings"}, {"fields": {"delta_mV": {"unit": "pA"}}}):
+            with self.subTest(change=change), patch.dict(data, change):
+                result = check_final_evidence(self.root, self.plan, self.analysis, self.checked, self.science)
+                self.assertNotEqual(result["status"], "passed")
+                self.assertEqual(result["empirical_evaluation"]["status"], "not_evaluated")
+        self.analysis["datasets"].append(dict(id="external_model", origin="external", source_class="literature_model",
+                                             path="data/test.csv"))
+        self.assertEqual(self.check("failed")["empirical_evaluation"]["status"], "not_evaluated")
+
+    def analyze_step_error(self, *, use_response, copy_response=False):
+        simulated, observed = "results/base/late.csv", "data/test.csv"
+        predicted = review_project._csv_statistic(self.root, {"csv_ref":simulated, "column":"delta_mV"}, None)
+        recorded = review_project._csv_statistic(self.root, {"csv_ref":observed, "column":"delta_mV"}, None)
+        value = recorded if copy_response else predicted - (recorded if use_response else predicted)
+        ref = begin_run(self.root, "analysis/error", config={"endpoint":"late"}, stage="analysis", model_version="m2",
+            code_refs=["model.py"], command=["score-step"], environment={"python":sys.version}, parents=[BASE],
+            input_refs=[simulated, observed])
+        output = "analysis/error/late.csv"
+        self.table(output, ["start_ms","stop_ms","delta_mV"], [[800,900,value]])
+        analysis_run = finish_run(self.root, ref, [output])
+        self.analysis["runs"].append(dict(run_id=analysis_run["run_id"],record=ref))
+        self.analysis["datasets"].append(dict(id="error", origin="model", kind="derived", path=output,
+            run_ids=[analysis_run["run_id"]], fields=self.analysis["datasets"][-1]["fields"]))
+        raw = self.completion["comparisons"][1]
+        raw["analysis_run_ref"] = ref
+        values = read(self.root/raw["measurements_ref"])["measurements"]
+        left = dict(csv_ref=simulated, column="delta_mV", operation="first", where={"start_ms":"800","stop_ms":"900"})
+        right = dict(csv_ref=observed, column="delta_mV", operation="first", where={}) if use_response else left.copy()
+        source = dict(csv_ref=output, column="delta_mV", operation="first", where=left["where"])
+        if not copy_response:
+            source["raw_calculation"] = dict(operation="difference", left=left, right=right)
+        values["test"].update(value=value, source=source)
+        self.dump(raw["measurements_ref"], {"measurements":values})
+        score = calibration.score_targets(self.targets, values, candidate_id="adopted", config=self.config,
+                                         data_role="evaluation")
+        self.dump(raw["score_ref"], score)
+        self.checked["test"] = self.repeat_unit_comparison()
+        return value
+
+    def test_prediction_minus_itself_cannot_pass_by_merely_reading_the_response(self):
+        self.allen_step_comparison(error_operands="prediction_minus_prediction")
+        self.assertEqual(self.analyze_step_error(use_response=False), 0)
+        self.assertEqual(self.checked["test"]["rows"][0]["state"], "passed")
+        final = self.check("incomplete")
+        self.assertEqual(final["empirical_evaluation"]["status"], "not_evaluated")
+        self.assertIn("两个操作数来自同一预测", str(final["pending"]))
+
+    def test_an_analysis_copy_of_the_experiment_cannot_replace_the_frozen_prediction(self):
+        self.allen_step_comparison()
+        self.assertAlmostEqual(self.analyze_step_error(use_response=False, copy_response=True), -19.39504746385)
+        self.assertEqual(self.checked["test"]["rows"][0]["state"], "passed")
+        final = self.check("failed")
+        self.assertEqual(final["empirical_evaluation"]["status"], "not_evaluated")
+        self.assertIn("与冻结模拟原始输出复算值不同", str(final["issues"]))
+
+    def test_signed_error_uses_the_reserved_column_in_its_original_units(self):
+        self.allen_step_comparison("test_prediction", error_operands="prediction_minus_measured")
+        self.assertAlmostEqual(self.analyze_step_error(use_response=True), -2.60495296866)
+        self.assertEqual(self.check("passed")["empirical_evaluation"]["status"], "not_supported")
+        # Replacing only the declared response operand after capture invalidates the empirical result.
+        raw = self.completion["comparisons"][1]
+        payload = read(self.root/raw["measurements_ref"])
+        claim = payload["measurements"]["test"]
+        calculation = claim["source"]["raw_calculation"]
+        calculation["right"] = deepcopy(calculation["left"])
+        self.dump(raw["measurements_ref"], payload)
+        self.assertEqual(self.check("failed")["empirical_evaluation"]["status"], "not_evaluated")
+
+    def test_unrelated_experimental_value_cannot_verify_a_preregistered_reference_interval(self):
+        self.allen_step_comparison(tolerance=3, observed_holdout=-100)
+        self.assertEqual(self.checked["test"]["rows"][0]["state"], "passed")
+        final = self.check("incomplete")
+        self.assertEqual(final["empirical_evaluation"]["status"], "not_evaluated")
+        self.assertIn("与登记的直接参考范围不符", str(final["pending"]))
+
+    def test_new_model_requires_independent_axis_and_primary_target_in_original_scope(self):
+        self.allen_step_comparison()
+        plan = self.plan
+        axes = plan["review"]["required_axes"]
+        self.assertEqual(read(Path(__file__).resolve().parents[1] / "assets/task_plan.json")["review"]["independent_goal"],
+                         "require_support")
+        axes.remove("independent_evaluation")
+        self.assertIn("independent_evaluation", str(check_final_plan(self.root, plan)["pending"]))
+        axes.append("independent_evaluation")
+        self.targets[1]["required"] = False
+        self.dump(TARGETS, {"targets":self.targets})
+        self.assertIn("必需的独立实测评价目标", str(check_final_plan(self.root, plan)["pending"]))
+        with patch.dict(plan["review"], {"delivery_profile":"scoped"}):
+            self.assertFalse(check_final_plan(self.root, plan)["empirical_evaluation_required"])
+            with patch.dict(plan["review"], {"final_model_requested":True}):
+                self.assertTrue(check_final_plan(self.root, plan)["empirical_evaluation_required"])
+
+    def test_old_plan_keeps_its_original_negative_test_without_new_empirical_agreement(self):
+        self.prepare()
+        result = self.check("passed")
+        self.assertEqual(result["requirements"]["test"]["outcomes"]["test/test"], "negative_prediction")
+        self.assertEqual(result["empirical_evaluation"]["status"], "not_required")
+
+    def test_measured_and_computed_panels_can_share_a_public_paper(self):
+        ref = "docs/mixed.md"
+        self.write(ref, "Recording and numerical results, 2020, Fig. 2.")
+        data = dict(self.plan["review"]["datasets"][0], kind="biological", source_id="Allen study 23",
+                    source_ref=ref+"#Fig2a", source_class="measured_summary")
+        simulated = dict(data, id="inferred", source_ref=ref+"#Fig2b", source_class="literature_model")
+        registry = calibration.registered_empirical_datasets([data], [data,simulated])
+        target = dict(self.targets[0], source_ref=data["source_ref"], evidence_type="published measurement")
+        self.assertTrue(calibration.has_empirical_target(self.root,target,registry))
+        self.assertFalse(calibration.has_empirical_target(self.root,dict(target,source_ref=simulated["source_ref"]),registry))
+        marked = calibration.diagnostic_paths(self.root, [dict(simulated, origin="external", path=simulated["source_ref"])])
+        self.assertFalse(calibration.excluded_reference(self.root,target["source_ref"],marked))
+        self.assertTrue(calibration.excluded_reference(self.root,simulated["source_ref"],marked))
 
     def test_missing_measurement_is_not_a_negative_test(self):
         self.prepare()

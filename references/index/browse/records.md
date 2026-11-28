@@ -1300,6 +1300,52 @@ Watson BO 等 · 2016-04-28 · published · experiment · 数据 linked。[来�
 
 本条 → [r_crcns_fcx1_rat](#r_crcns_fcx1_rat) · collected · 原采集实验与额叶睡眠/清醒档案。。[出处](https://crcns.org/data-sets/fcx/fcx-1/about-fcx-1)
 
+### p_druckmann_objectives
+
+**[A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/neuro.01.1.1.001.2007/full)**　用相同注流下各放电特征的实验变异约束电导，检查总误差改善时仍有偏差的特征。
+
+Druckmann S 等 · 2007-10-15 · published · model, method, experiment · 数据 not_located。[来源](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/neuro.01.1.1.001.2007/full)
+
+早期关联文献。出版社列明 Published online，窗口外的关联方法与实验来源。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、放电适应
+
+[Table 2，225 pA；Experimental Data](#o_druckmann_ac_table) · published_aggregate · 放电频率、适应与动作电位特征
+
+本条 ← [p_druckmann_stimuli](#p_druckmann_stimuli) · uses_method · 2011 年研究引用前作的多目标特征距离并开展跨刺激检验。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)
+
+### p_druckmann_stimuli
+
+**[Effective Stimuli for Constructing Reliable Neuron Models](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)**　在同一细胞比较阶跃选参后的斜坡预测，判断改变输入是否有助于区分可行参数。
+
+Druckmann S 等 · 2011-08-18 · published · model, method, experiment · 数据 not_located。[来源](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)
+
+早期关联文献。采用 PLOS 首次发表日期。图 2 图注中的形态位置按 2013 年更正指向图 1。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、锥体细胞、电流钳
+
+[Figure 2d，Figure 2a 提供该细胞的开发协议](#o_druckmann_ramp_measured) · measured_here · 斜坡诱发膜电位与放电时序
+
+[Figure 2c，与 Figure 2d 的实验轨迹配对](#o_druckmann_ramp_model) · simulation · 斜坡诱发模拟膜电位及相对实验的特征误差
+
+[Figure 3a；“Training and Generalization”](#o_druckmann_steps_transfer) · simulation · 开发与斜坡泛化的特征误差
+
+本条 → [p_druckmann_objectives](#p_druckmann_objectives) · uses_method · 2011 年研究引用前作的多目标特征距离并开展跨刺激检验。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)
+
+本条 ← [p_druckmann_stimuli_correction](#p_druckmann_stimuli_correction) · corrects · 方法及图 2 图注中的 Figure S1 应为 Figure 1。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/annotation/c002fbe1-712c-4608-9747-f1185f0b7cf4)
+
+### p_druckmann_stimuli_correction
+
+**[Correction: Effective Stimuli for Constructing Reliable Neuron Models](https://journals.plos.org/ploscompbiol/article?id=10.1371/annotation/c002fbe1-712c-4608-9747-f1185f0b7cf4)**　按原作者更正定位图 2 对应的细胞图及从数据到模型的方法。
+
+Druckmann S 等 · 2013-06-06 · correction · method · 数据 not_applicable。[来源](https://journals.plos.org/ploscompbiol/article?id=10.1371/annotation/c002fbe1-712c-4608-9747-f1185f0b7cf4)
+
+早期关联文献。
+
+标签　早期关联来源、单细胞、生物物理模型
+
+本条 → [p_druckmann_stimuli](#p_druckmann_stimuli) · corrects · 方法及图 2 图注中的 Figure S1 应为 Figure 1。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/annotation/c002fbe1-712c-4608-9747-f1185f0b7cf4)
+
 ### o_sbi_exp
 
 **周期、相位延迟与间隙、簇持续时间**　图示三相节律，不从示意轨迹估读总体均值。[Figure 5b；原实验 Haddad & Marder 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC7581433/) · [所属论文](#p_sbi)
@@ -1977,6 +2023,58 @@ Mus musculus | 外侧视觉区 VISl 第 4 层，有棘细胞 | 急性脑片，�
 标签　小鼠、大脑皮层、前额叶皮层、小清蛋白中间神经元、突触、突触电流、膜片钳、锥体细胞、免疫组织标记、回路抑制
 
 本条 ← [p_canetta_pv_mia](#p_canetta_pv_mia) · reported_measurement · Figure 2C–F；Figure 3 为同研究结构对照。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://pmc.ncbi.nlm.nih.gov/articles/PMC4914410/)
+
+### o_druckmann_ac_table
+
+**放电频率、适应与动作电位特征**　表列五个适应型细胞在同强度下的特征统计量。[Table 2，225 pA；Experimental Data](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/neuro.01.1.1.001.2007/full) · [所属论文](#p_druckmann_objectives)
+
+大鼠 | 躯体感觉皮层，放电适应型中间神经元 | 离体记录 | 离体。
+
+刺激/对照为 225 pA 去极化阶跃，文中实验方案另含 150 及 300 pA / 在各细胞内汇总重复响应，另表给出快放电细胞。单位 依各列（Hz、mV、ms 等），时窗 2 s 注流；各波形特征见方法，分组 保留逐细胞的实验统计量，独立单位 细胞；同一细胞重复注流。
+
+原研究用途为 构建多目标拟合的误差尺度与逐特征参考。。建模用途为 模型需要在同一参数组同时约束有关特征，表中容差不能直接移用于另一物种或协议。。来源类别 `published_aggregate`，共同来源 `druckmann2007_ac`。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、放电适应、发放率
+
+### o_druckmann_ramp_measured
+
+**斜坡诱发膜电位与放电时序**　图示同一细胞对新斜坡的膜电位响应，作为模型预测的实验参照。。[Figure 2d，Figure 2a 提供该细胞的开发协议](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133#pcbi-1002133-g002) · [所属论文](#p_druckmann_stimuli)
+
+大鼠 | 初级躯体感觉皮层 V 层厚簇锥体细胞 | 急性脑片，胞体全细胞电流钳 | 离体，Wistar 大鼠 P17–19。
+
+刺激/对照为 冻结前只用三档去极化阶跃选参，随后比较斜坡注流 / 同一细胞的阶跃用于构建和选参。单位 mV、ms，时窗 胞体斜坡注流期间，见图 2d，分组 同一细胞、相同输入分别比较，独立单位 一例细胞的新刺激。跨细胞、动物泛化另需评价。。
+
+原研究用途为 保留新刺激响应，检查阶跃选参后的预测。。建模用途为 与 2c 比较须沿用同一波形和特征定义。该记录只检验同细胞的新输入。。来源类别 `measured_here`，共同来源 `druckmann2011_l5_ramp`。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、锥体细胞、电流钳
+
+本条 ← [o_druckmann_ramp_model](#o_druckmann_ramp_model) · compared_with · 同一斜坡输入，冻结电导模型的响应与同一细胞的实验记录配对。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)
+
+### o_druckmann_ramp_model
+
+**斜坡诱发模拟膜电位及相对实验的特征误差**　图注报告各特征的平均误差约为 1.5 个实验标准差。。[Figure 2c，与 Figure 2d 的实验轨迹配对](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133#pcbi-1002133-g002) · [所属论文](#p_druckmann_stimuli)
+
+大鼠 | 初级躯体感觉皮层 V 层厚簇锥体细胞 | 急性脑片，胞体全细胞电流钳 | 离体，Wistar 大鼠 P17–19。
+
+刺激/对照为 用三档阶跃约束模型，保持参数固定后施加斜坡 / 同一细胞的阶跃用于构建和选参。单位 mV、实验标准差，时窗 胞体斜坡注流期间，见图 2d，分组 同一细胞、相同输入分别比较，独立单位 一例细胞的新刺激。跨细胞、动物泛化另需评价。。
+
+原研究用途为 与相同斜坡的实测响应比较。。建模用途为 平均特征误差可检验这次刺激上的预测，个别特征和具体电导机制仍需分开检验。。来源类别 `simulation`，共同来源 `druckmann2011_l5_ramp`。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、锥体细胞、电流钳
+
+本条 → [o_druckmann_ramp_measured](#o_druckmann_ramp_measured) · compared_with · 同一斜坡输入，冻结电导模型的响应与同一细胞的实验记录配对。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133)
+
+### o_druckmann_steps_transfer
+
+**开发与斜坡泛化的特征误差**　从一档增至四档阶跃，斜坡误差下降，训练误差略升。。[Figure 3a；“Training and Generalization”](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002133#pcbi-1002133-g003) · [所属论文](#p_druckmann_stimuli)
+
+大鼠 | 初级躯体感觉皮层 V 层厚簇锥体细胞 | 急性脑片，胞体全细胞电流钳 | 离体，Wistar 大鼠 P17–19。
+
+刺激/对照为 分别用一至四档阶跃约束模型，再比较未参与约束的斜坡响应 / 同一细胞的阶跃用于构建和选参。单位 实验标准差，时窗 胞体斜坡注流期间，见图 2d，分组 同一细胞、相同输入分别比较，独立单位 一例细胞的新刺激。跨细胞、动物泛化另需评价。。
+
+原研究用途为 选择能区分多个可行参数集的刺激。。建模用途为 研究中的刺激比较依赖细胞和协议，不能直接推广为其他细胞的最佳刺激。。来源类别 `simulation`，共同来源 `druckmann2011_l5_ramp`。
+
+标签　早期关联来源、单细胞、生物物理模型、大鼠、大脑皮层、膜片钳、膜电位、锥体细胞、电流钳
 
 ### r_modeldb2488
 

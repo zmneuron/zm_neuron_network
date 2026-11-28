@@ -199,7 +199,7 @@ def main():
                          "test_study_design", "test_figure_reading", "test_empirical_calibration",
                          "test_experiment_inputs", "test_recovery_fraction", "test_intervention_contrasts",
                          "test_claim_sources", "test_reader_report", "test_research_delivery", "test_delivery_entry",
-                         "test_evidence_index")
+                         "test_evidence_index", "test_empirical_candidates", "test_mismatch", "test_fit_allen_voltage")
     for name in final_model_suites:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))
     result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)

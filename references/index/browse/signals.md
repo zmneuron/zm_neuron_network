@@ -11,6 +11,8 @@
 - [Classification of electrophysiological and morphological neuron types in the mouse visual cortex](records.md#p_cell_gouwens)　文献
 - [Downregulation of parvalbumin expression in the prefrontal cortex during adolescence causes enduring prefrontal disinhibition in adulthood](records.md#p_caballero_pv_inhibition)　文献
 - [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
 - [阶跃内放电频率适应时间常数 · Fig. 2B 及紧随其后的 Results 段，瞬时频率轨迹和拟合时间常数。](records.md#o_cell_velden_tau)　观测与模拟结果
 - [单指数拟合的稳态放电频率 · Fig. 2C 及正文给出的稳态放电频率。](records.md#o_cell_velden_steady)　观测与模拟结果
 - [原作者的适应比（adaptation ratio） · Fig. 1A–C 给出样例记录，Fig. 1D 和 Human neocortical FS neurons 结果段给出适应比组间比较。](records.md#o_cell_wang_human_ratio)　观测与模拟结果
@@ -23,6 +25,10 @@
 - [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
 - [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
 - [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [AllenSDK 代表性长阶跃的选取与每细胞特征回连](records.md#r_cell_allen_hero)　资源
 - [Gouwens 等 Supplementary Dataset 3 电生理样本名单与分类](records.md#r_cell_gouwens_table)　资源
 - [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
@@ -139,11 +145,21 @@
 
 ## 电流钳 · current clamp
 
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
 
 ## 膜电位 · membrane potential
 
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
 - [膜电位与放电模式 · 图 1a–d](records.md#o_wilson_modes)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
 
 ## 输入电阻 · input resistance
@@ -185,6 +201,7 @@
 - [GLIF1–5 在留出波形上预测的脉冲时刻 · Fig. 4a 彩色 GLIF1–5 脉冲点栅，与黑色实测分开记录。](records.md#o_cell_teeter_fig4_model)　观测与模拟结果
 - [Allen adaptation，相邻放电间隔归一化差的均值 · Supplementary Dataset 3，Data 表第 7 行，标本 313861794；指标来自关联的 Allen EphysFeature 396463405，并依原始 NWB 的 Sweep_35 脉冲时刻复算。](records.md#o_cell_gouwens_mouse_index)　观测与模拟结果
 - [相邻放电间隔归一化差的均值（Allen adaptation） · Allen 标本 486940963，EphysSweep 486941688（Sweep_39），NWB /analysis/spike_times/Sweep_39，EphysFeature 486943542。](records.md#o_allen_human_s39)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
 - [AllenSDK 的相邻放电间隔适应指数](records.md#r_cell_allen_isi)　资源
 - [小鼠 VISl4 有棘细胞 313861794 的胞体电压、电流和脉冲时刻](records.md#r_cell_allen_mouse_raw)　资源
 - [Allen 小鼠标本 313861794 的每细胞特征和代表性扫次](records.md#r_cell_allen_mouse_feature)　资源

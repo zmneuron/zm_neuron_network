@@ -46,6 +46,8 @@
 - [Maternal immune activation leads to selective functional deficits in offspring parvalbumin interneurons](records.md#p_canetta_pv_mia)　文献
 - [A petavoxel fragment of human cerebral cortex reconstructed at nanoscale resolution](records.md#p_shapson_coe_h01)　文献
 - [Network Homeostasis and State Dynamics of Neocortical Sleep](records.md#p_watson_fcx1)　文献
+- [A novel multiple objective optimization framework for constraining conductance-based neuron models by experimental data](records.md#p_druckmann_objectives)　文献
+- [Effective Stimuli for Constructing Reliable Neuron Models](records.md#p_druckmann_stimuli)　文献
 - [膜电位与放电模式 · 图 1a–d](records.md#o_wilson_modes)　观测与模拟结果
 - [基础发放率 · Figure 7E，左面板](records.md#o_claar_rate_cortex)　观测与模拟结果
 - [第一 jPCA 平面解释的总方差 · Figure 3；main text；Methods, Electrophysiological recordings](records.md#o_breadth_rotation_variance)　观测与模拟结果
@@ -79,6 +81,10 @@
 - [自发 IPSC 平均事件幅度及事件频率 · Figure 1d 及 Results 的 IPSC 振幅比较](records.md#o_caballero_pv_ipsc)　观测与模拟结果
 - [第二/第一次 IPSC 振幅 · Figure 1e，50 ms paired-pulse](records.md#o_caballero_pv_paired)　观测与模拟结果
 - [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
+- [放电频率、适应与动作电位特征 · Table 2，225 pA；Experimental Data](records.md#o_druckmann_ac_table)　观测与模拟结果
+- [斜坡诱发膜电位与放电时序 · Figure 2d，Figure 2a 提供该细胞的开发协议](records.md#o_druckmann_ramp_measured)　观测与模拟结果
+- [斜坡诱发模拟膜电位及相对实验的特征误差 · Figure 2c，与 Figure 2d 的实验轨迹配对](records.md#o_druckmann_ramp_model)　观测与模拟结果
+- [开发与斜坡泛化的特征误差 · Figure 3a；“Training and Generalization”](records.md#o_druckmann_steps_transfer)　观测与模拟结果
 - [Mainen–Sejnowski 的四种重建新皮层神经元](records.md#r_modeldb2488)　资源
 - [层级异质性脑网络模型](records.md#r_hier_code)　资源
 - [Electrophysiology data from thalamic and cortical neurons during somatosensation](records.md#r_dandi000005)　资源
