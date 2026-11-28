@@ -474,3 +474,15 @@
 - [诱发 IPSC 振幅、可检出反应细胞比例 · Figure 2C–F；Figure 3 为同研究结构对照](records.md#o_canetta_pv_ipsc)　观测与模拟结果
 - [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
 - [Stimpson 等 14 种灵长类额叶微结构汇总表](records.md#r_stimpson_frontal_table)　资源
+
+## 兴奋抑制平衡 · excitation-inhibition balance
+
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源
+
+## 伽马节律 · gamma oscillations
+
+- [Excitatory/inhibitory ratio disruption modulates neural synchrony and flow directions in a cortical microcircuit](records.md#p_wagatsuma_ei_v1)　文献
+- [锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序 · Figure 3B–D，Figure 5A](records.md#o_wagatsuma_v1_spectrum)　观测与模拟结果
+- [Wagatsuma 等视觉皮层 E/I 模型源代码](records.md#r_wagatsuma_v1_figshare)　资源

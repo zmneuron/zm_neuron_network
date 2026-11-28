@@ -1146,7 +1146,7 @@ Wagatsuma N 等 · 2025-08-06 · published · model · 数据 not_applicable。[
 
 窗口内建模与理论。
 
-标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制
+标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制、兴奋抑制平衡、伽马节律
 
 [Figure 3B–D，Figure 5A](#o_wagatsuma_v1_spectrum) · simulation · 锥体细胞围刺激时间直方图（PSTH）功率、峰值及时序
 
@@ -1886,7 +1886,7 @@ Mus musculus | 外侧视觉区 VISl 第 4 层，有棘细胞 | 急性脑片，�
 
 原研究用途为 检验不同组成怎样改变受刺激网络活动。建模用途为 与无刺激局部场或电流谱比较时需分别匹配细胞替代规则、输入及观测量。。来源类别 `simulation`，共同来源 `wagatsuma_v1_2025`。
 
-标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制
+标签　孤独症谱系、大脑皮层、局部微环路、脉冲网络、小清蛋白中间神经元、网络节律、同步、模拟结果、功率谱、感觉刺激、回路抑制、兴奋抑制平衡、伽马节律
 
 本条 ← [p_wagatsuma_ei_v1](#p_wagatsuma_ei_v1) · simulated_result · Figure 3B–D，Figure 5A。同一论文各项读数按所注明的生物统计单位解释。。[出处](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013306)
 
@@ -2528,7 +2528,7 @@ analysis_code · SheffieldAutismBiomarkers/foofAnalysis.py · 版本 dc92774b7d9
 
 model_code · 10.6084/m9.figshare.28715867.v1 · 版本 1 · public · 许可 CC BY 4.0 · 核实于 2026-11-28 · 共同来源 `wagatsuma_v1_2025`。[依据](https://api.figshare.com/v2/articles/28715867/versions/1)
 
-标签　大脑皮层、脉冲网络、小清蛋白中间神经元、局部微环路、软件实现、模拟结果、回路抑制
+标签　大脑皮层、脉冲网络、小清蛋白中间神经元、局部微环路、软件实现、模拟结果、回路抑制、兴奋抑制平衡、伽马节律
 
 本条 → [o_wagatsuma_v1_spectrum](#o_wagatsuma_v1_spectrum) · model_for · 作者指定的模型源代码；结果出自视觉刺激下的群体放电模拟。。[出处](https://api.figshare.com/v2/articles/28715867/versions/1)
 

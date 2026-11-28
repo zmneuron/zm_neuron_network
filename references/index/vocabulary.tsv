@@ -179,3 +179,5 @@ aperiodic	signal	非周期谱斜率	aperiodic spectral slope	非周期;非周期
 immunolabel	related	免疫组织标记	immunohistochemistry	免疫组织化学;免疫染色;PV免疫阳性;immunolabeling;immunoreactivity
 frontal_electrodes	recording	额区头皮导联	frontal scalp electrodes	额区导联;额区;frontal electrodes;frontal scalp EEG;frontal montage
 circuit_inhibition	topic	回路抑制	circuit inhibition	抑制;inhibition;inhibitory transmission;GABAergic inhibition
+ei_balance	topic	兴奋抑制平衡	excitation-inhibition balance	E/I;E/I ratio;E/I balance;excitation/inhibition ratio;兴奋/抑制比;兴奋与抑制平衡
+gamma_rhythm	topic	伽马节律	gamma oscillations	gamma;γ节律;γ振荡;伽马振荡;gamma band;gamma rhythm
